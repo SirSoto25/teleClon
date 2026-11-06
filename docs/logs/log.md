@@ -24,3 +24,4 @@
   - Componentes cruzados con `replica/recon.md` y ADR-0004 (stickers, nota de voz, chat secreto con huella de clave propia, QR de login). Pendiente: copia de UX, marca (replica-brand), primitivas aisladas en iced. Sin código Rust ni commit.
 - Usuario dispone de api_id/api_hash. Plantilla .env.example creada; los valores van en .env local (gitignored), nunca en chat ni en el repo.
 - Agente diseño terminado: dirección «Brasa» (docs/design/system.md, tokens.json, ADR-0002). Scripts generadores copiados a tools/design/ (estaban en scratchpad efímero). Pendiente: fuentes OFL (Atkinson, Bricolage, JetBrains Mono) y iconos Phosphor requieren descarga -> pedir permiso al usuario.
+- Fuentes OFL descargadas (con permiso del usuario) a assets/fonts + NOTICE.md. Iconos Phosphor NO descargados (no autorizados aún). Usuario confirma .env con credenciales (verificado sin mostrar valores).
