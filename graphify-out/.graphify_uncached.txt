@@ -1,0 +1,16 @@
+/home/sirsoto25/Documentos/projects/teleClon/.claude/CLAUDE.md
+/home/sirsoto25/Documentos/projects/teleClon/CLAUDE.md
+/home/sirsoto25/Documentos/projects/teleClon/README.md
+/home/sirsoto25/Documentos/projects/teleClon/docs/00-INDEX.md
+/home/sirsoto25/Documentos/projects/teleClon/docs/adr/0001-stack.md
+/home/sirsoto25/Documentos/projects/teleClon/docs/adr/0002-direccion-visual.md
+/home/sirsoto25/Documentos/projects/teleClon/docs/adr/0003-arquitectura.md
+/home/sirsoto25/Documentos/projects/teleClon/docs/adr/0004-stickers-y-chats-secretos.md
+/home/sirsoto25/Documentos/projects/teleClon/docs/agents/registry.md
+/home/sirsoto25/Documentos/projects/teleClon/docs/architecture.md
+/home/sirsoto25/Documentos/projects/teleClon/docs/design/system.md
+/home/sirsoto25/Documentos/projects/teleClon/docs/logs/log.md
+/home/sirsoto25/Documentos/projects/teleClon/docs/research/design-skills.md
+/home/sirsoto25/Documentos/projects/teleClon/docs/research/graphify.md
+/home/sirsoto25/Documentos/projects/teleClon/docs/research/skills-used.md
+/home/sirsoto25/Documentos/projects/teleClon/replica/recon.md

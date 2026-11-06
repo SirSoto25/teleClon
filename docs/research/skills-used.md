@@ -9,7 +9,7 @@ Se actualiza cada vez que se invoca una skill. Estados: **usada** (invocada y se
 | 2026-11-06 | `replica-skill:replica-design` | agente diseño (Opus/high) | Sistema de diseño y tokens | usada (informe recibido) |
 | 2026-11-06 | `anthropic-skills:theme-factory` | agente diseño | Apoyo para tokens de color/tipo (opcional) | sin confirmar en el informe |
 | 2026-11-06 | `SearchSkills` / `ListSkills` (herramienta) | orquestador | Buscar skills de diseño y graphify en el catálogo del usuario; sin resultados | usada |
-| 2026-11-06 | graphify (`graphifyy`, CLI `update`) | orquestador | Grafo de código (1161 nodos, 2839 aristas, 58 comunidades) en graphify-out/; sin LLM. La extracción semántica de documentos (/graphify --update) NO se ha ejecutado (requiere `graphify install`, que escribe en el perfil del usuario) | usada (parcial) |
+| 2026-11-06 | graphify (`graphifyy`, skill de proyecto + CLI) | orquestador + 2 agentes Sonnet/medium | Grafo de código + documentos (1183 nodos, 2926 aristas, 64 comunidades); ver research/graphify.md | usada |
 | 2026-11-06 | Hallmark, Interface Design, Emil Kowalski, claudekit, Bencium, Awesome Claude Design, AccessLint | — | Ideas de diseño; ver [design-skills.md](design-skills.md) | consultada (no instaladas) |
 | 2026-11-06 | Scroll-Craft, Scroll-World, img2threejs | — | Orientadas a web/3D | descartada |
 | 2026-11-06 | `replica-skill:replica-architect` | agente arquitecto (Opus/high) | Stack, esquema SQLite, operaciones por flujo, orden de construcción → docs/architecture.md, ADR-0003 | usada |
