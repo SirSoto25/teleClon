@@ -17,3 +17,4 @@
 - Pendiente de decisión (ADR): cliente sobre la red de Telegram (requiere api_id/api_hash del usuario y respetar términos de API) vs backend propio.
 - Siguiente paso: `/replica-architect`.
 - Agente recon terminado. Limitación: no hizo fetch en vivo; contenido de memoria del modelo -> validar con capturas. Lanzado agente arquitecto (Opus/high) con replica-architect.
+- ALCANCE AMPLIADO por el usuario: stickers y chats secretos incluidos. features.csv (+11 filas, 2 skip->must), recon.md y ADR-0004 actualizados; avisado el agente arquitecto.

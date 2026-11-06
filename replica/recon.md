@@ -232,7 +232,7 @@ See `features.csv`. 99 filas. Must: 47, should: 31, could: 11, skip: 10 (las fil
 - La **red y los servidores** de Telegram (MTProto cloud, centros de datos, almacenamiento de archivos y mensajes): el clon necesita su propio backend o ser cliente; no se replica infraestructura.
 - Los **usuarios, contactos y chats existentes**: pertenecen a Telegram; un clon con backend propio parte de cero.
 - **Marca**: nombre, logo, iconos, stickers, animaciones, sonidos, textos exactos. Se sustituye en replica-brand.
-- **Cifrado de extremo a extremo / chats secretos**, llamadas y videollamadas, historias, bots/Mini Apps, pagos, Premium, canales y grandes comunidades avanzadas, traducción, StarS/regalos, verificación de cuentas: fuera del slice o no clonables.
+- (ACTUALIZADO 2026-11-06: stickers y chats secretos E2E entran en el alcance por petición del usuario; ver ADR-0004.) Fuera del slice: llamadas y videollamadas, historias, bots/Mini Apps, pagos, Premium, canales y grandes comunidades avanzadas, traducción, StarS/regalos, verificación de cuentas: fuera del slice o no clonables.
 - **Registro de números/SMS**: depende de operadores y de la red de Telegram; en clon propio se sustituye.
 - **Credenciales api_id/api_hash**: las aporta el usuario si se decide ser cliente alternativo (ver ADR pendiente). Nunca se inventan. Nota: usar clientes de terceros contra la red de Telegram está sujeto a sus términos para apps (https://core.telegram.org/api/terms); decisión de arquitectura pendiente.
 
