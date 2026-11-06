@@ -1,0 +1,7 @@
+.venv/
+target/
+*.log
+.env
+*.session
+replica/screens/
+graphify-out/cache/
