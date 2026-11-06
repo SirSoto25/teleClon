@@ -71,6 +71,10 @@ Abrir la app, ver tus chats ordenados por actividad reciente, entrar a uno y env
 | S35 | Icono de bandeja / badge | siempre | contador no leídos | icono, menú (abrir/salir) | 0, N |
 | S36 | Diálogo crear chat/grupo | menú > nuevo | iniciar conversación | buscador de contactos, selección | nuevo privado, nuevo grupo |
 | S37 | Lista de contactos | menú > Contactos | encontrar personas | filas, búsqueda | vacía, con contactos |
+| S38 | Selector de stickers | botón emoji/sticker de S13 | elegir y enviar un sticker | pestañas (recientes, favoritos, packs instalados), rejilla de stickers, búsqueda por emoji, pack propio original | vacío (sin packs), cargando, con recientes, sin resultados, error de red |
+| S39 | Vista de pack de stickers | clic en un sticker de S11 o en un pack de S38; Ajustes > Stickers | previsualizar, instalar o quitar un pack | título, rejilla de vista previa, botón instalar/quitar, reordenar packs (en Ajustes) | no instalado, instalado, instalando, límite de packs, error |
+| S40 | Huella de clave (chat secreto) | cabecera/info de un chat secreto (S12/S24) | verificar visualmente la clave E2E con el interlocutor | rejilla 4x4 de colores, 4 grupos de 5 cifras, texto explicativo | clave establecida, esperando al otro lado, clave distinta (aviso) |
+| S41 | Selector de temporizador de autodestrucción | cabecera/menú de un chat secreto | fijar el TTL de los mensajes | lista de plazos (apagado, segundos, minutos, horas, días, semana), confirmar | apagado, activo (TTL actual), sin permiso hasta que el chat esté activo |
 
 ## Flows
 
@@ -152,6 +156,20 @@ F15 Gestionar sesiones
 F16 Recibir mensaje en tiempo real
     (evento) -> S08 actualiza -> S34 -> S35
     edge: chat silenciado, app en foco, reconexión con huecos (difference)
+
+F17 Enviar y gestionar stickers (ADR-0004)
+    S13 -> S38 -> elegir sticker -> S11 (burbuja sin marco)
+    gestión: S11 (clic en sticker) -> S39 -> instalar/quitar ; Ajustes > Stickers -> S39 (reordenar)
+    happy path clicks: 2 (abrir selector, elegir)
+    edge: sin packs instalados, pack no disponible/borrado, sticker animado (TGS) con fallback estático, límite de packs,
+          sin conexión (solo recientes en caché), canal sin permiso, marcar/quitar favorito
+
+F18 Chat secreto (ADR-0004)
+    S24 -> "Iniciar chat secreto" -> (espera al otro lado) -> S11 (variante secreta) -> S40 (verificar huella) -> S41 (TTL) -> enviar
+    happy path clicks: ~5 (iniciar, esperar aceptación, abrir huella, fijar TTL, enviar)
+    edge: el otro lado no acepta o rechaza, peticiones cruzadas simultáneas (se aborta la de exchange_id menor),
+          huella distinta, TTL que arranca al leer, dispositivo distinto (sin multi-dispositivo), sin reenvío,
+          descartar chat y borrar historial, aviso de captura recibido
 ```
 
 ## Components
@@ -225,7 +243,7 @@ Relationships: User 1-n Dialog; Dialog n-1 Chat|User(peer); Chat 1-n Message; Me
 
 ## Feature matrix
 
-See `features.csv`. 99 filas. Must: 47, should: 31, could: 11, skip: 10 (las filas skip tienen priority could y clone=skip).
+See `features.csv`. 110 filas. Must: 54, should: 35, could: 13 (sin contar skip), skip: 8 (las filas skip tienen priority could y clone=skip). Las filas de stickers y chats secretos (ADR-0004) llevan ahora su pantalla (S38-S41) y flujo (F17/F18) en `notes`.
 
 ## Out of scope (cannot or should not be cloned)
 
@@ -238,4 +256,4 @@ See `features.csv`. 99 filas. Must: 47, should: 31, could: 11, skip: 10 (las fil
 
 ## Size
 
-Screens 37, flows 16, entities 14. Hard parts: (1) sincronización en tiempo real con actualizaciones/reconexión y orden consistente, (2) subida/descarga de archivos grandes por partes con reanudación y progreso, (3) lista de mensajes con scroll virtual y render de texto con entidades en Rust (GUI nativa Linux, IME, emoji, Wayland), además de login/seguridad y notificaciones del SO. Size: L (XL si se implementa el protocolo MTProto completo; M si se usa un backend propio simple).
+Screens 41, flows 18, entities 14. Hard parts: (1) sincronización en tiempo real con actualizaciones/reconexión y orden consistente, (2) subida/descarga de archivos grandes por partes con reanudación y progreso, (3) lista de mensajes con scroll virtual y render de texto con entidades en Rust (GUI nativa Linux, IME, emoji, Wayland), además de login/seguridad y notificaciones del SO. Size: L (XL si se implementa el protocolo MTProto completo; M si se usa un backend propio simple).

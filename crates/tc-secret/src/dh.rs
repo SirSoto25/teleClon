@@ -198,6 +198,14 @@ impl DhSecret {
         Self { exp, public }
     }
 
+    /// Exponente en big-endian (para la instantánea de sesión). No registrar nunca.
+    pub(crate) fn exponent_bytes(&self) -> Zeroizing<[u8; KEY_LEN]> {
+        let enc = self.exp.to_be_bytes();
+        let mut out = Zeroizing::new([0u8; KEY_LEN]);
+        out.copy_from_slice(enc.as_ref());
+        out
+    }
+
     /// Valor público `g^x mod p` (256 bytes big-endian).
     pub fn public(&self) -> &[u8; KEY_LEN] {
         &self.public

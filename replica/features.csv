@@ -36,7 +36,7 @@ Vídeos,message types,must,yes,no,
 Archivos/documentos,message types,must,yes,no,
 Notas de voz,message types,should,yes,no,grabación de audio
 Audio/música (reproductor),message types,could,yes,no,
-Stickers (enviar y recibir; WebP estático),message types,must,yes,partial,ALCANCE AMPLIADO por el usuario 2026-11-06. Packs se obtienen de la red; no se empaquetan stickers de Telegram; M1.2: se muestran como emoji grande sin burbuja; sin WebP ni selector
+Stickers (enviar y recibir; WebP estático),message types,must,yes,partial,S38 S39; F17; ALCANCE AMPLIADO por el usuario 2026-11-06. Packs se obtienen de la red; no se empaquetan stickers de Telegram; M1.2: se muestran como emoji grande sin burbuja; sin WebP ni selector
 Emoji,message types,must,yes,no,selector propio
 GIFs,message types,could,yes,no,
 Álbumes de varias fotos (grouped),message types,should,yes,no,
@@ -90,7 +90,7 @@ Descargar/guardar archivo,attachments,must,yes,no,
 Miniaturas y caché de medios,attachments,must,yes,no,
 Atajos de teclado básicos,ux,should,yes,no,
 Soporte Wayland/X11 y portal de archivos,platform,must,yes,no,Linux
-Chats secretos (E2E): crear chat y claves DH,security,must,yes,no,ALCANCE AMPLIADO 2026-11-06. MTProto 2.0 E2E; ligado al dispositivo; grammers no lo trae: implementación propia según core.telegram.org/api/end-to-end
+Chats secretos (E2E): crear chat y claves DH,security,must,yes,no,S24 S11; F18; ALCANCE AMPLIADO 2026-11-06. MTProto 2.0 E2E; ligado al dispositivo; grammers no lo trae: implementación propia según core.telegram.org/api/end-to-end
 Llamadas de voz y vídeo,calls,could,yes,skip,fuera del slice; WebRTC/red
 Historias,social,could,yes,skip,fuera del slice
 Bots y Mini Apps,platform,could,yes,skip,fuera del slice
@@ -98,14 +98,14 @@ Pagos y Stars,payments,could,yes,skip,regulado/fuera
 Telegram Premium,premium,could,yes,skip,producto de pago propietario
 Red global de usuarios y servidores,network,could,yes,skip,no clonable
 Marca: stickers/animaciones/sonidos oficiales EMPAQUETADOS,brand,could,yes,skip,No se redistribuyen assets de Telegram; sí se muestran packs descargados de la red y se crea un pack propio original
-Selector de stickers y packs recientes/favoritos,message types,must,yes,no,usuario 2026-11-06
-Instalar/quitar packs de stickers,message types,should,yes,no,usuario 2026-11-06
-Stickers animados (Lottie/TGS),message types,should,yes,no,render con crate lottie/rlottie; fallback estático
-Stickers de vídeo (WebM),message types,could,yes,no,requiere decodificador de vídeo
-Pack de stickers propio (original),brand,should,yes,no,para mock y marca propia
-Chat secreto: mensajes de texto cifrados E2E,security,must,yes,no,usuario 2026-11-06
-Chat secreto: temporizador de autodestrucción,security,must,yes,partial,usuario 2026-11-06; solo se muestra el TTL (cabecera e icono en la meta); sin selector ni borrado
-Chat secreto: medios y archivos cifrados,security,should,yes,no,usuario 2026-11-06
-Chat secreto: huella de clave (verificación visual),security,must,yes,partial,usuario 2026-11-06; M1.3 UI: diálogo con rejilla 4×4 y 4 grupos de 5 cifras; la huella del mock es ilustrativa
-Chat secreto: sin sincronización multi-dispositivo ni reenvío,security,must,yes,no,por diseño del protocolo
-Chat secreto: aviso de captura de pantalla,security,could,yes,no,en Linux no es fiable detectarlo; se muestra solo el aviso recibido
+Selector de stickers y packs recientes/favoritos,message types,must,yes,no,S38; F17; usuario 2026-11-06
+Instalar/quitar packs de stickers,message types,should,yes,no,S39; F17; usuario 2026-11-06
+Stickers animados (Lottie/TGS),message types,should,yes,no,S38 S11; F17; render con crate lottie/rlottie; fallback estático
+Stickers de vídeo (WebM),message types,could,yes,no,S38 S11; F17; requiere decodificador de vídeo
+Pack de stickers propio (original),brand,should,yes,no,S38 S39; F17; para mock y marca propia
+Chat secreto: mensajes de texto cifrados E2E,security,must,yes,no,S11; F18; usuario 2026-11-06
+Chat secreto: temporizador de autodestrucción,security,must,yes,partial,S41; F18; usuario 2026-11-06; solo se muestra el TTL (cabecera e icono en la meta); sin selector ni borrado
+Chat secreto: medios y archivos cifrados,security,should,yes,no,S11; F18; usuario 2026-11-06
+Chat secreto: huella de clave (verificación visual),security,must,yes,partial,S40; F18; usuario 2026-11-06; M1.3 UI: diálogo con rejilla 4×4 y 4 grupos de 5 cifras; la huella del mock es ilustrativa
+Chat secreto: sin sincronización multi-dispositivo ni reenvío,security,must,yes,no,S11; F18; por diseño del protocolo
+Chat secreto: aviso de captura de pantalla,security,could,yes,no,S11; F18; en Linux no es fiable detectarlo; se muestra solo el aviso recibido

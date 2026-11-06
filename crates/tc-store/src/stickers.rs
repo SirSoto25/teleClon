@@ -39,14 +39,42 @@ impl Store {
     /// Inserta o actualiza un medio (descargas: ver `local_path`).
     pub fn upsert_media(&self, m: &MediaRow) -> Result<()> {
         self.conn.execute(
-            "INSERT INTO media (id, kind, mime, size, width, height, file_name, thumb_path, local_path, updated_at)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)
+            "INSERT INTO media (id, kind, mime, size, width, height, file_name, thumb_path, local_path, updated_at, duration_ms)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)
              ON CONFLICT(id) DO UPDATE SET kind=excluded.kind, mime=excluded.mime, size=excluded.size,
                width=excluded.width, height=excluded.height, file_name=excluded.file_name,
-               thumb_path=excluded.thumb_path, local_path=excluded.local_path, updated_at=excluded.updated_at",
-            params![m.id, m.kind, m.mime, m.size, m.width, m.height, m.file_name, m.thumb_path, m.local_path, m.updated_at],
+               thumb_path=excluded.thumb_path, local_path=excluded.local_path, updated_at=excluded.updated_at,
+               duration_ms=excluded.duration_ms",
+            params![m.id, m.kind, m.mime, m.size, m.width, m.height, m.file_name, m.thumb_path, m.local_path, m.updated_at, m.duration_ms],
         )?;
         Ok(())
+    }
+
+    /// Medio por id.
+    pub fn get_media(&self, id: i64) -> Result<Option<MediaRow>> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT id, kind, mime, size, width, height, file_name, thumb_path, local_path, updated_at, duration_ms
+                 FROM media WHERE id=?1",
+                [id],
+                |r| {
+                    Ok(MediaRow {
+                        id: r.get(0)?,
+                        kind: r.get(1)?,
+                        mime: r.get(2)?,
+                        size: r.get(3)?,
+                        width: r.get(4)?,
+                        height: r.get(5)?,
+                        file_name: r.get(6)?,
+                        thumb_path: r.get(7)?,
+                        local_path: r.get(8)?,
+                        updated_at: r.get(9)?,
+                        duration_ms: r.get(10)?,
+                    })
+                },
+            )
+            .optional()?)
     }
 
     /// Guarda un pack y su contenido (los medios de los stickers deben existir). Los stickers

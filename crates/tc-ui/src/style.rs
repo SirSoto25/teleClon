@@ -468,3 +468,92 @@ pub fn thin_scroll(b: Brasa) -> impl Fn(&Theme, scrollable::Status) -> scrollabl
         }
     }
 }
+
+// ---------------------------------------------------------------- login, stickers, chats secretos
+
+/// Campo de formulario (login, filtros): `surface-sunken`, borde `border-input`, hover
+/// `border-strong`, foco con anillo 2 px `focus-ring`; con error, borde `danger` (§8.8).
+pub fn field_input(b: Brasa, error: bool) -> impl Fn(&Theme, text_input::Status) -> text_input::Style {
+    move |_, status| {
+        let (width, color) = match status {
+            text_input::Status::Focused { .. } => (border_width::FOCUS, if error { b.p.danger } else { b.p.focus_ring }),
+            _ if error => (border_width::FOCUS, b.p.danger),
+            text_input::Status::Hovered => (border_width::INPUT, b.p.border_strong),
+            _ => (border_width::INPUT, b.p.border_input),
+        };
+        text_input::Style {
+            background: c(b.p.surface_sunken).into(),
+            border: Border { radius: r(radius::MD), width, color: c(color) },
+            icon: c(b.p.text_muted),
+            placeholder: c(b.p.text_placeholder),
+            value: c(b.p.text),
+            selection: ca(b.a.selection),
+        }
+    }
+}
+
+/// Celda del selector de stickers: hover `surface-hover`; el cursor de teclado lleva el anillo de foco.
+pub fn sticker_cell(b: Brasa, focused: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
+    move |_, status| button::Style {
+        background: match status {
+            button::Status::Hovered => Some(c(b.p.surface_hover).into()),
+            button::Status::Pressed => Some(ca(b.a.pressed).into()),
+            _ if focused => Some(c(b.p.surface_hover).into()),
+            _ => None,
+        },
+        text_color: c(b.p.text),
+        border: Border {
+            radius: r(radius::MD),
+            width: if focused { border_width::FOCUS } else { 0.0 },
+            color: c(b.p.focus_ring),
+        },
+        shadow: Shadow::default(),
+        snap: true,
+    }
+}
+
+/// Pestaña (selector de stickers) u opción de una lista (TTL, contactos): la activa en `surface-selected`.
+pub fn option_row(b: Brasa, active: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
+    move |_, status| {
+        let bg = if active {
+            Some(c(b.p.surface_selected).into())
+        } else {
+            match status {
+                button::Status::Hovered => Some(c(b.p.surface_hover).into()),
+                button::Status::Pressed => Some(ca(b.a.pressed).into()),
+                _ => None,
+            }
+        };
+        button::Style {
+            background: bg,
+            text_color: c(b.p.text),
+            border: Border { radius: r(radius::MD), width: if active { border_width::HAIRLINE } else { 0.0 }, color: c(b.p.border_strong) },
+            shadow: Shadow::default(),
+            snap: true,
+        }
+    }
+}
+
+/// Etiqueta «EXPERIMENTAL»: texto `warning` sobre `warning` al 14 %, borde `warning`, píldora.
+pub fn experimental_pill(b: Brasa) -> impl Fn(&Theme) -> container::Style {
+    move |_| container::Style {
+        background: Some(fade(c(b.p.warning), 0.14).into()),
+        border: Border { radius: r(radius::PILL), width: border_width::HAIRLINE, color: c(b.p.warning) },
+        text_color: Some(c(b.p.warning)),
+        ..Default::default()
+    }
+}
+
+/// Franja de aviso bajo la cabecera (chats secretos): `warning` al 10 % sobre la superficie.
+pub fn warning_banner(b: Brasa) -> impl Fn(&Theme) -> container::Style {
+    move |_| container::Style {
+        background: Some(fade(c(b.p.warning), 0.10).into()),
+        text_color: Some(c(b.p.text)),
+        ..Default::default()
+    }
+}
+
+/// QR: siempre módulos `#211c17` sobre `#ffffff` en ambos temas (§8, inicio de sesión), para que
+/// lo lea cualquier cámara. Son los dos únicos colores fijos fuera de la paleta, por diseño.
+pub const QR_INK: Color = Color::from_rgb(0x21 as f32 / 255.0, 0x1c as f32 / 255.0, 0x17 as f32 / 255.0);
+pub const QR_PAPER: Color = Color::WHITE;

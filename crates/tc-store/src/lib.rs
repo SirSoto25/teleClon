@@ -7,24 +7,42 @@
 //! `Arc<Mutex<Store>>`). Nunca se guardan claves aquí: los chats secretos solo guardan blobs ya
 //! cifrados y metadatos; las claves viven en el keyring. Ver docs/architecture.md §7.
 //!
-//! Pendiente (otros hitos): `CachedBackend` y la bóveda de claves del keyring.
+//! Además: `CachedBackend` (decorador de `ChatBackend`, ver `cached.rs`), repositorios de grupos, carpetas,
+//! reacciones y subidas, y la bóveda de secretos (`SecretVault`, `KeyringVault`, `MemoryVault`).
 #![forbid(unsafe_code)]
 
+mod cached;
+mod convert;
 mod db;
 mod dialogs;
 mod error;
+mod folders;
+mod groups;
 mod messages;
+mod reactions;
 mod secret;
 mod settings;
 mod stickers;
 mod types;
+mod uploads;
+mod vault;
 
+pub use cached::{CachedBackend, LocalHit};
 pub use db::{APP_DIR, SCHEMA_VERSION, Store, account_db_path, default_data_dir};
 pub use error::{Error, Result};
 pub use messages::fts_query;
 pub use secret::NONCE_LEN;
 pub use stickers::RECENT_CAP;
 pub use types::*;
+pub use vault::{
+    MemoryVault, SESSION_KEY, Secret, SecretVault, VaultError, VaultResult, clear_session, delete_secret_chat_key,
+    load_secret_chat_key, load_session, save_secret_chat_key, save_session, secret_chat_key_name,
+};
+#[cfg(feature = "keyring-vault")]
+pub use vault::KeyringVault;
+
+#[cfg(test)]
+mod cached_tests;
 
 #[cfg(test)]
 mod tests {
@@ -51,7 +69,7 @@ mod tests {
     fn migrates_from_scratch_in_memory() {
         let s = Store::open_in_memory().unwrap();
         assert_eq!(s.schema_version().unwrap(), SCHEMA_VERSION);
-        assert_eq!(SCHEMA_VERSION, 1);
+        assert_eq!(SCHEMA_VERSION, 2);
         let n: i64 = s.conn.query_row("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('dialogs','messages','messages_fts','secret_messages','sticker_sets','meta')", [], |r| r.get(0)).unwrap();
         assert_eq!(n, 6);
         let fk: i64 = s.conn.pragma_query_value(None, "foreign_keys", |r| r.get(0)).unwrap();
@@ -80,9 +98,32 @@ mod tests {
             assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
         }
         let s = Store::open(&path).unwrap(); // reabrir no re-ejecuta la migración (fallaría: tablas ya existen)
-        assert_eq!(s.schema_version().unwrap(), 1);
+        assert_eq!(s.schema_version().unwrap(), SCHEMA_VERSION);
         assert_eq!(s.search_messages("persistente", None, 5).unwrap().len(), 1);
         assert_eq!(s.get_setting("a").unwrap().as_deref(), Some("b"));
+    }
+
+    #[test]
+    fn upgrades_a_v1_database_keeping_its_data() {
+        let dir = TmpDir::new("upgrade");
+        let path = dir.0.join("c.sqlite3");
+        {
+            // Base creada por la versión anterior: solo la migración 0001 y datos dentro.
+            let c = rusqlite::Connection::open(&path).unwrap();
+            c.execute_batch(include_str!("../migrations/0001_init.sql")).unwrap();
+            c.execute_batch(
+                "INSERT INTO dialogs (peer_kind, peer_id, updated_at) VALUES ('user', 1, 5);
+                 INSERT INTO messages (chat_key, msg_id, date, is_out, kind, text) VALUES (1, 1, 5, 0, 'text', 'anterior');",
+            )
+            .unwrap();
+        }
+        let s = Store::open(&path).unwrap();
+        assert_eq!(s.schema_version().unwrap(), 2);
+        assert_eq!(s.get_dialog(1).unwrap().unwrap().title, "");
+        assert_eq!(s.get_message(1, 1).unwrap().unwrap().sticker_json, None);
+        assert_eq!(s.search_messages("anterior", None, 5).unwrap().len(), 1);
+        let n: i64 = s.conn.query_row("SELECT COUNT(*) FROM pragma_table_info('uploads') WHERE name='last_error'", [], |r| r.get(0)).unwrap();
+        assert_eq!(n, 1);
     }
 
     #[test]
@@ -91,7 +132,7 @@ mod tests {
         let path = dir.0.join("c.sqlite3");
         drop(Store::open(&path).unwrap());
         rusqlite::Connection::open(&path).unwrap().pragma_update(None, "user_version", 99).unwrap();
-        assert!(matches!(Store::open(&path), Err(Error::SchemaTooNew { found: 99, supported: 1 })));
+        assert!(matches!(Store::open(&path), Err(Error::SchemaTooNew { found: 99, supported: 2 })));
     }
 
     #[test]
@@ -120,7 +161,7 @@ mod tests {
         }
         let dir = TmpDir::new("acct");
         let s = Store::open_account(&dir.0, "u1").unwrap();
-        assert_eq!(s.schema_version().unwrap(), 1);
+        assert_eq!(s.schema_version().unwrap(), SCHEMA_VERSION);
         assert!(dir.0.join("accounts/u1/cache.sqlite3").exists());
     }
 

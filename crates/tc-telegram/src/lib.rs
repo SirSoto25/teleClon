@@ -8,7 +8,9 @@
 //!   reintento de `FLOOD_WAIT` corto y reconexión con espera exponencial.
 //! - Tiempo real: `UpdatesReceiver` de grammers (gestiona pts/qts y huecos con
 //!   `getDifference`) → `events::apply_batch` → `BackendEvent`.
-//! - Chats secretos: NO implementados aún contra la red (M2.7, `tc-secret`).
+//! - Chats secretos (EXPERIMENTAL, sin auditoría, sin prueba de interoperabilidad con
+//!   clientes oficiales): TL crudo enrutado a `tc-secret`, estado en un
+//!   `SecretStateStore` inyectable. Solo texto. Ver `secret.rs`.
 //!
 //! Nada de esto se ha probado contra los servidores reales: ver docs/logs/log.md.
 #![forbid(unsafe_code)]
@@ -22,6 +24,7 @@ mod ids;
 mod media;
 mod net;
 mod peers;
+mod secret;
 pub mod session;
 
 #[cfg(test)]
@@ -42,6 +45,7 @@ use tokio::task::JoinHandle;
 
 pub use config::{ApiHash, ConfigError, TelegramConfig};
 pub use net::{PoolTransport, Transport, map_error};
+pub use secret::{MemorySecretStateStore, SecretStateStore, StoredSecretChat};
 pub use session::{FileSessionStore, MemorySessionStore, SessionStore, StoreError, TcSession};
 
 use crate::auth::AuthInner;
@@ -89,6 +93,8 @@ pub(crate) struct Inner {
     /// Despierta la tarea del QR (llegó `updateLoginToken`).
     pub(crate) qr_wake: Notify,
     pub(crate) logged_in: watch::Sender<bool>,
+    /// Chats secretos (estado de `tc-secret` y su almacén).
+    pub(crate) secret: secret::SecretRuntime,
 }
 
 impl Inner {
@@ -244,6 +250,7 @@ impl GrammersBackend {
             auth: Mutex::new(AuthInner::default()),
             qr_wake: Notify::new(),
             logged_in,
+            secret: secret::SecretRuntime::new(Arc::new(MemorySecretStateStore::default())),
         });
         let tasks = vec![
             tokio::spawn(startup(Arc::clone(&inner))),
@@ -251,6 +258,13 @@ impl GrammersBackend {
             tokio::spawn(persister(Arc::clone(&inner))),
         ];
         Self { inner, tasks: Mutex::new(tasks), pool }
+    }
+
+    /// Sustituye el almacén del estado de los chats secretos (por defecto, en memoria) y
+    /// recarga desde él. Llamar justo después de construir el backend. El almacén guarda
+    /// claves: debe ser cifrado o el keyring (lo implementa `tc-store`).
+    pub async fn set_secret_store(&self, store: Arc<dyn SecretStateStore>) {
+        self.inner.secret.replace_store(store).await;
     }
 
     /// Guarda la sesión ahora mismo (por ejemplo antes de salir).
@@ -369,11 +383,15 @@ pub(crate) async fn run_source(inner: Arc<Inner>, mut source: Box<dyn UpdateSour
             Ok((ups, users, chats)) => {
                 wait = inner.net.cfg.network_backoff;
                 inner.net.conn.set(ConnectionState::Online);
+                let (secret_ups, ups): (Vec<_>, Vec<_>) = ups.into_iter().partition(secret::is_secret_update);
                 let applied = inner.apply_response(ups, users, chats);
                 if applied.login_token {
                     inner.qr_wake.notify_one();
                 }
                 inner.emit_all(applied.events);
+                if !secret_ups.is_empty() {
+                    inner.apply_secret_updates(secret_ups).await;
+                }
             }
             Err(e) if is_session_gone(&e) => {
                 inner.session_lost().await;

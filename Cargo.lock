@@ -4957,7 +4957,9 @@ dependencies = [
  "image",
  "tc-core",
  "tc-mock",
+ "tc-stickers",
  "tc-store",
+ "tc-telegram",
  "tc-theme",
  "tc-ui",
  "tokio",
@@ -4982,6 +4984,7 @@ dependencies = [
  "futures",
  "tc-core",
  "tc-secret",
+ "tc-stickers",
  "tokio",
  "tracing",
 ]
@@ -5025,7 +5028,9 @@ dependencies = [
  "futures",
  "keyring",
  "rusqlite",
+ "serde_json",
  "tc-core",
+ "tc-mock",
  "thiserror 2.0.21",
  "tokio",
  "tracing",
@@ -5046,9 +5051,11 @@ dependencies = [
  "serde",
  "serde_json",
  "tc-core",
+ "tc-secret",
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+ "zeroize",
 ]
 
 [[package]]

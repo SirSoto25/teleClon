@@ -13,6 +13,8 @@ Clon de Telegram Desktop para Linux, escrito en Rust, con identidad visual moder
 | [research/graphify.md](research/graphify.md) | Cómo se instaló/usa graphify y cómo regenerar el grafo |
 | [research/skills-used.md](research/skills-used.md) | Registro de TODAS las skills usadas (fecha, quién, para qué) |
 | `../replica/recon.md`, `../replica/features.csv` | Mapa de reconocimiento y matriz de funciones (skill replica-recon) |
+| [brand/brand.md](brand/brand.md) · [brand/sweep-report.md](brand/sweep-report.md) | Marca propia: candidatos de nombre, chequeos, voz y tono, brief de logo; informe del barrido `tools/brand/sweep.py` |
+| [test/test-plan.md](test/test-plan.md) | Plan de pruebas por flujo F01-F18 (automatizable vs manual) |
 | `../graphify-out/` | Grafo de conocimiento (graph.html, GRAPH_REPORT.md, graph.json) |
 
 ## Reglas de trabajo

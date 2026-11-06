@@ -9,7 +9,7 @@ use crate::peers::PeerStore;
 // ---------- Entidades: Telegram cuenta en unidades UTF-16; el dominio, en caracteres ----------
 
 /// Para cada carácter, su desplazamiento UTF-16 inicial; con un elemento final = longitud total.
-fn utf16_starts(text: &str) -> Vec<u32> {
+pub(crate) fn utf16_starts(text: &str) -> Vec<u32> {
     let mut v = Vec::with_capacity(text.len() + 1);
     let mut acc = 0u32;
     for c in text.chars() {
@@ -21,7 +21,7 @@ fn utf16_starts(text: &str) -> Vec<u32> {
 }
 
 /// Convierte (offset, length) UTF-16 a caracteres; `None` si cae fuera del texto.
-fn utf16_to_chars(starts: &[u32], offset: i32, length: i32) -> Option<(u32, u32)> {
+pub(crate) fn utf16_to_chars(starts: &[u32], offset: i32, length: i32) -> Option<(u32, u32)> {
     if offset < 0 || length <= 0 {
         return None;
     }

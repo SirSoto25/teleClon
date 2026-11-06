@@ -183,7 +183,7 @@ impl PeerStore {
                     Ok(tl::types::InputPeerChannel { channel_id: id, access_hash: h }.into())
                 }
             },
-            PeerRef::Secret(_) => Err(BackendError::Forbidden("los chats secretos aún no están disponibles en la red real".into())),
+            PeerRef::Secret(_) => Err(BackendError::Forbidden("operación no disponible en chats secretos (solo texto)".into())),
         }
     }
 

@@ -40,3 +40,9 @@ No se invocó ninguna skill `superpowers:*` hasta ahora. Las skills de terceros 
 | --- | --- | --- | --- | --- |
 | 2026-11-06 | `replica-skill:replica-backend` | agente RED | Reglas: solo API pública con las claves del usuario, secretos solo en variables de entorno, nada de cuentas ni credenciales tecleadas por el agente; aplicado a `tc-telegram` (cliente, sin servidor propio: pagos/correo/webhooks no aplican) | usada |
 | 2026-11-06 | `replica-skill:replica-build` | agente RED | Mismas firmas que el backend falso (tc-mock) para que cambiar a la red real no toque la UI; `AuthApi` también implementado en el mock | usada |
+
+## 2026-11-06 — agente DOCS (Sonnet)
+| Fecha | Skill | Quién | Para qué | Estado |
+| --- | --- | --- | --- | --- |
+| 2026-11-06 | `replica-skill:replica-brand` | agente DOCS | Candidatos de nombre, criterios, chequeos para el usuario, voz y tono, brief de logo y `tools/brand/sweep.py`; sin consultas externas (disponibilidad NO verificada) | usada |
+| 2026-11-06 | `replica-skill:replica-test` | agente DOCS | Plan de pruebas generado desde los flujos de recon.md; no se escribieron tests Playwright (app nativa) ni se ejecutó nada | usada (solo plan) |

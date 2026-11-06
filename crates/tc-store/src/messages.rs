@@ -7,7 +7,7 @@ use rusqlite::{OptionalExtension, Row, params};
 
 const COLS: &str = "chat_key, msg_id, random_id, sender_id, date, edit_date, is_out, kind, text, entities, \
     reply_to_id, reply_quote, fwd_from_id, fwd_from_name, fwd_date, media_id, sticker_id, grouped_id, \
-    service_action, is_pinned, views, send_state";
+    service_action, is_pinned, views, send_state, sticker_json";
 
 fn from_row(r: &Row<'_>) -> rusqlite::Result<MessageRow> {
     Ok(MessageRow {
@@ -33,6 +33,7 @@ fn from_row(r: &Row<'_>) -> rusqlite::Result<MessageRow> {
         is_pinned: r.get(19)?,
         views: r.get(20)?,
         send_state: r.get(21)?,
+        sticker_json: r.get(22)?,
     })
 }
 
@@ -121,6 +122,23 @@ impl Store {
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
+    /// Marca como fallido el mensaje pendiente con ese `random_id`; devuelve cuántos cambió.
+    pub fn mark_failed_by_random(&self, random_id: i64) -> Result<usize> {
+        Ok(self.conn.execute(
+            "UPDATE messages SET send_state='failed' WHERE random_id=?1 AND send_state='pending'",
+            [random_id],
+        )?)
+    }
+
+    /// Ids confirmados del chat entre `lo` y `hi` (ambos incluidos), ascendentes.
+    pub fn message_ids_between(&self, chat_key: i64, lo: i64, hi: i64) -> Result<Vec<i64>> {
+        let mut st = self.conn.prepare(
+            "SELECT msg_id FROM messages WHERE chat_key=?1 AND msg_id>0 AND msg_id BETWEEN ?2 AND ?3 ORDER BY msg_id",
+        )?;
+        let rows = st.query_map(params![chat_key, lo, hi], |r| r.get(0))?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
     /// Borra mensajes por id; devuelve cuántos existían.
     pub fn delete_messages(&self, chat_key: i64, ids: &[i64]) -> Result<usize> {
         let tx = self.conn.unchecked_transaction()?;
@@ -170,19 +188,19 @@ fn upsert_in(tx: &rusqlite::Connection, m: &MessageRow) -> Result<()> {
     }
     tx.execute(
         &format!(
-            "INSERT INTO messages ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22)
+            "INSERT INTO messages ({COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23)
              ON CONFLICT(chat_key, msg_id) DO UPDATE SET random_id=excluded.random_id, sender_id=excluded.sender_id,
                date=excluded.date, edit_date=excluded.edit_date, is_out=excluded.is_out, kind=excluded.kind,
                text=excluded.text, entities=excluded.entities, reply_to_id=excluded.reply_to_id,
                reply_quote=excluded.reply_quote, fwd_from_id=excluded.fwd_from_id, fwd_from_name=excluded.fwd_from_name,
                fwd_date=excluded.fwd_date, media_id=excluded.media_id, sticker_id=excluded.sticker_id,
                grouped_id=excluded.grouped_id, service_action=excluded.service_action, is_pinned=excluded.is_pinned,
-               views=excluded.views, send_state=excluded.send_state"
+               views=excluded.views, send_state=excluded.send_state, sticker_json=excluded.sticker_json"
         ),
         params![
             m.chat_key, m.msg_id, m.random_id, m.sender_id, m.date, m.edit_date, m.is_out, m.kind, m.text, m.entities,
             m.reply_to_id, m.reply_quote, m.fwd_from_id, m.fwd_from_name, m.fwd_date, m.media_id, m.sticker_id,
-            m.grouped_id, m.service_action, m.is_pinned, m.views, m.send_state
+            m.grouped_id, m.service_action, m.is_pinned, m.views, m.send_state, m.sticker_json
         ],
     )?;
     Ok(())

@@ -31,6 +31,9 @@ use crate::tl::{
 };
 use crate::visual::KeyVisualization;
 
+mod snapshot;
+pub use snapshot::{SNAPSHOT_VERSION, SessionSnapshot};
+
 /// Capa de la capa secreta que implementa este crate (entidades de la capa 144).
 pub const OUR_LAYER: i32 = 144;
 /// Capa supuesta del otro extremo hasta que la notifique (la especificación pide 46).

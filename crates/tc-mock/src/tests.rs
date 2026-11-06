@@ -227,6 +227,12 @@ async fn media_and_stickers() {
     let m = b.send_sticker(peer, st, None, RandomId(23)).await.unwrap();
     assert_eq!(m.sticker.unwrap().id, st);
     assert_eq!(b.send_sticker(peer, StickerId(1), None, RandomId(24)).await, Err(BackendError::NotFound));
+    // Pack propio de tc-stickers + su variante animada.
+    assert_eq!(sets[0].id, tc_stickers::pack::SET_ID);
+    assert_eq!(sets[1].id, crate::ANIMATED_SET_ID);
+    assert!(sets[1].stickers.iter().all(|s| s.format == StickerFormat::Lottie));
+    let anim = sets[1].stickers[3].id;
+    assert_eq!(b.send_sticker(peer, anim, None, RandomId(25)).await.unwrap().sticker.unwrap().id, anim);
     assert_eq!(b.send_media(peer, OutgoingMedia { items: vec![], caption: String::new(), reply_to: None, random_ids: vec![] }).await, Err(BackendError::InvalidInput("items")));
 }
 
@@ -313,6 +319,7 @@ async fn simulated_login_phone_code_and_2fa() {
     assert_eq!(b.auth_state().await.unwrap(), AuthState::LoggedOut);
     let mut ev = b.auth_events();
     assert_eq!(b.request_login_code("abc".into()).await, Err(BackendError::InvalidInput("phone")));
+    assert_eq!(b.request_login_code("+34600000009".into()).await, Err(BackendError::FloodWait(crate::MOCK_FLOOD_SECS)));
     let req = b.request_login_code("+34600000002".into()).await.unwrap();
     assert_eq!(req.kind, CodeKind::App);
     assert!(matches!(ev.next().await, Some(AuthState::WaitingCode(_))));

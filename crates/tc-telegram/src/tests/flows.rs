@@ -296,7 +296,7 @@ async fn send_text_confirms_and_is_idempotent() {
     let m2 = b.send_text(peer, OutgoingText { text: "dos".into(), entities: vec![], reply_to: None, random_id: RandomId(222) }).await.unwrap();
     assert_eq!((m2.id, m2.random_id), (MsgId(501), Some(RandomId(222))));
     assert_eq!(b.send_text(peer, OutgoingText { text: "  ".into(), entities: vec![], reply_to: None, random_id: RandomId(3) }).await, Err(BackendError::InvalidInput("text")));
-    assert!(matches!(b.send_text(PeerRef::Secret(SecretChatId(1)), OutgoingText { text: "x".into(), entities: vec![], reply_to: None, random_id: RandomId(4) }).await, Err(BackendError::Forbidden(_))));
+    assert_eq!(b.send_text(PeerRef::Secret(SecretChatId(1)), OutgoingText { text: "x".into(), entities: vec![], reply_to: None, random_id: RandomId(4) }).await, Err(BackendError::NotFound));
 }
 
 #[tokio::test]
@@ -461,13 +461,14 @@ async fn revoked_session_logs_out_and_clears_store() {
 }
 
 #[tokio::test]
-async fn startup_without_session_is_logged_out_and_secret_chats_are_unavailable() {
+async fn startup_without_session_is_logged_out_and_secret_chats_need_login() {
     let fake = Fake::new(|_, id, _| panic!("no debería llamar a {}", tl::name_for_id(id)));
     let (b, _) = backend(Arc::new(TcSession::default()), fake.clone(), None);
     wait_auth(&b, |s| *s == AuthState::LoggedOut).await;
     assert!(fake.names().is_empty());
     assert_eq!(b.secret_chats().await, Ok(vec![]));
-    assert!(matches!(b.request_secret_chat(UserId(1)).await, Err(BackendError::Forbidden(_))));
+    assert_eq!(b.request_secret_chat(UserId(1)).await, Err(BackendError::Unauthorized));
+    assert_eq!(b.accept_secret_chat(SecretChatId(1)).await, Err(BackendError::NotFound));
     assert_eq!(b.dialogs(DialogsPage { offset: 0, limit: 10, archived: false }).await, Err(BackendError::Unauthorized));
     let _ = b.inner.net.session.home_dc_id();
 }

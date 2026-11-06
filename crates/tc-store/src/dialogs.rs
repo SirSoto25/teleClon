@@ -7,7 +7,7 @@ use rusqlite::{OptionalExtension, Row, params};
 
 const DIALOG_COLS: &str = "chat_key, peer_kind, peer_id, top_message_id, last_message_at, unread_count, \
     unread_mentions, unread_reactions, read_inbox_max_id, read_outbox_max_id, pinned_order, archived, \
-    mute_until, pinned_message_id, history_complete, updated_at";
+    mute_until, pinned_message_id, history_complete, updated_at, title";
 
 fn dialog_from_row(r: &Row<'_>) -> rusqlite::Result<DialogRow> {
     Ok(DialogRow {
@@ -27,6 +27,7 @@ fn dialog_from_row(r: &Row<'_>) -> rusqlite::Result<DialogRow> {
         pinned_message_id: r.get(13)?,
         history_complete: r.get(14)?,
         updated_at: r.get(15)?,
+        title: r.get(16)?,
     })
 }
 
@@ -80,6 +81,59 @@ impl Store {
             .optional()?)
     }
 
+    /// El usuario de la propia cuenta, si se conoce.
+    pub fn get_self_user(&self) -> Result<Option<UserRow>> {
+        Ok(self.list_users_where("is_self=1")?.into_iter().next())
+    }
+
+    /// Contactos guardados, por nombre.
+    pub fn list_contacts(&self) -> Result<Vec<UserRow>> {
+        self.list_users_where("is_contact=1")
+    }
+
+    fn list_users_where(&self, cond: &str) -> Result<Vec<UserRow>> {
+        let mut st = self.conn.prepare(&format!(
+            "SELECT id, access_hash, first_name, last_name, username, phone, is_self, is_contact, updated_at
+             FROM users WHERE {cond} ORDER BY first_name COLLATE NOCASE, last_name COLLATE NOCASE, id"
+        ))?;
+        let rows = st.query_map([], |r| {
+            Ok(UserRow {
+                id: r.get(0)?,
+                access_hash: r.get(1)?,
+                first_name: r.get(2)?,
+                last_name: r.get(3)?,
+                username: r.get(4)?,
+                phone: r.get(5)?,
+                is_self: r.get(6)?,
+                is_contact: r.get(7)?,
+                updated_at: r.get(8)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// Guarda bot/estado de presencia de un usuario ya existente (`upsert_user` no los toca).
+    pub fn set_user_extra(&self, id: i64, x: &UserExtra) -> Result<()> {
+        if self.conn.execute(
+            "UPDATE users SET is_bot=?2, status=?3, last_seen_at=?4 WHERE id=?1",
+            params![id, x.is_bot, x.status, x.last_seen_at],
+        )? == 0
+        {
+            return Err(Error::NotFound(format!("usuario {id}")));
+        }
+        Ok(())
+    }
+
+    /// Bot/estado de presencia de un usuario.
+    pub fn get_user_extra(&self, id: i64) -> Result<Option<UserExtra>> {
+        Ok(self
+            .conn
+            .query_row("SELECT is_bot, status, last_seen_at FROM users WHERE id=?1", [id], |r| {
+                Ok(UserExtra { is_bot: r.get(0)?, status: r.get(1)?, last_seen_at: r.get(2)? })
+            })
+            .optional()?)
+    }
+
     // ---- diálogos -------------------------------------------------------------------------
 
     /// Inserta o actualiza un diálogo por `(peer_kind, peer_id)` y devuelve su `chat_key`.
@@ -88,20 +142,20 @@ impl Store {
         Ok(self.conn.query_row(
             "INSERT INTO dialogs (peer_kind, peer_id, top_message_id, last_message_at, unread_count, unread_mentions,
                unread_reactions, read_inbox_max_id, read_outbox_max_id, pinned_order, archived, mute_until,
-               pinned_message_id, history_complete, updated_at)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15)
+               pinned_message_id, history_complete, updated_at, title)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)
              ON CONFLICT(peer_kind, peer_id) DO UPDATE SET top_message_id=excluded.top_message_id,
                last_message_at=excluded.last_message_at, unread_count=excluded.unread_count,
                unread_mentions=excluded.unread_mentions, unread_reactions=excluded.unread_reactions,
                read_inbox_max_id=excluded.read_inbox_max_id, read_outbox_max_id=excluded.read_outbox_max_id,
                pinned_order=excluded.pinned_order, archived=excluded.archived, mute_until=excluded.mute_until,
                pinned_message_id=excluded.pinned_message_id, history_complete=excluded.history_complete,
-               updated_at=excluded.updated_at
+               updated_at=excluded.updated_at, title=excluded.title
              RETURNING chat_key",
             params![
                 d.peer_kind, d.peer_id, d.top_message_id, d.last_message_at, d.unread_count, d.unread_mentions,
                 d.unread_reactions, d.read_inbox_max_id, d.read_outbox_max_id, d.pinned_order, d.archived,
-                d.mute_until, d.pinned_message_id, d.history_complete, d.updated_at
+                d.mute_until, d.pinned_message_id, d.history_complete, d.updated_at, d.title
             ],
             |r| r.get(0),
         )?)
@@ -165,6 +219,31 @@ impl Store {
             chat_key,
             max_id,
         )
+    }
+
+    /// Marca (o desmarca) que el historial local llega hasta el primer mensaje del chat.
+    pub fn set_history_complete(&self, chat_key: i64, complete: bool) -> Result<()> {
+        self.dialog_update("UPDATE dialogs SET history_complete=?2 WHERE chat_key=?1", chat_key, complete)
+    }
+
+    /// Siguiente posición libre entre los diálogos fijados (el nuevo fijado va el último).
+    pub fn next_pin_order(&self) -> Result<i64> {
+        Ok(self.conn.query_row("SELECT COALESCE(MAX(pinned_order) + 1, 0) FROM dialogs", [], |r| r.get(0))?)
+    }
+
+    /// Avanza el último mensaje del diálogo si `msg_id` es más nuevo que el actual.
+    pub fn bump_dialog_top(&self, chat_key: i64, msg_id: i64, date: i64) -> Result<()> {
+        self.conn.execute(
+            "UPDATE dialogs SET top_message_id=?2, last_message_at=MAX(COALESCE(last_message_at, 0), ?3)
+             WHERE chat_key=?1 AND ?2 > 0 AND (top_message_id IS NULL OR top_message_id < ?2)",
+            params![chat_key, msg_id, date],
+        )?;
+        Ok(())
+    }
+
+    /// Avanza `read_outbox_max_id` (lo que el otro lado ya leyó de lo mío).
+    pub fn set_dialog_read_outbox(&self, chat_key: i64, max_id: i64) -> Result<()> {
+        self.dialog_update("UPDATE dialogs SET read_outbox_max_id=MAX(read_outbox_max_id, ?2) WHERE chat_key=?1", chat_key, max_id)
     }
 
     fn dialog_update(&self, sql: &str, chat_key: i64, v: impl rusqlite::ToSql) -> Result<()> {

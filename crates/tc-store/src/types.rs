@@ -38,6 +38,32 @@ str_enum!(
     PeerKind { User => "user", Group => "group", Secret => "secret" }
 );
 str_enum!(
+    /// Presencia de un usuario.
+    PresenceKind {
+        Unknown => "unknown", Online => "online", Offline => "offline", Recently => "recently",
+        LastWeek => "last_week", LastMonth => "last_month"
+    }
+);
+str_enum!(
+    /// Tipo de grupo.
+    GroupKindRow { Group => "group", Supergroup => "supergroup", Channel => "channel" }
+);
+str_enum!(
+    /// Mi papel en un grupo.
+    GroupRole { Creator => "creator", Admin => "admin", Member => "member", Left => "left", Banned => "banned" }
+);
+str_enum!(
+    /// Cómo cuenta un chat dentro de una carpeta.
+    FolderPeerMode { Include => "include", Exclude => "exclude", Pinned => "pinned" }
+);
+str_enum!(
+    /// Estado de una subida.
+    UploadState {
+        Queued => "queued", Uploading => "uploading", Paused => "paused", Done => "done",
+        Failed => "failed", Cancelled => "cancelled"
+    }
+);
+str_enum!(
     /// Tipo de mensaje.
     MessageKind { Text => "text", Media => "media", Sticker => "sticker", Service => "service" }
 );
@@ -93,6 +119,8 @@ pub struct DialogRow {
     pub pinned_message_id: Option<i64>,
     pub history_complete: bool,
     pub updated_at: i64,
+    /// Título visible (nombre del usuario/grupo en el momento de guardar).
+    pub title: String,
 }
 
 impl DialogRow {
@@ -115,6 +143,7 @@ impl DialogRow {
             pinned_message_id: None,
             history_complete: false,
             updated_at: now,
+            title: String::new(),
         }
     }
 }
@@ -155,6 +184,8 @@ pub struct MessageRow {
     pub is_pinned: bool,
     pub views: Option<i64>,
     pub send_state: SendState,
+    /// JSON del sticker adjunto (la caché de mensajes no depende de que el pack esté guardado).
+    pub sticker_json: Option<String>,
 }
 
 impl MessageRow {
@@ -183,6 +214,7 @@ impl MessageRow {
             is_pinned: false,
             views: None,
             send_state: SendState::Sent,
+            sticker_json: None,
         }
     }
 }
@@ -242,6 +274,7 @@ pub struct MediaRow {
     pub file_name: Option<String>,
     pub thumb_path: Option<String>,
     pub local_path: Option<String>,
+    pub duration_ms: Option<i64>,
     pub updated_at: i64,
 }
 
@@ -316,4 +349,104 @@ pub struct SecretMessageRow {
     pub read_at: Option<i64>,
     pub destroy_at: Option<i64>,
     pub send_state: SendState,
+}
+
+/// Bot y presencia de un usuario (columnas que `upsert_user` no toca).
+#[derive(Debug, Clone, PartialEq)]
+pub struct UserExtra {
+    pub is_bot: bool,
+    pub status: PresenceKind,
+    /// Segundos Unix de la última conexión conocida.
+    pub last_seen_at: Option<i64>,
+}
+
+/// Grupo, supergrupo o canal.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GroupRow {
+    pub id: i64,
+    pub kind: GroupKindRow,
+    pub access_hash: Option<i64>,
+    pub title: String,
+    pub about: Option<String>,
+    pub username: Option<String>,
+    pub participants_count: Option<i64>,
+    pub my_role: GroupRole,
+    pub can_send: bool,
+    pub created_at: Option<i64>,
+    pub updated_at: i64,
+}
+
+impl GroupRow {
+    /// Grupo mínimo (miembro, puedo escribir).
+    pub fn new(id: i64, kind: GroupKindRow, title: &str, now: i64) -> Self {
+        Self {
+            id,
+            kind,
+            access_hash: None,
+            title: title.to_owned(),
+            about: None,
+            username: None,
+            participants_count: None,
+            my_role: GroupRole::Member,
+            can_send: true,
+            created_at: None,
+            updated_at: now,
+        }
+    }
+}
+
+/// Carpeta (filtro de chats).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct FolderRow {
+    pub id: i64,
+    pub title: String,
+    pub emoticon: Option<String>,
+    pub sort_order: i64,
+    pub inc_contacts: bool,
+    pub inc_non_contacts: bool,
+    pub inc_groups: bool,
+    pub inc_channels: bool,
+    pub inc_bots: bool,
+    pub exc_muted: bool,
+    pub exc_read: bool,
+    pub exc_archived: bool,
+    pub updated_at: i64,
+}
+
+/// Pertenencia explícita de un chat a una carpeta.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FolderPeerRow {
+    pub chat_key: i64,
+    pub mode: FolderPeerMode,
+    /// Orden de los fijados dentro de la carpeta.
+    pub position: Option<i64>,
+}
+
+/// Reacción agregada de un mensaje.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReactionRow {
+    pub emoji: String,
+    pub count: i64,
+    /// La he puesto yo.
+    pub chosen: bool,
+}
+
+/// Subida reanudable. Exactamente uno de `chat_key` / `secret_chat_id` está presente.
+#[derive(Debug, Clone, PartialEq)]
+pub struct UploadRow {
+    /// Se ignora al crear (la devuelve `create_upload`).
+    pub local_id: i64,
+    pub chat_key: Option<i64>,
+    pub secret_chat_id: Option<i64>,
+    pub path: String,
+    pub size: i64,
+    /// Id aleatorio de subida de la red.
+    pub file_id: i64,
+    pub part_size: i64,
+    pub parts_total: i64,
+    pub parts_done: i64,
+    pub state: UploadState,
+    pub last_error: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
 }

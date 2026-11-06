@@ -7,10 +7,11 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use futures::future::BoxFuture;
 use futures::stream::BoxStream;
 use iced::keyboard::{self, Key, key::Named};
 use iced::widget::operation::{self, AbsoluteOffset};
-use iced::widget::{Id, canvas, text_editor};
+use iced::widget::{Id, canvas, qr_code, text_editor};
 use iced::{Subscription, Task, Theme, window};
 use jiff::tz::TimeZone;
 use tc_core::*;
@@ -20,15 +21,40 @@ use tc_theme::{MotionPreference, Spring, ThemeKind};
 use crate::anim::{Animator, Curve};
 use crate::conv::{self, Conversation, LayoutInput, MsgKey, PAGE};
 use crate::format;
+use crate::login::{self, Login, LoginMsg};
 use crate::measure::IcedMeasurer;
+use crate::stickers::{self, Art, Nav, Picker};
 use crate::style::Brasa;
 
 pub type Backend = Arc<dyn ChatBackend>;
+pub type Auth = Arc<dyn AuthApi>;
+
+/// Backend + autenticación ya creados (p. ej. por un `Connector`).
+#[derive(Clone)]
+pub struct Session {
+    pub chat: Backend,
+    /// `None`: el backend no necesita inicio de sesión.
+    pub auth: Option<Auth>,
+}
+
+impl std::fmt::Debug for Session {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Session").field("auth", &self.auth.is_some()).finish_non_exhaustive()
+    }
+}
+
+/// Crea el backend de forma asíncrona DENTRO del runtime tokio de iced (la red real lanza sus
+/// tareas al construirse). El error es un texto para el usuario, sin secretos.
+pub type Connector = Arc<dyn Fn() -> BoxFuture<'static, Result<Session, String>> + Send + Sync>;
 
 /// Configuración de arranque que aporta `tc-app`.
 #[derive(Clone)]
 pub struct Flags {
-    pub backend: Backend,
+    /// Backend ya creado (el mock). Si es `None`, se usa `connect`.
+    pub backend: Option<Backend>,
+    /// Autenticación del mismo backend. `None`: se entra directamente (sin pantalla de login).
+    pub auth: Option<Auth>,
+    pub connect: Option<Connector>,
     /// Se ejecuta una vez dentro del runtime tokio de iced (p. ej. arrancar el guion del mock).
     pub on_start: Option<Arc<dyn Fn() + Send + Sync>>,
     pub theme: ThemeKind,
@@ -37,6 +63,48 @@ pub struct Flags {
     pub demo: Vec<(Duration, DemoStep)>,
     /// Guarda una captura RGBA (ruta, ancho, alto, bytes). La aporta `tc-app` (codifica PNG).
     pub on_screenshot: Option<SaveShot>,
+    /// Backend simulado: la UI avisa de que la huella de clave y los datos son de prueba.
+    pub simulated: bool,
+    /// Pista bajo la tarjeta de login (p. ej. los valores de prueba del mock).
+    pub login_hint: Option<String>,
+    /// Aviso que se muestra al arrancar (p. ej. «faltan credenciales, se usa el mock»).
+    pub notice: Option<String>,
+}
+
+impl Flags {
+    /// Flags mínimos sobre un backend ya creado, sin login.
+    pub fn new(backend: Backend) -> Self {
+        Self { backend: Some(backend), ..Self::empty() }
+    }
+
+    /// Flags para un backend que se crea de forma asíncrona (`Connector`).
+    pub fn with_connector(connect: Connector) -> Self {
+        Self { connect: Some(connect), ..Self::empty() }
+    }
+
+    fn empty() -> Self {
+        Self {
+            backend: None,
+            auth: None,
+            connect: None,
+            on_start: None,
+            theme: ThemeKind::Dark,
+            reduced_motion: false,
+            demo: Vec::new(),
+            on_screenshot: None,
+            simulated: false,
+            login_hint: None,
+            notice: None,
+        }
+    }
+}
+
+/// Fase de la app: creando el backend, iniciando sesión o dentro.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Phase {
+    Connecting,
+    Auth,
+    Main,
 }
 
 /// Guarda una captura RGBA: ruta, ancho, alto, bytes.
@@ -67,6 +135,22 @@ impl Hash for BackendHandle {
 fn backend_events(h: &BackendHandle) -> BoxStream<'static, BackendEvent> {
     h.0.events()
 }
+
+#[derive(Clone)]
+struct AuthHandle(Auth);
+
+impl Hash for AuthHandle {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        "tc-auth-events".hash(state);
+    }
+}
+
+fn auth_events(h: &AuthHandle) -> BoxStream<'static, AuthState> {
+    h.0.auth_events()
+}
+
+/// Opciones de autodestrucción de un chat secreto (segundos; `None` = desactivada).
+pub const TTL_OPTIONS: [Option<u32>; 7] = [None, Some(5), Some(30), Some(60), Some(3600), Some(86_400), Some(604_800)];
 
 pub const SEARCH_ID: &str = "chat-search";
 pub const COMPOSER_ID: &str = "composer";
@@ -111,6 +195,10 @@ pub enum Compose {
 pub enum Overlay {
     Delete { id: MsgId, revoke: bool, outgoing: bool },
     Key(Option<KeyVisual>),
+    /// Crear un chat secreto: filtro de contactos, contacto elegido y si la petición está en curso.
+    NewSecret { query: String, user: Option<UserId>, busy: bool },
+    /// Autodestrucción del chat secreto abierto (y cerrarlo, con confirmación).
+    Ttl { confirm_discard: bool },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -128,6 +216,7 @@ pub struct Toast {
     pub text: String,
     pub error: bool,
     born: Instant,
+    secs: u64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -140,6 +229,24 @@ pub enum LoadState {
 #[derive(Debug, Clone)]
 pub enum Msg {
     Started,
+    Connected(Result<Session, String>),
+    RetryConnect,
+    Login(LoginMsg),
+    StickerSets(BackendResult<Vec<StickerSet>>),
+    TogglePicker,
+    PickerTab(usize),
+    PickerNav(Nav),
+    SendSticker(StickerId),
+    NewSecret(Option<UserId>),
+    SecretQuery(String),
+    SecretPick(UserId),
+    ConfirmNewSecret,
+    SecretCreated(BackendResult<SecretChat>),
+    ShowTtl,
+    SetTtl(Option<u32>),
+    AskDiscardSecret,
+    DiscardSecret,
+    AcceptSecret,
     Me(BackendResult<User>),
     DialogsLoaded(BackendResult<Vec<Dialog>>),
     RetryDialogs,
@@ -189,7 +296,27 @@ pub enum Msg {
 }
 
 pub struct App {
-    backend: Backend,
+    backend: Option<Backend>,
+    auth: Option<Auth>,
+    connect: Option<Connector>,
+    pub phase: Phase,
+    pub connect_error: Option<String>,
+    main_started: bool,
+    pub login: Login,
+    /// Código QR del token vigente (y su URL, para no regenerarlo si no cambia).
+    pub qr: Option<qr_code::Data>,
+    pub(crate) qr_url: String,
+    pub simulated: bool,
+    pub login_hint: Option<String>,
+    pub sticker_sets: Vec<StickerSet>,
+    pub recents: tc_stickers::Recents,
+    pub picker: Picker,
+    /// Columnas de la rejilla del selector en la última vista (navegación con flechas).
+    pub picker_cols: std::cell::Cell<usize>,
+    pub art: Art,
+    sticker_t0: Instant,
+    /// Milisegundos del reloj de animación de los stickers (avanza con los frames).
+    pub sticker_ms: f32,
     on_start: Option<Arc<dyn Fn() + Send + Sync>>,
     pub brasa: Brasa,
     pub anim: Animator<AnimKey>,
@@ -258,8 +385,26 @@ pub fn error_text(e: &BackendError) -> String {
 
 impl App {
     pub fn new(flags: Flags) -> (Self, Task<Msg>) {
-        let app = Self {
+        let now = Instant::now();
+        let mut app = Self {
             backend: flags.backend,
+            auth: flags.auth,
+            connect: flags.connect,
+            phase: Phase::Connecting,
+            connect_error: None,
+            main_started: false,
+            login: Login::new(now),
+            qr: None,
+            qr_url: String::new(),
+            simulated: flags.simulated,
+            login_hint: flags.login_hint,
+            sticker_sets: Vec::new(),
+            recents: tc_stickers::Recents::default(),
+            picker: Picker::default(),
+            picker_cols: std::cell::Cell::new(6),
+            art: Art::default(),
+            sticker_t0: now,
+            sticker_ms: 0.0,
             on_start: flags.on_start,
             brasa: Brasa::new(flags.theme),
             anim: Animator::new(MotionPreference::from_reduced(flags.reduced_motion)),
@@ -293,19 +438,73 @@ impl App {
             demo_start: None,
             on_screenshot: flags.on_screenshot,
         };
-        let mut tasks = vec![
-            app.call(|b| async move { b.me().await }, Msg::Me),
-            app.load_dialogs(),
-            app.call(|b| async move { b.contacts().await }, Msg::Contacts),
-            app.call(|b| async move { b.secret_chats().await }, Msg::Secrets),
-        ];
+        if let Some(n) = flags.notice {
+            app.toast_for(n, true, 12);
+        }
+        let mut tasks = vec![app.boot()];
         if let Some(f) = app.on_start.clone() {
             tasks.push(Task::perform(async move { f() }, |()| Msg::Started));
         }
         (app, Task::batch(tasks))
     }
 
+    /// Crea el backend si hace falta y decide entre login y app.
+    fn boot(&mut self) -> Task<Msg> {
+        if self.backend.is_none() {
+            self.phase = Phase::Connecting;
+            self.connect_error = None;
+            return match self.connect.clone() {
+                Some(c) => Task::perform(c(), Msg::Connected),
+                None => {
+                    self.connect_error = Some("No hay ningún backend configurado.".into());
+                    Task::none()
+                }
+            };
+        }
+        if self.auth.is_some() {
+            self.phase = Phase::Auth;
+            self.login = Login::new(Instant::now());
+            return self.call_auth(|a| async move { a.auth_state().await }, |r| Msg::Login(LoginMsg::State(r)));
+        }
+        self.enter_main()
+    }
+
+    /// Entra en la app (lista de chats) y lanza la carga inicial una sola vez por sesión.
+    pub(crate) fn enter_main(&mut self) -> Task<Msg> {
+        self.phase = Phase::Main;
+        if self.main_started {
+            return Task::none();
+        }
+        self.main_started = true;
+        Task::batch([
+            self.call(|b| async move { b.me().await }, Msg::Me),
+            self.load_dialogs(),
+            self.call(|b| async move { b.contacts().await }, Msg::Contacts),
+            self.call(|b| async move { b.secret_chats().await }, Msg::Secrets),
+            self.call(|b| async move { b.installed_sticker_sets().await }, Msg::StickerSets),
+        ])
+    }
+
+    /// La sesión se cerró o se revocó: vuelta a la pantalla de login con el estado limpio.
+    pub(crate) fn back_to_login(&mut self) -> Task<Msg> {
+        self.phase = Phase::Auth;
+        self.main_started = false;
+        self.login = Login::new(Instant::now());
+        self.login.step = login::Step::Phone;
+        self.conv = None;
+        self.overlay = None;
+        self.picker.close();
+        self.dialogs.clear();
+        self.dialogs_state = LoadState::Loading;
+        self.me = None;
+        self.toast("La sesión se ha cerrado. Vuelve a entrar.".into(), true);
+        operation::focus(Id::new(login::PHONE_ID))
+    }
+
     pub fn title(&self) -> String {
+        if self.phase != Phase::Main {
+            return "Iniciar sesión · teleClon".into();
+        }
         match self.conv.as_ref().and_then(|c| self.dialog(c.peer)) {
             Some(d) => format!("{} · teleClon", d.title),
             None => "teleClon".into(),
@@ -321,11 +520,17 @@ impl App {
     }
 
     pub fn subscription(&self) -> Subscription<Msg> {
-        let mut subs = vec![
-            Subscription::run_with(BackendHandle(self.backend.clone()), backend_events).map(Msg::Backend),
-            keyboard::listen().map(Msg::Key),
-        ];
-        if self.anim.is_active() {
+        let mut subs = vec![keyboard::listen().map(Msg::Key)];
+        if let Some(b) = &self.backend {
+            subs.push(Subscription::run_with(BackendHandle(b.clone()), backend_events).map(Msg::Backend));
+        }
+        if let Some(a) = &self.auth {
+            subs.push(Subscription::run_with(AuthHandle(a.clone()), auth_events).map(|s| Msg::Login(LoginMsg::Event(s))));
+        }
+        if self.phase == Phase::Auth && self.login.needs_tick() {
+            subs.push(iced::time::every(Duration::from_secs(1)).map(|t| Msg::Login(LoginMsg::Tick(t))));
+        }
+        if self.anim.is_active() || self.stickers_animating() {
             subs.push(window::frames().map(Msg::Frame));
         }
         if !self.demo.is_empty() {
@@ -345,7 +550,67 @@ impl App {
         Fut: Future<Output = T> + Send + 'static,
         T: Send + 'static,
     {
-        Task::perform(f(self.backend.clone()), map)
+        match &self.backend {
+            Some(b) => Task::perform(f(b.clone()), map),
+            None => Task::none(),
+        }
+    }
+
+    pub(crate) fn call_auth<T, F, Fut>(&self, f: F, map: impl FnOnce(T) -> Msg + Send + 'static) -> Task<Msg>
+    where
+        F: FnOnce(Auth) -> Fut,
+        Fut: Future<Output = T> + Send + 'static,
+        T: Send + 'static,
+    {
+        match &self.auth {
+            Some(a) => Task::perform(f(a.clone()), map),
+            None => Task::none(),
+        }
+    }
+
+    /// ¿Hay stickers animados a la vista (y el movimiento no está reducido)?
+    pub fn stickers_animating(&self) -> bool {
+        if self.anim.pref.is_reduced() || self.phase != Phase::Main {
+            return false;
+        }
+        let in_picker = self.picker.open && self.picker_tab_stickers().iter().any(|s| stickers::is_animated(s));
+        in_picker || self.conv.as_ref().is_some_and(|c| c.anim_visible.get())
+    }
+
+    /// Fase (0..1) del ciclo de animación para el sticker `seed` (desfasados entre sí).
+    pub fn sticker_phase(&self, seed: usize) -> f32 {
+        if self.anim.pref.is_reduced() {
+            return 0.0;
+        }
+        (self.sticker_ms / stickers::LOOP_MS + seed as f32 * 0.137).fract()
+    }
+
+    pub fn picker_tabs(&self) -> Vec<stickers::Tab> {
+        stickers::tabs(&self.sticker_sets, &self.recents)
+    }
+
+    pub fn picker_tab_stickers(&self) -> Vec<&Sticker> {
+        match self.picker_tabs().get(self.picker.tab) {
+            Some(t) => stickers::tab_stickers(*t, &self.sticker_sets, &self.recents),
+            None => Vec::new(),
+        }
+    }
+
+    /// Contactos que pueden recibir un chat secreto, filtrados y por nombre.
+    pub fn secret_candidates(&self, query: &str) -> Vec<&User> {
+        let q = format::fold(query.trim());
+        let mut v: Vec<&User> =
+            self.users.values().filter(|u| u.is_contact && !u.is_bot && Some(u.id) != self.me_id() && format::matches(&u.display_name(), &q)).collect();
+        v.sort_by_key(|u| format::fold(&u.display_name()));
+        v
+    }
+
+    /// Invitación a un chat secreto pendiente de aceptar por mí.
+    pub fn secret_invite(&self, peer: PeerRef) -> Option<&SecretChat> {
+        match peer {
+            PeerRef::Secret(s) => self.secrets.get(&s).filter(|c| c.state == SecretChatState::Waiting && !c.outgoing),
+            _ => None,
+        }
     }
 
     fn load_dialogs(&self) -> Task<Msg> {
@@ -395,6 +660,7 @@ impl App {
             let who = self.secrets.get(&s).map(|c| self.user_name(c.user)).unwrap_or_default();
             return match self.secrets.get(&s).map(|c| c.state) {
                 Some(SecretChatState::Accepted) => None,
+                Some(SecretChatState::Waiting) if self.secret_invite(peer).is_some() => Some(format!("{who} te invita a un chat secreto.")),
                 Some(SecretChatState::Waiting) => Some(format!("Esperando a que {who} acepte el chat secreto…")),
                 Some(SecretChatState::Discarded) => Some("Este chat secreto se cerró.".into()),
                 None => Some("Cargando el estado del chat secreto…".into()),
@@ -433,8 +699,12 @@ impl App {
     }
 
     fn toast(&mut self, text: String, error: bool) {
+        self.toast_for(text, error, 4);
+    }
+
+    fn toast_for(&mut self, text: String, error: bool, secs: u64) {
         self.next_toast += 1;
-        self.toasts.push(Toast { id: self.next_toast, text, error, born: Instant::now() });
+        self.toasts.push(Toast { id: self.next_toast, text, error, born: Instant::now(), secs });
         if self.toasts.len() > 3 {
             self.toasts.remove(0);
         }
@@ -528,6 +798,139 @@ impl App {
     pub fn update(&mut self, msg: Msg) -> Task<Msg> {
         match msg {
             Msg::Started => Task::none(),
+            Msg::Connected(Ok(s)) => {
+                self.backend = Some(s.chat);
+                self.auth = s.auth;
+                self.boot()
+            }
+            Msg::Connected(Err(e)) => {
+                self.connect_error = Some(e);
+                Task::none()
+            }
+            Msg::RetryConnect => self.boot(),
+            Msg::Login(m) => self.on_login(m),
+            Msg::StickerSets(Ok(sets)) => {
+                self.sticker_sets = sets;
+                Task::none()
+            }
+            Msg::StickerSets(Err(_)) => Task::none(),
+            Msg::TogglePicker => {
+                if self.picker.open {
+                    self.picker.close();
+                    return operation::focus(Id::new(COMPOSER_ID));
+                }
+                match self.conv.as_ref().map(|c| c.peer) {
+                    Some(p) if self.write_block(p).is_none() && !matches!(self.compose, Compose::Edit(_)) => {
+                        self.picker.open();
+                        if self.sticker_sets.is_empty() {
+                            return self.call(|b| async move { b.installed_sticker_sets().await }, Msg::StickerSets);
+                        }
+                        Task::none()
+                    }
+                    _ => Task::none(),
+                }
+            }
+            Msg::PickerTab(i) => {
+                let n = self.picker_tabs().len();
+                self.picker.select_tab(i, n);
+                Task::none()
+            }
+            Msg::PickerNav(nav) => {
+                if !self.picker.open {
+                    return Task::none();
+                }
+                let (len, n) = (self.picker_tab_stickers().len(), self.picker_tabs().len());
+                match self.picker.nav(nav, len, self.picker_cols.get(), n) {
+                    Some(i) => match self.picker_tab_stickers().get(i).map(|s| s.id) {
+                        Some(id) => self.send_sticker(id),
+                        None => Task::none(),
+                    },
+                    None => Task::none(),
+                }
+            }
+            Msg::SendSticker(id) => self.send_sticker(id),
+            Msg::NewSecret(user) => {
+                self.overlay = Some(Overlay::NewSecret { query: String::new(), user, busy: false });
+                self.open_overlay_anim();
+                Task::none()
+            }
+            Msg::SecretQuery(q) => {
+                if let Some(Overlay::NewSecret { query, .. }) = &mut self.overlay {
+                    *query = q;
+                }
+                Task::none()
+            }
+            Msg::SecretPick(u) => {
+                if let Some(Overlay::NewSecret { user, .. }) = &mut self.overlay {
+                    *user = Some(u);
+                }
+                Task::none()
+            }
+            Msg::ConfirmNewSecret => {
+                let Some(Overlay::NewSecret { query, user, busy }) = &self.overlay else { return Task::none() };
+                // Con el filtro dejando un único contacto, Enter lo elige.
+                let only = match self.secret_candidates(query).as_slice() {
+                    [u] => Some(u.id),
+                    _ => None,
+                };
+                let Some(target) = user.or(only).filter(|_| !*busy) else { return Task::none() };
+                if let Some(Overlay::NewSecret { user, busy, .. }) = &mut self.overlay {
+                    *user = Some(target);
+                    *busy = true;
+                }
+                self.call(move |b| async move { b.request_secret_chat(target).await }, Msg::SecretCreated)
+            }
+            Msg::SecretCreated(r) => match r {
+                Ok(chat) => {
+                    if matches!(self.overlay, Some(Overlay::NewSecret { .. })) {
+                        self.overlay = None;
+                    }
+                    let (id, user) = (chat.id, chat.user);
+                    self.secrets.insert(id, chat);
+                    let want = self.want_user(Some(user));
+                    Task::batch([want, self.open(PeerRef::Secret(id))])
+                }
+                Err(e) => {
+                    if let Some(Overlay::NewSecret { busy, .. }) = &mut self.overlay {
+                        *busy = false;
+                    }
+                    self.toast(error_text(&e), true);
+                    Task::none()
+                }
+            },
+            Msg::ShowTtl => {
+                if !matches!(self.conv.as_ref().map(|c| c.peer), Some(PeerRef::Secret(_))) {
+                    return Task::none();
+                }
+                self.overlay = Some(Overlay::Ttl { confirm_discard: false });
+                self.open_overlay_anim();
+                Task::none()
+            }
+            Msg::SetTtl(ttl) => {
+                let Some(PeerRef::Secret(id)) = self.conv.as_ref().map(|c| c.peer) else { return Task::none() };
+                self.overlay = None;
+                // Optimista: el evento `SecretChat` del backend lo confirma.
+                if let Some(c) = self.secrets.get_mut(&id) {
+                    c.ttl_secs = ttl;
+                }
+                self.call(move |b| async move { b.set_secret_ttl(id, ttl).await }, Msg::Op)
+            }
+            Msg::AskDiscardSecret => {
+                if let Some(Overlay::Ttl { confirm_discard }) = &mut self.overlay {
+                    *confirm_discard = true;
+                }
+                Task::none()
+            }
+            Msg::DiscardSecret => {
+                let Some(PeerRef::Secret(id)) = self.conv.as_ref().map(|c| c.peer) else { return Task::none() };
+                self.overlay = None;
+                self.picker.close();
+                self.call(move |b| async move { b.discard_secret_chat(id).await }, Msg::Op)
+            }
+            Msg::AcceptSecret => {
+                let Some(PeerRef::Secret(id)) = self.conv.as_ref().map(|c| c.peer) else { return Task::none() };
+                self.call(move |b| async move { b.accept_secret_chat(id).await.map(|_| ()) }, Msg::Op)
+            }
             Msg::Me(Ok(u)) => {
                 self.me = Some(u);
                 Task::none()
@@ -750,11 +1153,12 @@ impl App {
             }
             Msg::Frame(now) => {
                 self.anim.tick(now);
+                self.sticker_ms = now.saturating_duration_since(self.sticker_t0).as_secs_f32() * 1000.0;
                 Task::none()
             }
             Msg::Tick(now) => {
                 self.typing.retain(|_, (_, until)| *until > now);
-                self.toasts.retain(|t| now.saturating_duration_since(t.born) < Duration::from_secs(4));
+                self.toasts.retain(|t| now.saturating_duration_since(t.born) < Duration::from_secs(t.secs));
                 self.dots = (self.dots + 1) % 3;
                 Task::none()
             }
@@ -813,6 +1217,7 @@ impl App {
         self.compose = Compose::Normal;
         self.hover = None;
         self.reactions_for = None;
+        self.picker.close();
         let draft = self.dialog(peer).and_then(|d| d.draft.clone());
         if let Some(r) = draft.as_ref().and_then(|d| d.reply_to) {
             self.compose = Compose::Reply(r);
@@ -854,6 +1259,8 @@ impl App {
         } else {
             c.loading = false;
             c.messages = page;
+            // Hasta la primera maquetación: ¿hay algún sticker animado entre los últimos?
+            c.anim_visible.set(c.messages.iter().rev().take(16).any(|m| m.sticker.as_ref().is_some_and(stickers::is_animated)));
             if unread > 0 {
                 c.unread_from = c.messages.iter().rev().filter(|m| !m.outgoing).nth(unread - 1).map(|m| m.id);
             }
@@ -1065,12 +1472,74 @@ impl App {
         }
     }
 
+    /// Envío optimista de un sticker (pendiente con id local → confirmado por `random_id`).
+    fn send_sticker(&mut self, id: StickerId) -> Task<Msg> {
+        let Some(peer) = self.conv.as_ref().map(|c| c.peer) else { return Task::none() };
+        if self.write_block(peer).is_some() || matches!(self.compose, Compose::Edit(_)) {
+            return Task::none();
+        }
+        let Some(sticker) = stickers::find(&self.sticker_sets, id).cloned() else { return Task::none() };
+        self.recents.record(id);
+        self.picker.close();
+        let reply_to = match self.compose {
+            Compose::Reply(r) => Some(r),
+            _ => None,
+        };
+        let random_id = self.new_random_id();
+        let ttl = match peer {
+            PeerRef::Secret(s) => self.secrets.get(&s).and_then(|c| c.ttl_secs),
+            _ => None,
+        };
+        let pending = Message {
+            id: MsgId(-self.local_seq),
+            peer,
+            sender: self.me_id(),
+            date: self::now(),
+            edit_date: None,
+            outgoing: true,
+            text: String::new(),
+            entities: vec![],
+            reply_to,
+            forwarded_from: None,
+            media: None,
+            sticker: Some(sticker),
+            reactions: vec![],
+            random_id: Some(random_id),
+            state: SendState::Pending,
+            ttl_secs: ttl,
+        };
+        let now = Instant::now();
+        let key = MsgKey::Random(random_id);
+        self.anim.start(AnimKey::BubbleOpacity(key), 0.0, 1.0, Curve::new(Spring::ESTANDAR, Property::Opacity, 180), now);
+        self.anim.start(AnimKey::BubbleY(key), 8.0, 0.0, Curve::new(Spring::ESTANDAR, Property::Position, 180), now);
+        if let Some(c) = self.conv.as_mut() {
+            c.push_pending(pending);
+            c.from_bottom = 0.0;
+            c.new_below = 0;
+        }
+        if reply_to.is_some() {
+            self.compose = Compose::Normal;
+        }
+        let send = self.call(
+            move |b| async move { b.send_sticker(peer, id, reply_to, random_id).await },
+            move |result| Msg::Sent { peer, random_id, result },
+        );
+        Task::batch([send, Self::scroll_bottom(), operation::focus(Id::new(COMPOSER_ID))])
+    }
+
     fn retry(&mut self, rid: RandomId) -> Task<Msg> {
         let Some(c) = self.conv.as_mut() else { return Task::none() };
         let Some(m) = c.messages.iter_mut().find(|m| m.random_id == Some(rid) && conv::is_local(m)) else {
             return Task::none();
         };
         m.state = SendState::Pending;
+        if let Some(st) = m.sticker.as_ref().map(|s| s.id) {
+            let (peer, reply_to) = (m.peer, m.reply_to);
+            return self.call(
+                move |b| async move { b.send_sticker(peer, st, reply_to, rid).await },
+                move |result| Msg::Sent { peer, random_id: rid, result },
+            );
+        }
         let (peer, out) = (m.peer, OutgoingText { text: m.text.clone(), entities: vec![], reply_to: m.reply_to, random_id: rid });
         self.call(
             move |b| async move { b.send_text(peer, out).await },
@@ -1079,8 +1548,15 @@ impl App {
     }
 
     fn escape(&mut self) -> Task<Msg> {
+        if self.phase == Phase::Auth {
+            return self.login_escape();
+        }
         if self.overlay.take().is_some() {
             return Task::none();
+        }
+        if self.picker.open {
+            self.picker.close();
+            return operation::focus(Id::new(COMPOSER_ID));
         }
         if self.reactions_for.take().is_some() {
             return Task::none();
@@ -1098,6 +1574,27 @@ impl App {
         let keyboard::Event::KeyPressed { key, modifiers, .. } = ev else { return Task::none() };
         match key.as_ref() {
             Key::Named(Named::Escape) => self.escape(),
+            // Navegación con Tab entre campos y botones enfocables (login, diálogos).
+            Key::Named(Named::Tab) if self.picker.open && self.overlay.is_none() => {
+                self.update(Msg::PickerNav(if modifiers.shift() { Nav::PrevTab } else { Nav::NextTab }))
+            }
+            Key::Named(Named::Tab) if modifiers.shift() => operation::focus_previous(),
+            Key::Named(Named::Tab) => operation::focus_next(),
+            _ if self.phase != Phase::Main => Task::none(),
+            Key::Character("e") if modifiers.command() => self.update(Msg::TogglePicker),
+            Key::Named(n @ (Named::ArrowLeft | Named::ArrowRight | Named::ArrowUp | Named::ArrowDown | Named::Enter))
+                if self.picker.open && self.overlay.is_none() && !modifiers.alt() =>
+            {
+                let nav = match n {
+                    Named::ArrowLeft => Nav::Left,
+                    Named::ArrowRight => Nav::Right,
+                    Named::ArrowUp => Nav::Up,
+                    Named::ArrowDown => Nav::Down,
+                    _ => Nav::Activate,
+                };
+                self.update(Msg::PickerNav(nav))
+            }
+            Key::Named(Named::Enter) if matches!(self.overlay, Some(Overlay::NewSecret { .. })) => self.update(Msg::ConfirmNewSecret),
             Key::Character("k") if modifiers.command() => operation::focus(Id::new(SEARCH_ID)),
             Key::Character(c) if modifiers.command() && c.len() == 1 && ("1"..="5").contains(&c) => {
                 let i = c.parse::<usize>().unwrap_or(1) - 1;

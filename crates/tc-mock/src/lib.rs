@@ -20,7 +20,7 @@ use tokio::sync::broadcast::{self, error::RecvError};
 use tokio::task::JoinHandle;
 
 use crate::rng::Lcg;
-pub use data::{BIG_CHAT, BIG_CHAT_LEN, ME, SECRET_ID};
+pub use data::{ANIMATED_SET_ID, BIG_CHAT, BIG_CHAT_LEN, ME, SECRET_ID};
 
 #[derive(Debug, Clone)]
 pub struct MockConfig {
@@ -785,6 +785,8 @@ impl SecretChatsApi for MockBackend {
 pub const MOCK_LOGIN_CODE: &str = "12345";
 /// Contraseña 2FA simulada (valor de prueba del mock).
 pub const MOCK_2FA_PASSWORD: &str = "prueba-2fa";
+/// Espera simulada por límite de intentos (teléfonos que terminan en `9`).
+pub const MOCK_FLOOD_SECS: u32 = 45;
 
 impl Inner {
     fn set_auth(&self, st: AuthState) {
@@ -793,7 +795,8 @@ impl Inner {
     }
 
     /// Reglas del login simulado: un teléfono que termina en `0` no tiene cuenta, uno que
-    /// termina en `2` tiene 2FA y el resto entra directamente con `MOCK_LOGIN_CODE`.
+    /// termina en `2` tiene 2FA, uno que termina en `9` recibe `FloodWait(MOCK_FLOOD_SECS)` al
+    /// pedir el código y el resto entra directamente con `MOCK_LOGIN_CODE`.
     fn mock_code(phone: &str) -> CodeRequest {
         CodeRequest { phone: phone.to_string(), kind: CodeKind::App, length: Some(5), next: Some(CodeKind::Sms), timeout_secs: Some(60) }
     }
@@ -810,6 +813,9 @@ impl AuthApi for MockBackend {
         let phone = phone.trim().to_string();
         if phone.len() < 5 || !phone.trim_start_matches('+').chars().all(|c| c.is_ascii_digit()) {
             return Err(BackendError::InvalidInput("phone"));
+        }
+        if phone.ends_with('9') {
+            return Err(BackendError::FloodWait(MOCK_FLOOD_SECS));
         }
         let req = Inner::mock_code(&phone);
         self.inner.lock().auth_phone = Some(phone);

@@ -13,9 +13,21 @@ async-trait.workspace = true
 futures.workspace = true
 rusqlite.workspace = true
 directories.workspace = true
-keyring.workspace = true
+keyring = { workspace = true, optional = true }
 aes-gcm.workspace = true
 zeroize.workspace = true
 thiserror.workspace = true
+serde_json.workspace = true
 tokio = { workspace = true, features = ["sync", "rt"] }
 tracing.workspace = true
+
+[features]
+default = ["keyring-vault"]
+# `KeyringVault` (Secret Service/Keychain/Credential Manager vía `keyring` 4.x). Sin la feature solo hay
+# `MemoryVault` y el crate no enlaza ninguna pila D-Bus. Con ella compila en cualquier sistema; sin
+# servicio en ejecución las operaciones devuelven `VaultError::Unavailable`.
+keyring-vault = ["dep:keyring"]
+
+[dev-dependencies]
+tc-mock.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }

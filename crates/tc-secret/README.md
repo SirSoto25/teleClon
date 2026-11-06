@@ -14,6 +14,7 @@ Fuentes, leídas el 2026-11-06: core.telegram.org/api/end-to-end, `/api/end-to-e
 | `crypto` | `msg_key = SHA256(key[88+x..+32] ‖ datos)[8..24]` y la KDF sha256_a/sha256_b, con AES-256-IGE. x = 0 si envía el creador del chat y x = 8 si envía el otro. Relleno de 12 a 1024 bytes. `msg_key` se compara en tiempo constante (`subtle`) antes de leer ningún campo descifrado |
 | `tl` | Serializador propio. Cubre `decryptedMessageLayer`, `decryptedMessage#91cc4674`, `decryptedMessageService` (capas 17 y 8), las 13 acciones (TTL, leídos, borrar, captura, vaciar, Resend, NotifyLayer, Typing, Request/Accept/Commit/AbortKey, Noop) y las entidades de la capa 144 |
 | `session` | Máquina de estados `Requested`/`Incoming` → `Ready` → `Discarded`. Lleva los seq_no in/out con paridad según quién creó el chat. Detecta huecos, los guarda en cola y pide `Resend`, uno por hueco. Descarta duplicados. Si hay violaciones de secuencia, aborta. También gestiona la capa del otro extremo, el TTL del chat y el re-keying (PFS) a los 100 mensajes o a la semana, incluidas peticiones cruzadas (se aborta la de `exchange_id` menor) y mensajes en vuelo con la clave anterior |
+| `session::snapshot` | `SecretChat::snapshot()` / `SecretChat::restore()` y `SessionSnapshot`: formato binario propio y versionado (`TCS1`) con todo el estado (rol, parámetros DH, exponentes pendientes, clave vigente y anterior, re-keying, seq_no, capa, TTL, huella, registro de enviados y cola). **Contiene claves y textos en claro recientes**: guardarlo solo cifrado o en el keyring. Hay que guardarlo antes de enviar lo que devuelva cada operación |
 | `ttl` | `SelfDestructTimer`: plazos por `random_id`. Releer un mensaje no alarga su plazo |
 | `visual` | 36 bytes: SHA1(clave inicial)[..16] ‖ SHA256(clave de la capa 46)[..20]. Da también una rejilla de 12×12 y una cadena hexadecimal |
 | `testing` | Solo con la feature `testing`: `SeededEntropy` determinista y el primo del RFC 3526 (grupo 14). **No es para producción** |
@@ -38,7 +39,8 @@ Fuentes, leídas el 2026-11-06: core.telegram.org/api/end-to-end, `/api/end-to-e
   - Medios: solo `decryptedMessageMediaEmpty`.
   - Archivos cifrados (clave e iv por archivo, huella md5).
   - `SendMessageAction` distintas de escribir y cancelar.
-  - Persistencia del estado de sesión (contadores, cola, registro). Por ahora solo se exporta la clave.
+  - Persistencia en disco: el crate solo serializa (`SessionSnapshot`); dónde se guarda lo decide el llamador (`tc-telegram` define `SecretStateStore`, el almacén real es de `tc-store`).
+  - Plazos de autodestrucción en curso dentro de la instantánea (`SelfDestructTimer` va aparte).
 - La rejilla y los emoji de `visual` siguen una convención propia, así que no se pueden comparar visualmente con otros clientes. El texto hexadecimal sí se puede comparar.
 - El registro de enviados para atender `Resend` guarda en memoria los textos en claro de los últimos 1024 mensajes.
 - Si la entropía falla a mitad de procesar un mensaje, puede perderse lo que ya había en `Output`. Con `OsEntropy` no se espera que ocurra.

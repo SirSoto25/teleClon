@@ -14,7 +14,6 @@ use crate::{GrammersBackend, Inner, now_secs};
 
 /// Longitud máxima de un mensaje de texto (caracteres).
 pub(crate) const MAX_TEXT: usize = 4096;
-const SECRET_UNAVAILABLE: &str = "los chats secretos aún no están disponibles con la red real (hito M2.7)";
 
 pub(crate) fn random_i64() -> i64 {
     let mut b = [0u8; 8];
@@ -436,6 +435,9 @@ impl DialogsApi for GrammersBackend {
 #[async_trait]
 impl MessagesApi for GrammersBackend {
     async fn history(&self, peer: PeerRef, anchor: Anchor, limit: usize) -> BackendResult<Vec<Message>> {
+        if let PeerRef::Secret(id) = peer {
+            return self.inner.secret_history(id, anchor, limit).await;
+        }
         let input = self.inner.input_peer(peer)?;
         let lim = limit.clamp(1, 100) as i32;
         let (offset_id, add_offset, min_id) = history_params(anchor, lim);
@@ -458,6 +460,9 @@ impl MessagesApi for GrammersBackend {
     async fn send_text(&self, peer: PeerRef, msg: OutgoingText) -> BackendResult<Message> {
         if msg.text.trim().is_empty() || msg.text.chars().count() > MAX_TEXT {
             return Err(BackendError::InvalidInput("text"));
+        }
+        if let PeerRef::Secret(id) = peer {
+            return self.inner.secret_send_text(id, msg).await;
         }
         let input = self.inner.input_peer(peer)?;
         let req = tl::functions::messages::SendMessage {
@@ -533,6 +538,9 @@ impl MessagesApi for GrammersBackend {
         if ids.is_empty() {
             return Ok(());
         }
+        if let PeerRef::Secret(id) = peer {
+            return self.inner.secret_delete(id, ids, revoke).await;
+        }
         let raw: Vec<i32> = ids.iter().map(|i| i.0).collect();
         match channel_of(peer) {
             Some(ch) => {
@@ -540,9 +548,6 @@ impl MessagesApi for GrammersBackend {
                 self.inner.rpc(&tl::functions::channels::DeleteMessages { channel: input, id: raw }).await?;
             }
             None => {
-                if matches!(peer, PeerRef::Secret(_)) {
-                    return Err(BackendError::Forbidden(SECRET_UNAVAILABLE.into()));
-                }
                 self.inner.rpc(&tl::functions::messages::DeleteMessages { revoke, id: raw }).await?;
             }
         }
@@ -605,6 +610,9 @@ impl MessagesApi for GrammersBackend {
     }
 
     async fn mark_read(&self, peer: PeerRef, max_id: MsgId) -> BackendResult<()> {
+        if let PeerRef::Secret(id) = peer {
+            return self.inner.secret_mark_read(id, max_id).await;
+        }
         match channel_of(peer) {
             Some(ch) => {
                 let input = self.inner.cache().peers.input_channel(ch, &self.inner.net.session)?;
@@ -625,6 +633,9 @@ impl MessagesApi for GrammersBackend {
     }
 
     async fn set_typing(&self, peer: PeerRef, typing: bool) -> BackendResult<()> {
+        if let PeerRef::Secret(id) = peer {
+            return self.inner.secret_typing(id, typing).await;
+        }
         let input = self.inner.input_peer(peer)?;
         let action =
             if typing { tl::enums::SendMessageAction::SendMessageTypingAction } else { tl::enums::SendMessageAction::SendMessageCancelAction };
@@ -683,25 +694,27 @@ impl StickersApi for GrammersBackend {
     }
 }
 
+/// EXPERIMENTAL, sin auditoría y sin prueba de interoperabilidad con clientes oficiales
+/// (ver `secret.rs` y `crates/tc-secret/README.md`).
 #[async_trait]
 impl SecretChatsApi for GrammersBackend {
     async fn secret_chats(&self) -> BackendResult<Vec<SecretChat>> {
-        Ok(vec![])
+        self.inner.secret_list().await
     }
-    async fn request_secret_chat(&self, _user: UserId) -> BackendResult<SecretChat> {
-        Err(BackendError::Forbidden(SECRET_UNAVAILABLE.into()))
+    async fn request_secret_chat(&self, user: UserId) -> BackendResult<SecretChat> {
+        self.inner.secret_request(user).await
     }
-    async fn accept_secret_chat(&self, _id: SecretChatId) -> BackendResult<SecretChat> {
-        Err(BackendError::Forbidden(SECRET_UNAVAILABLE.into()))
+    async fn accept_secret_chat(&self, id: SecretChatId) -> BackendResult<SecretChat> {
+        self.inner.secret_accept(id).await
     }
-    async fn discard_secret_chat(&self, _id: SecretChatId) -> BackendResult<()> {
-        Err(BackendError::NotFound)
+    async fn discard_secret_chat(&self, id: SecretChatId) -> BackendResult<()> {
+        self.inner.secret_discard(id).await
     }
-    async fn set_secret_ttl(&self, _id: SecretChatId, _ttl_secs: Option<u32>) -> BackendResult<()> {
-        Err(BackendError::NotFound)
+    async fn set_secret_ttl(&self, id: SecretChatId, ttl_secs: Option<u32>) -> BackendResult<()> {
+        self.inner.secret_set_ttl(id, ttl_secs).await
     }
-    async fn secret_key_visual(&self, _id: SecretChatId) -> BackendResult<KeyVisual> {
-        Err(BackendError::NotFound)
+    async fn secret_key_visual(&self, id: SecretChatId) -> BackendResult<KeyVisual> {
+        self.inner.secret_visual(id).await
     }
 }
 

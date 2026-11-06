@@ -15,6 +15,8 @@
 //! - [`tl`]: serializador propio del subconjunto de la capa secreta (capa 144).
 //! - [`session`]: máquina de estados solicitud/aceptación, números de secuencia,
 //!   huecos y `Resend`, re-keying (PFS), TTL del chat y descarte.
+//! - [`SessionSnapshot`]: instantánea del estado (claves incluidas) para guardarlo y
+//!   restaurarlo; el almacenamiento lo pone el llamador.
 //! - [`ttl`]: temporizador de autodestrucción; [`visual`]: huella visual de la clave.
 //!
 //! Diseño sans-IO: nada de red, disco ni reloj. El llamador pasa bytes, la hora y una
@@ -39,6 +41,6 @@ pub use dh::{DhParams, DhSecret};
 pub use entropy::{Entropy, OsEntropy};
 pub use error::{Result, SecretError};
 pub use key::SecretKey;
-pub use session::{DiscardReason, Event, Outbound, Output, SecretChat, StateKind};
+pub use session::{DiscardReason, Event, Outbound, Output, SecretChat, SessionSnapshot, StateKind};
 pub use ttl::SelfDestructTimer;
 pub use visual::KeyVisualization;

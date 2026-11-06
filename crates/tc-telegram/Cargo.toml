@@ -9,6 +9,9 @@ publish.workspace = true
 
 [dependencies]
 tc-core.workspace = true
+# Chats secretos E2E (sans-IO, EXPERIMENTAL, sin auditoría).
+tc-secret.workspace = true
+zeroize.workspace = true
 async-trait.workspace = true
 futures.workspace = true
 thiserror.workspace = true

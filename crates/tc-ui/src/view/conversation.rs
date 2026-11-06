@@ -10,6 +10,7 @@ use tc_theme::tokens::{layout, radius, space, text as ts};
 use tc_theme::{TextStyle, tokens};
 
 use crate::app::{AnimKey, App, COMPOSER_ID, CONV_SCROLL_ID, Compose, Msg, REACTIONS};
+use crate::stickers::Nav;
 use crate::conv::{self, Body, Conversation, Item, LayoutInput, MsgKey, MsgLayout};
 use crate::format;
 use crate::icon::{Icon, icon, icon_fill};
@@ -25,7 +26,32 @@ pub fn bubble_max(col_w: f32, group: bool) -> f32 {
 
 pub fn view(app: &App, narrow: bool) -> Element<'_, Msg> {
     let Some(cv) = &app.conv else { return empty(app) };
-    column![header(app, cv, narrow), body(app, cv), composer(app, cv)].height(Length::Fill).width(Length::Fill).into()
+    let mut col = column![header(app, cv, narrow)];
+    if matches!(cv.peer, PeerRef::Secret(_)) {
+        col = col.push(experimental_banner(app));
+    }
+    col = col.push(body(app, cv));
+    if app.picker.open {
+        col = col.push(super::stickers::picker(app));
+    }
+    col.push(composer(app, cv)).height(Length::Fill).width(Length::Fill).into()
+}
+
+/// Etiqueta «EXPERIMENTAL» de los chats secretos (texto, no solo color).
+pub fn experimental_pill<'a>(b: Brasa) -> Element<'a, Msg> {
+    container(t1("EXPERIMENTAL", with_weight(ts::CAPTION, 700), c(b.p.warning))).padding([1, 8]).style(style::experimental_pill(b)).into()
+}
+
+/// Aviso permanente bajo la cabecera de un chat secreto (ADR-0004: cripto propia sin auditoría).
+fn experimental_banner(app: &App) -> Element<'_, Msg> {
+    let b = app.brasa;
+    let text = "Experimental: el cifrado de extremo a extremo de teleClon todavía no ha pasado una auditoría de seguridad. No lo uses para nada sensible.";
+    let r = row![icon(Icon::Warning, layout::ICON_SM, c(b.p.warning)), t(text, ts::CAPTION, c(b.p.text))].spacing(space::S2).align_y(Alignment::Center);
+    column![
+        container(r).padding(Padding::from([space::S1_5, space::S4])).width(Length::Fill).style(style::warning_banner(b)),
+        hairline(b)
+    ]
+    .into()
 }
 
 fn empty(app: &App) -> Element<'_, Msg> {
@@ -63,6 +89,9 @@ fn header<'a>(app: &'a App, cv: &'a Conversation, narrow: bool) -> Element<'a, M
         name = name.push(icon_fill(Icon::Shield, layout::ICON_SM, c(b.p.success)));
     }
     name = name.push(t1(format::ellipsize(title, 48), ts::TITLE, c(b.p.text)));
+    if matches!(peer, PeerRef::Secret(_)) {
+        name = name.push(experimental_pill(b));
+    }
     if d.is_some_and(|d| d.muted) {
         name = name.push(icon(Icon::Muted, 14.0, c(b.p.text_muted)));
     }
@@ -70,8 +99,18 @@ fn header<'a>(app: &'a App, cv: &'a Conversation, narrow: bool) -> Element<'a, M
     left = left.push(column![name, t1(status, ts::META, status_color)].spacing(0));
 
     let mut actions = row![].spacing(space::S1).align_y(Alignment::Center);
-    if matches!(peer, PeerRef::Secret(_)) {
-        actions = actions.push(icon_button(Icon::Fingerprint, layout::ICON_MD, c(b.p.text), Some(Msg::ShowKey), b));
+    match peer {
+        PeerRef::Secret(s) => {
+            let ttl_on = app.secrets.get(&s).is_some_and(|c| c.ttl_secs.is_some());
+            let timer: Element<'_, Msg> =
+                if ttl_on { icon_fill(Icon::Timer, layout::ICON_MD, c(b.p.accent_text)) } else { icon(Icon::Timer, layout::ICON_MD, c(b.p.text)) };
+            actions = actions.push(button(timer).padding(8).style(style::ghost(b, radius::SM)).on_press(Msg::ShowTtl));
+            actions = actions.push(icon_button(Icon::Fingerprint, layout::ICON_MD, c(b.p.text), Some(Msg::ShowKey), b));
+        }
+        PeerRef::User(u) if Some(u) != app.me_id() && !app.users.get(&u).is_some_and(|u| u.is_bot) => {
+            actions = actions.push(icon_button(Icon::LockKey, layout::ICON_MD, c(b.p.text), Some(Msg::NewSecret(Some(u))), b));
+        }
+        _ => {}
     }
     let pinned = d.is_some_and(|d| d.pinned_order.is_some());
     let pin_icon: Element<'_, Msg> = if pinned {
@@ -128,7 +167,7 @@ fn header_status(app: &App, peer: PeerRef) -> (String, Color) {
                 _ => "cifrado de extremo a extremo".to_string(),
             };
             match chat.and_then(|c| c.ttl_secs) {
-                Some(ttl) => (format!("{state} · se borra a los {}", format::ttl(ttl)), muted),
+                Some(ttl) => (format!("{state} · se borra tras {}", format::ttl(ttl)), muted),
                 None => (state, muted),
             }
         }
@@ -265,6 +304,10 @@ fn messages<'a>(app: &'a App, cv: &'a Conversation, col_w: f32, vh: f32, x_shift
 
     let mut col = column![Space::new().height(Length::Fixed(win.top_space + filler))].width(Length::Fill).align_x(Alignment::Center);
     let mut li = items[..win.start].iter().filter(|i| matches!(i, Item::Msg { .. })).count();
+    cv.anim_visible.set(items[win.start..win.end].iter().any(|it| match it {
+        Item::Msg { idx, .. } => cv.messages[*idx].sticker.as_ref().is_some_and(crate::stickers::is_animated),
+        _ => false,
+    }));
     for it in &items[win.start..win.end] {
         let el: Element<'_, Msg> = match *it {
             Item::Edge { loading } => edge(app, cv, loading),
@@ -459,7 +502,7 @@ fn bubble<'a>(app: &'a App, cv: &'a Conversation, m: &'a Message, l: &MsgLayout,
     match l.body {
         Body::Sticker | Body::Emoji => {
             let big: Element<'_, Msg> = match (&m.sticker, l.body) {
-                (Some(s), _) => container(t1(s.emoji.as_str(), TextStyle { size: 88.0, line: 100.0, ..ts::EMOJI_ONLY }, fg))
+                (Some(s), _) => container(super::stickers::art(app, s, conv::STICKER, m.id.0.unsigned_abs() as usize, fg))
                     .center(Length::Fixed(conv::STICKER))
                     .into(),
                 _ => container(t(m.text.trim(), ts::EMOJI_ONLY, fg)).width(Length::Fixed(l.text.width + 1.0)).height(Length::Fixed(l.text.height)).into(),
@@ -562,6 +605,27 @@ fn bubble<'a>(app: &'a App, cv: &'a Conversation, m: &'a Message, l: &MsgLayout,
 
 fn composer<'a>(app: &'a App, cv: &'a Conversation) -> Element<'a, Msg> {
     let b = app.brasa;
+    if let Some(chat) = app.secret_invite(cv.peer) {
+        let who = app.user_name(chat.user);
+        let bar = container(container(
+            row![
+                icon_fill(Icon::Shield, layout::ICON_MD, c(b.p.success)),
+                t(format!("{who} te invita a un chat secreto (experimental)."), ts::UI, c(b.p.text)),
+                hfill(),
+                button(t1("Rechazar", ts::UI_STRONG, c(b.p.text))).padding([8, 16]).style(style::ghost(b, radius::MD)).on_press(Msg::DiscardSecret),
+                button(t1("Aceptar", ts::UI_STRONG, c(b.p.on_accent))).padding([8, 16]).style(style::primary(b, radius::MD)).on_press(Msg::AcceptSecret),
+            ]
+            .spacing(space::S2)
+            .align_y(Alignment::Center),
+        )
+        .max_width(layout::CHAT_COLUMN_MAX))
+        .padding(Padding::from([space::S2, space::S4]))
+        .center_x(Length::Fill)
+        .height(Length::Fixed(layout::COMPOSER_MIN_HEIGHT + space::S2))
+        .align_y(Vertical::Center)
+        .style(style::surface(b));
+        return column![hairline(b), bar].into();
+    }
     if let Some(reason) = app.write_block(cv.peer) {
         let bar = container(t1(reason, ts::UI, c(b.p.text_muted)))
             .center_x(Length::Fill)
@@ -572,6 +636,7 @@ fn composer<'a>(app: &'a App, cv: &'a Conversation) -> Element<'a, Msg> {
     }
     let empty = app.composer.text().trim().is_empty();
     let editing = matches!(app.compose, Compose::Edit(_));
+    let picker_open = app.picker.open;
     let editor = text_editor(&app.composer)
         .id(COMPOSER_ID)
         .placeholder(if editing { "Edita el mensaje…" } else { "Escribe un mensaje…" })
@@ -588,7 +653,16 @@ fn composer<'a>(app: &'a App, cv: &'a Conversation) -> Element<'a, Msg> {
             if !matches!(kp.status, text_editor::Status::Focused { .. }) {
                 return text_editor::Binding::from_key_press(kp);
             }
+            let nav = |n: Nav| Some(text_editor::Binding::Custom(Msg::PickerNav(n)));
             match kp.key.as_ref() {
+                Key::Character("e") if kp.modifiers.command() => Some(text_editor::Binding::Custom(Msg::TogglePicker)),
+                // Con el selector abierto, las flechas, Enter y Tab mueven el cursor de la rejilla.
+                Key::Named(Named::ArrowLeft) if picker_open => nav(Nav::Left),
+                Key::Named(Named::ArrowRight) if picker_open => nav(Nav::Right),
+                Key::Named(Named::ArrowUp) if picker_open => nav(Nav::Up),
+                Key::Named(Named::ArrowDown) if picker_open => nav(Nav::Down),
+                Key::Named(Named::Tab) if picker_open => nav(if kp.modifiers.shift() { Nav::PrevTab } else { Nav::NextTab }),
+                Key::Named(Named::Enter) if picker_open && app.picker.cursor.is_some() => nav(Nav::Activate),
                 Key::Named(Named::Enter) if !kp.modifiers.shift() => Some(text_editor::Binding::Custom(Msg::Send)),
                 Key::Named(Named::Escape) => Some(text_editor::Binding::Custom(Msg::Escape)),
                 Key::Named(Named::ArrowUp) if empty => Some(text_editor::Binding::Custom(Msg::EditLast)),
@@ -613,7 +687,17 @@ fn composer<'a>(app: &'a App, cv: &'a Conversation) -> Element<'a, Msg> {
     if let Some(strip) = compose_strip(app, cv) {
         col = col.push(strip);
     }
-    col = col.push(row![editor, send].spacing(space::S2).align_y(Alignment::End));
+    let sticker_btn: Element<'_, Msg> = if editing {
+        Space::new().width(Length::Fixed(0.0)).into()
+    } else {
+        let ic: Element<'_, Msg> = if picker_open {
+            icon_fill(Icon::Sticker, layout::ICON_MD, c(b.p.accent_text))
+        } else {
+            icon(Icon::Sticker, layout::ICON_MD, c(b.p.text_muted))
+        };
+        container(button(ic).padding(8).style(style::ghost(b, radius::PILL)).on_press(Msg::TogglePicker)).center(Length::Fixed(40.0)).into()
+    };
+    col = col.push(row![sticker_btn, editor, send].spacing(space::S2).align_y(Alignment::End));
     let bar = container(col.spacing(space::S2).max_width(layout::CHAT_COLUMN_MAX))
         .padding(Padding::from([space::S2, space::S4]))
         .center_x(Length::Fill)

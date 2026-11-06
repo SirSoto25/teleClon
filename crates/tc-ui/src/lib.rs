@@ -3,7 +3,9 @@
 //!
 //! Hitos cubiertos: M1.1 lista de chats (fijados, no leídos, búsqueda local, carpetas por tipo),
 //! M1.2 conversación con scroll virtual medido, M1.3 compositor (envío optimista, editar,
-//! responder, borrar, reaccionar, reintentar) y chat secreto con huella de clave.
+//! responder, borrar, reaccionar, reintentar), inicio de sesión (teléfono, código, 2FA y QR sobre
+//! `AuthApi`), selector y render de stickers (`tc-stickers`, estáticos y animados) y chats
+//! secretos (crear, aceptar, TTL, cerrar, huella y aviso EXPERIMENTAL) solo vía `SecretChatsApi`.
 #![forbid(unsafe_code)]
 
 pub mod anim;
@@ -11,12 +13,17 @@ pub mod app;
 pub mod conv;
 pub mod format;
 pub mod icon;
+pub mod login;
 pub mod measure;
+pub mod stickers;
 pub mod style;
 pub mod view;
 pub mod widgets;
 
-pub use app::{App, DemoStep, Flags, Folder, Msg};
+pub use app::{App, Auth, Backend, Connector, DemoStep, Flags, Folder, Msg, Phase, Session};
+pub use login::LoginMsg;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_m2;

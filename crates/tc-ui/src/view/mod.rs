@@ -1,22 +1,32 @@
 //! Vista raíz: disposición responsiva (raíl + lista + conversación), diálogos y toasts.
 
 pub mod conversation;
+pub mod login;
 pub mod sidebar;
+pub mod stickers;
 
 use iced::alignment::{Horizontal, Vertical};
-use iced::widget::{Space, button, checkbox, column, container, mouse_area, opaque, responsive, row, stack};
+use iced::widget::{Space, button, checkbox, column, container, mouse_area, opaque, responsive, row, scrollable, stack, text_input};
 use iced::{Alignment, Element, Length, Padding};
 use tc_core::PeerRef;
 use tc_theme::tokens::{layout, radius, space, text as ts};
 
-use crate::app::{AnimKey, App, Msg, Overlay};
+use crate::app::{AnimKey, App, Msg, Overlay, Phase, TTL_OPTIONS};
 use crate::format;
-use crate::icon::{Icon, icon};
+use crate::icon::{Icon, icon, icon_fill};
 use crate::style::{self, c};
 use crate::widgets::{hfill, t, t1, vgap};
 
 impl App {
     pub fn view(&self) -> Element<'_, Msg> {
+        if self.phase != Phase::Main {
+            let screen = if self.phase == Phase::Auth { login::view(self) } else { login::connecting(self) };
+            let mut layers = vec![screen];
+            if !self.toasts.is_empty() {
+                layers.push(toasts(self));
+            }
+            return stack(layers).width(Length::Fill).height(Length::Fill).into();
+        }
         responsive(move |size| {
             let narrow = size.width < layout::BREAKPOINT_SPLIT;
             let main: Element<'_, Msg> = if narrow {
@@ -101,6 +111,8 @@ fn overlay<'a>(app: &'a App, o: &'a Overlay) -> Element<'a, Msg> {
             col.into()
         }
         Overlay::Key(kv) => key_panel(app, kv.as_ref()),
+        Overlay::NewSecret { query, user, busy } => new_secret_panel(app, query, *user, *busy),
+        Overlay::Ttl { confirm_discard } => ttl_panel(app, *confirm_discard),
     };
     let panel = container(panel).padding(space::S6).width(Length::Fixed(width)).style(style::raised(b, 3, radius::XL));
     let scrim = mouse_area(container(Space::new()).width(Length::Fill).height(Length::Fill).style(style::scrim(b, k))).on_press(Msg::CloseOverlay);
@@ -138,10 +150,126 @@ fn key_panel<'a>(app: &'a App, kv: Option<&'a tc_core::KeyVisual>) -> Element<'a
             let digits = column(groups.iter().map(|g| t1(g.clone(), ts::CODE, c(b.p.text)).into())).spacing(space::S1);
             col = col
                 .push(row![grid, digits].spacing(space::S6).align_y(Alignment::Center))
-                .push(t1(kv.emoji.join("  "), ts::TITLE, c(b.p.text)))
-                .push(t("Backend de pruebas: esta huella es ilustrativa, no sale de una clave real.", ts::CAPTION, c(b.p.warning)));
+                .push(t1(kv.emoji.join("  "), ts::TITLE, c(b.p.text)));
+            if app.simulated {
+                col = col.push(t("Backend de pruebas: esta huella es ilustrativa, no sale de una clave real.", ts::CAPTION, c(b.p.warning)));
+            }
         }
     }
+    col = col.push(experimental_note(app));
     col.push(row![hfill(), button(t1("Cerrar", ts::UI_STRONG, c(b.p.on_accent))).padding([8, 16]).style(style::primary(b, radius::MD)).on_press(Msg::CloseOverlay)])
         .into()
+}
+
+/// Recordatorio EXPERIMENTAL de los diálogos de chats secretos.
+fn experimental_note(app: &App) -> Element<'_, Msg> {
+    let b = app.brasa;
+    row![
+        conversation::experimental_pill(b),
+        t("Cifrado propio sin auditoría de seguridad: no lo uses para información sensible.", ts::CAPTION, c(b.p.text_muted)),
+    ]
+    .spacing(space::S2)
+    .align_y(Alignment::Center)
+    .into()
+}
+
+/// Crear un chat secreto: filtro + lista de contactos + confirmación (Enter confirma).
+fn new_secret_panel<'a>(app: &'a App, query: &'a str, user: Option<tc_core::UserId>, busy: bool) -> Element<'a, Msg> {
+    let b = app.brasa;
+    let list = app.secret_candidates(query);
+    let chosen = user.or(match list.as_slice() {
+        [u] => Some(u.id),
+        _ => None,
+    });
+    let mut rows = column![].spacing(space::S0_5);
+    for u in &list {
+        let active = chosen == Some(u.id);
+        let name = u.display_name();
+        let mut r = row![crate::widgets::avatar(&name, u.id.0, layout::AVATAR_MD, None, b), t1(format::ellipsize(&name, 36), ts::UI_STRONG, c(b.p.text))]
+            .spacing(space::S3)
+            .align_y(Alignment::Center);
+        if active {
+            r = r.push(hfill()).push(icon(Icon::Check, layout::ICON_MD, c(b.p.accent_text)));
+        }
+        rows = rows.push(button(r).width(Length::Fill).padding([6, 8]).style(style::option_row(b, active)).on_press(Msg::SecretPick(u.id)));
+    }
+    if list.is_empty() {
+        rows = rows.push(t1("Ningún contacto coincide.", ts::UI, c(b.p.text_muted)));
+    }
+    let filter = text_input("Buscar contacto", query)
+        .id("new-secret-filter")
+        .on_input(Msg::SecretQuery)
+        .on_submit(Msg::ConfirmNewSecret)
+        .padding(Padding::from([10.0, 12.0]))
+        .size(ts::UI.size)
+        .font(style::font_of(ts::UI))
+        .style(style::field_input(b, false));
+    let confirm = (!busy && chosen.is_some()).then_some(Msg::ConfirmNewSecret);
+    column![
+        row![icon_fill(Icon::Shield, layout::ICON_LG, c(b.p.success)), t1("Nuevo chat secreto", ts::TITLE, c(b.p.text))].spacing(space::S2).align_y(Alignment::Center),
+        t(
+            "Los mensajes se cifran de extremo a extremo entre este dispositivo y el de la otra persona: no se guardan en la nube ni se pueden reenviar.",
+            ts::UI,
+            c(b.p.text_muted)
+        ),
+        experimental_note(app),
+        filter,
+        scrollable(rows).height(Length::Fixed(240.0)).style(style::thin_scroll(b)),
+        row![
+            hfill(),
+            button(t1("Cancelar", ts::UI_STRONG, c(b.p.text))).padding([8, 16]).style(style::ghost(b, radius::MD)).on_press(Msg::CloseOverlay),
+            button(t1(if busy { "Creando…" } else { "Crear chat secreto" }, ts::UI_STRONG, c(b.p.on_accent)))
+                .padding([8, 16])
+                .style(style::primary(b, radius::MD))
+                .on_press_maybe(confirm),
+        ]
+        .spacing(space::S2),
+    ]
+    .spacing(space::S3)
+    .into()
+}
+
+/// Autodestrucción del chat secreto abierto y opción de cerrarlo (con confirmación).
+fn ttl_panel(app: &App, confirm_discard: bool) -> Element<'_, Msg> {
+    let b = app.brasa;
+    let current = match app.conv.as_ref().map(|c| c.peer) {
+        Some(PeerRef::Secret(s)) => app.secrets.get(&s).and_then(|c| c.ttl_secs),
+        _ => None,
+    };
+    let mut opts = column![].spacing(space::S0_5);
+    for o in TTL_OPTIONS {
+        let active = o == current;
+        let label = o.map_or_else(|| "Desactivada".to_string(), |s| format!("Tras {}", format::ttl(s)));
+        let mut r = row![t1(label, ts::UI, c(b.p.text))].align_y(Alignment::Center);
+        if active {
+            r = r.push(hfill()).push(icon(Icon::Check, layout::ICON_MD, c(b.p.accent_text)));
+        }
+        opts = opts.push(button(r).width(Length::Fill).padding([8, 12]).style(style::option_row(b, active)).on_press(Msg::SetTtl(o)));
+    }
+    let discard: Element<'_, Msg> = if confirm_discard {
+        row![
+            t("Se borrará el historial en este dispositivo. ¿Cerrar el chat secreto?", ts::UI, c(b.p.danger)),
+            hfill(),
+            button(t1("Cerrar chat", ts::UI_STRONG, c(b.p.on_danger))).padding([8, 16]).style(style::danger_solid(b)).on_press(Msg::DiscardSecret),
+        ]
+        .spacing(space::S2)
+        .align_y(Alignment::Center)
+        .into()
+    } else {
+        button(row![icon(Icon::Trash, layout::ICON_MD, c(b.p.danger)), t1("Cerrar chat secreto", ts::UI_STRONG, c(b.p.danger))].spacing(space::S2))
+            .padding([8, 12])
+            .style(style::ghost(b, radius::MD))
+            .on_press(Msg::AskDiscardSecret)
+            .into()
+    };
+    column![
+        row![icon(Icon::Timer, layout::ICON_LG, c(b.p.accent_text)), t1("Autodestrucción", ts::TITLE, c(b.p.text))].spacing(space::S2).align_y(Alignment::Center),
+        t("Los mensajes nuevos se borrarán en los dos dispositivos cuando pase este tiempo desde que se leen.", ts::UI, c(b.p.text_muted)),
+        opts,
+        experimental_note(app),
+        discard,
+        row![hfill(), button(t1("Listo", ts::UI_STRONG, c(b.p.text))).padding([8, 16]).style(style::ghost(b, radius::MD)).on_press(Msg::CloseOverlay)],
+    ]
+    .spacing(space::S3)
+    .into()
 }

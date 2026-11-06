@@ -112,7 +112,11 @@ pub fn list(app: &App, width: Length) -> Element<'_, Msg> {
         .height(Length::Fixed(40.0))
         .align_y(Vertical::Center)
         .style(style::sunken_field(b, false, radius::SM));
-    let header = container(search).padding(space::S3);
+    let new_secret = button(icon(Icon::LockKey, layout::ICON_MD, c(b.p.text)))
+        .padding(10)
+        .style(style::ghost(b, radius::SM))
+        .on_press(Msg::NewSecret(None));
+    let header = container(row![search, new_secret].spacing(space::S2).align_y(Alignment::Center)).padding(space::S3);
 
     let body: Element<'_, Msg> = match &app.dialogs_state {
         LoadState::Loading => skeleton(app),

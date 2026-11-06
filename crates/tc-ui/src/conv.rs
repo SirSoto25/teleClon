@@ -386,6 +386,8 @@ pub struct Conversation {
     /// Ancho de la columna de la última maquetación (para compensar el scroll fuera de `view`).
     pub last_col: std::cell::Cell<f32>,
     pub last_viewport: std::cell::Cell<f32>,
+    /// Hay algún sticker animado en la ventana visible (lo fija la vista; decide si se piden frames).
+    pub anim_visible: std::cell::Cell<bool>,
 }
 
 impl Conversation {
@@ -404,6 +406,7 @@ impl Conversation {
             cache: Default::default(),
             last_col: std::cell::Cell::new(0.0),
             last_viewport: std::cell::Cell::new(0.0),
+            anim_visible: std::cell::Cell::new(false),
         }
     }
 

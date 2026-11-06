@@ -9,7 +9,10 @@ use std::time::Duration;
 pub const APP_DIR: &str = "teleclon";
 
 /// Migraciones en orden; la posición + 1 es el `user_version` resultante.
-const MIGRATIONS: &[&str] = &[include_str!("../migrations/0001_init.sql")];
+const MIGRATIONS: &[&str] = &[
+    include_str!("../migrations/0001_init.sql"),
+    include_str!("../migrations/0002_groups_folders_reactions_uploads.sql"),
+];
 
 /// Última versión de esquema que conoce este binario.
 pub const SCHEMA_VERSION: i64 = MIGRATIONS.len() as i64;

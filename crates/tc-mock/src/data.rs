@@ -101,7 +101,6 @@ const CHANNEL_POSTS: &[&str] = &[
 
 const REACTIONS: &[&str] = &["👍", "❤️", "😂", "🎉", "🙏", "🔥"];
 
-const STICKER_EMOJI: &[&str] = &["😀", "😂", "😍", "😴", "🤔", "😭", "🥳", "😎", "🙌", "☕", "🌧️", "🍕"];
 
 pub fn build(seed: u64, now: i64) -> Seed {
     let mut rng = Lcg::new(seed);
@@ -146,7 +145,7 @@ pub fn build(seed: u64, now: i64) -> Seed {
         );
     }
 
-    let sets = vec![sticker_set()];
+    let sets = vec![sticker_set(), animated_sticker_set()];
 
     let mut messages: HashMap<PeerRef, Vec<Message>> = HashMap::new();
     let mut dialogs: HashMap<PeerRef, Dialog> = HashMap::new();
@@ -158,7 +157,7 @@ pub fn build(seed: u64, now: i64) -> Seed {
         let n = if peer == BIG_CHAT { BIG_CHAT_LEN } else { 12 + rng.below(90) };
         // Los 8 primeros más recientes, el resto más antiguos.
         let last_at = now - (i as i64) * 5_400 - rng.below(1800) as i64;
-        let list = gen_history(&mut rng, peer, n, last_at, &user_ids, &sets[0]);
+        let list = gen_history(&mut rng, peer, n, last_at, &user_ids, &sets);
         messages.insert(peer, list);
     }
     // Grupos y canales.
@@ -171,7 +170,7 @@ pub fn build(seed: u64, now: i64) -> Seed {
         let list = if is_channel {
             gen_channel(&mut rng, peer, n.min(60), last_at)
         } else {
-            gen_history(&mut rng, peer, n, last_at, &user_ids, &sets[0])
+            gen_history(&mut rng, peer, n, last_at, &user_ids, &sets)
         };
         messages.insert(peer, list);
     }
@@ -186,7 +185,7 @@ pub fn build(seed: u64, now: i64) -> Seed {
         ttl_secs: Some(60),
     };
     let speer = PeerRef::Secret(SECRET_ID);
-    let mut sh = gen_history(&mut rng, speer, 8, now - 600, &[secret_user], &sets[0]);
+    let mut sh = gen_history(&mut rng, speer, 8, now - 600, &[secret_user], &sets);
     for m in &mut sh {
         m.ttl_secs = Some(60);
     }
@@ -242,23 +241,28 @@ pub fn build(seed: u64, now: i64) -> Seed {
     Seed { me, users, groups, secrets, dialogs, messages, sets }
 }
 
+/// Pack propio «Brasa básicos» de `tc-stickers` (12 stickers estáticos originales).
 pub fn sticker_set() -> StickerSet {
-    let set_id = StickerSetId(9001);
+    tc_stickers::pack::sample_set()
+}
+
+/// Set de la variante animada del pack propio. Convenio compartido con `tc-ui`
+/// (`tc_ui::stickers::ANIMATED_SET_ID`): id del set 9 000 002 y sticker `i` = `9 000 002 × 100 + i`,
+/// con el mismo dibujo que el sticker `i` del pack estático. Se marca `Lottie` porque es animado;
+/// el mock no trae bytes Lottie: la UI anima el dibujo propio por código.
+pub const ANIMATED_SET_ID: StickerSetId = StickerSetId(9_000_002);
+
+pub fn animated_sticker_set() -> StickerSet {
+    let base = tc_stickers::pack::sample_set();
     StickerSet {
-        id: set_id,
-        short_name: "brasitas".into(),
-        title: "Brasitas".into(),
-        stickers: STICKER_EMOJI
-            .iter()
+        id: ANIMATED_SET_ID,
+        short_name: "brasa_en_movimiento".into(),
+        title: "Brasa en movimiento".into(),
+        stickers: base
+            .stickers
+            .into_iter()
             .enumerate()
-            .map(|(i, e)| Sticker {
-                id: StickerId(9100 + i as i64),
-                set_id,
-                emoji: (*e).into(),
-                width: 512,
-                height: 512,
-                format: StickerFormat::Webp,
-            })
+            .map(|(i, s)| Sticker { id: StickerId(ANIMATED_SET_ID.0 * 100 + i as i64), set_id: ANIMATED_SET_ID, format: StickerFormat::Lottie, ..s })
             .collect(),
     }
 }
@@ -269,7 +273,7 @@ fn gen_history(
     n: usize,
     last_at: i64,
     senders: &[UserId],
-    set: &StickerSet,
+    sets: &[StickerSet],
 ) -> Vec<Message> {
     let mut out: Vec<Message> = Vec::with_capacity(n);
     // Se genera hacia atrás en el tiempo y luego se invierte, para que el último caiga en `last_at`.
@@ -313,7 +317,10 @@ fn gen_history(
         };
         let roll = rng.below(100);
         if roll < 4 {
-            m.sticker = Some(set.stickers[rng.below(set.stickers.len())].clone());
+            // Mismo número de tiradas que con un solo set: uno de cada tres sale de la variante animada.
+            let k = rng.below(sets[0].stickers.len());
+            let set = if k.is_multiple_of(3) && sets.len() > 1 { &sets[1] } else { &sets[0] };
+            m.sticker = Some(set.stickers[k.min(set.stickers.len() - 1)].clone());
         } else if roll < 9 {
             m.media = Some(Media {
                 id: 70_000 + i as i64,

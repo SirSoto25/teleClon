@@ -3,6 +3,7 @@
 mod fixtures;
 mod flows;
 mod mapping;
+mod secret;
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
@@ -79,13 +80,18 @@ pub(crate) fn cfg() -> TelegramConfig {
 
 /// Sesión ya iniciada (clave en el DC de casa y cuenta propia guardada).
 pub(crate) fn logged_session() -> Arc<TcSession> {
+    logged_session_as(ME_ID)
+}
+
+/// Igual que `logged_session` pero con otra cuenta propia.
+pub(crate) fn logged_session_as(me: i64) -> Arc<TcSession> {
     let s = TcSession::default();
     futures::executor::block_on(async {
         let dc = s.home_dc_id().unwrap();
         let mut o = s.dc_option(dc).unwrap().unwrap();
         o.auth_key = Some([1; 256]);
         s.set_dc_option(&o).await.unwrap();
-        s.cache_peer(PeerInfo::User { id: ME_ID, auth: Some(PeerAuth::from_hash(1)), bot: Some(false), is_self: Some(true) }).await.unwrap();
+        s.cache_peer(PeerInfo::User { id: me, auth: Some(PeerAuth::from_hash(1)), bot: Some(false), is_self: Some(true) }).await.unwrap();
     });
     Arc::new(s)
 }

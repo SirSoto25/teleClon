@@ -18,7 +18,7 @@ const NOW: i64 = 1_762_430_400;
 async fn boot() -> (App, Arc<MockBackend>, Backend) {
     let mock = Arc::new(MockBackend::new(MockConfig { now: Some(NOW), ..Default::default() }));
     let backend: Backend = mock.clone();
-    let (mut app, _) = App::new(Flags { backend: backend.clone(), on_start: None, theme: ThemeKind::Dark, reduced_motion: false, demo: vec![], on_screenshot: None });
+    let (mut app, _) = App::new(Flags { theme: ThemeKind::Dark, ..Flags::new(backend.clone()) });
     let _ = app.update(Msg::Me(backend.me().await));
     let _ = app.update(Msg::Contacts(backend.contacts().await));
     let _ = app.update(Msg::Secrets(backend.secret_chats().await));
