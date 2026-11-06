@@ -13,6 +13,7 @@ members = [
     "crates/tc-stickers",
     "crates/tc-ui",
     "crates/tc-app",
+    "crates/tc-telegram",
 ]
 
 [workspace.package]
@@ -31,6 +32,7 @@ tc-theme = { path = "crates/tc-theme" }
 tc-secret = { path = "crates/tc-secret" }
 tc-stickers = { path = "crates/tc-stickers" }
 tc-ui = { path = "crates/tc-ui" }
+tc-telegram = { path = "crates/tc-telegram" }
 
 # Async y utilidades
 tokio = { version = "1.54.1", default-features = false }
@@ -66,8 +68,12 @@ image = { version = "0.25.10", default-features = false, features = ["webp", "pn
 flate2 = "1.1.11"
 rlottie = "0.5.4"
 
-# Red de Telegram (crate futuro tc-telegram, hito M2). Verificado en compilación aparte; aún no lo usa ningún miembro.
+# Red de Telegram (crate tc-telegram, hito M2.1). grammers-crypto se usa directamente para el SRP de 2FA
+# (misma versión que arrastra grammers-client). serde/serde_json: sesión serializada.
 grammers-client = "0.11.0"
+grammers-crypto = "0.11.0"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
 grammers-session = { version = "0.11.0", default-features = false, features = ["serde"] }
 grammers-tl-types = "0.11.0"
 

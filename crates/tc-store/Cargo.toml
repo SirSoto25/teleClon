@@ -12,6 +12,7 @@ tc-core.workspace = true
 async-trait.workspace = true
 futures.workspace = true
 rusqlite.workspace = true
+directories.workspace = true
 keyring.workspace = true
 aes-gcm.workspace = true
 zeroize.workspace = true

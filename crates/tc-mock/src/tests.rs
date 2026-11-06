@@ -306,3 +306,33 @@ async fn profile_and_contacts() {
     assert_eq!(b.user(UserId(99)).await, Err(BackendError::NotFound));
     assert_eq!(b.group(GroupId(5000)).await.unwrap().title, "Cena de los viernes");
 }
+
+#[tokio::test]
+async fn simulated_login_phone_code_and_2fa() {
+    let b = MockBackend::new(MockConfig { now: Some(NOW), logged_in: false, ..Default::default() });
+    assert_eq!(b.auth_state().await.unwrap(), AuthState::LoggedOut);
+    let mut ev = b.auth_events();
+    assert_eq!(b.request_login_code("abc".into()).await, Err(BackendError::InvalidInput("phone")));
+    let req = b.request_login_code("+34600000002".into()).await.unwrap();
+    assert_eq!(req.kind, CodeKind::App);
+    assert!(matches!(ev.next().await, Some(AuthState::WaitingCode(_))));
+    assert_eq!(b.sign_in("00000".into()).await, Err(BackendError::InvalidInput("code")));
+    let r = b.sign_in(crate::MOCK_LOGIN_CODE.into()).await.unwrap();
+    assert!(matches!(r, SignInResult::PasswordNeeded { .. }));
+    assert_eq!(b.check_password("mala".into()).await, Err(BackendError::InvalidInput("password")));
+    let me = b.check_password(crate::MOCK_2FA_PASSWORD.into()).await.unwrap();
+    assert_eq!(me.id, ME);
+    assert!(matches!(b.auth_state().await.unwrap(), AuthState::LoggedIn(u) if u.id == ME));
+    b.log_out().await.unwrap();
+    assert_eq!(b.auth_state().await.unwrap(), AuthState::LoggedOut);
+}
+
+#[tokio::test(start_paused = true)]
+async fn simulated_qr_login_is_accepted_later() {
+    let b = MockBackend::new(MockConfig { now: Some(NOW), logged_in: false, ..Default::default() });
+    let mut ev = b.auth_events();
+    let tok = b.qr_login_start().await.unwrap();
+    assert!(tok.url.starts_with("tg://login?token="));
+    assert!(matches!(ev.next().await, Some(AuthState::WaitingQr(_))));
+    assert!(matches!(ev.next().await, Some(AuthState::LoggedIn(u)) if u.id == ME));
+}

@@ -27,3 +27,16 @@ No se invocó ninguna skill `superpowers:*` hasta ahora. Las skills de terceros 
 | Fecha | Skill | Quién | Para qué | Estado |
 | --- | --- | --- | --- | --- |
 | 2026-11-06 | `replica-skill:replica-build` | agente UI | Rebanada vertical M1.1 (lista), M1.2 (conversación con scroll virtual), M1.3 (compositor) en tc-ui/tc-app contra el mock; columna `clone` de features.csv actualizada (29 filas yes/partial) | usada |
+| 2026-11-06 | `replica-skill:replica-build` | agente STICKERS | Implementar tc-stickers (WebP, TGS/Lottie, caché LRU, recientes/favoritos, pack propio procedural) como pieza de la fase build | usada |
+| 2026-11-06 | `replica-skill:replica-backend` | agente STORE | Capa SQLite de tc-store (migraciones por user_version, repositorios, FTS5, chats secretos sin claves en la base); auth/pagos/email de la skill no aplican a una caché local | usada |
+
+## 2026-11-06 — agente CRIPTO (Opus)
+| Fecha | Skill | Quién | Para qué | Estado |
+| --- | --- | --- | --- | --- |
+| 2026-11-06 | `replica-skill:replica-build` | agente CRIPTO | Reglas de sala limpia (todo escrito desde la especificación pública, sin código de otros clientes) aplicadas a `tc-secret`; las partes de pantallas, capturas y features.csv no aplican a un crate de cripto | usada |
+
+## 2026-11-06 — agente RED (Opus)
+| Fecha | Skill | Quién | Para qué | Estado |
+| --- | --- | --- | --- | --- |
+| 2026-11-06 | `replica-skill:replica-backend` | agente RED | Reglas: solo API pública con las claves del usuario, secretos solo en variables de entorno, nada de cuentas ni credenciales tecleadas por el agente; aplicado a `tc-telegram` (cliente, sin servidor propio: pagos/correo/webhooks no aplican) | usada |
+| 2026-11-06 | `replica-skill:replica-build` | agente RED | Mismas firmas que el backend falso (tc-mock) para que cambiar a la red real no toque la UI; `AuthApi` también implementado en el mock | usada |

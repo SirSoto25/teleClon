@@ -57,7 +57,7 @@ Sobre `grammers-session`: su feature por defecto `sqlite-storage` arrastra `libs
 | `tc-stickers` | lib | decodificar WebP/TGS a RGBA; caché de fotogramas | `image`, `flate2`, `rlottie`? |
 | `tc-ui` | lib | app iced: estado, mensajes, pantallas, widgets, estilos | `tc-core`, `tc-theme`, `tc-stickers`, `iced` |
 | `tc-app` | bin | config, elección de backend, arranque | todos |
-| `tc-telegram` | lib (M2, aún no creado) | `GrammersBackend: ChatBackend`; usa `tc-secret` para E2E | `grammers-*`, `tc-core`, `tc-secret` |
+| `tc-telegram` | lib (M2.1, creado; sin probar contra la red) | `GrammersBackend: ChatBackend + AuthApi`; chats secretos pendientes (M2.7, `tc-secret`) | `grammers-*`, `tc-core` |
 
 Reglas: `tc-ui` solo conoce `tc-core` (nunca `tc-store`, `tc-mock` ni grammers). `tc-core` no hace E/S. `tc-secret` no hace E/S. Un único binario.
 

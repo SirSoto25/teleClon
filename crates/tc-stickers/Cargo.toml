@@ -8,6 +8,8 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+tc-core.workspace = true
+tc-theme.workspace = true
 image.workspace = true
 flate2.workspace = true
 thiserror.workspace = true

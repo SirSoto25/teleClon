@@ -31,11 +31,22 @@ pub struct MockConfig {
     pub now: Option<i64>,
     /// Retardo con el que la otra parte acepta un chat secreto solicitado.
     pub secret_accept_delay: Duration,
+    /// Arrancar con la sesión ya iniciada (por defecto) o en la pantalla de login.
+    pub logged_in: bool,
+    /// Retardo con el que «otro dispositivo» escanea el QR simulado.
+    pub qr_accept_delay: Duration,
 }
 
 impl Default for MockConfig {
     fn default() -> Self {
-        Self { seed: 42, latency: Duration::ZERO, now: None, secret_accept_delay: Duration::from_millis(300) }
+        Self {
+            seed: 42,
+            latency: Duration::ZERO,
+            now: None,
+            secret_accept_delay: Duration::from_millis(300),
+            logged_in: true,
+            qr_accept_delay: Duration::from_secs(2),
+        }
     }
 }
 
@@ -51,11 +62,15 @@ struct State {
     offline: bool,
     clock: i64,
     next_secret: i32,
+    auth: AuthState,
+    /// Teléfono del login en curso (simulado).
+    auth_phone: Option<String>,
 }
 
 struct Inner {
     state: Mutex<State>,
     tx: broadcast::Sender<BackendEvent>,
+    auth_tx: broadcast::Sender<AuthState>,
     cfg: MockConfig,
 }
 
@@ -79,7 +94,7 @@ impl MockBackend {
         let now = cfg.now.unwrap_or_else(real_now);
         let seed = data::build(cfg.seed, now);
         let state = State {
-            me: seed.me,
+            me: seed.me.clone(),
             users: seed.users,
             groups: seed.groups,
             secrets: seed.secrets,
@@ -90,9 +105,12 @@ impl MockBackend {
             offline: false,
             clock: now,
             next_secret: 2,
+            auth: if cfg.logged_in { AuthState::LoggedIn(seed.me.clone()) } else { AuthState::LoggedOut },
+            auth_phone: None,
         };
         let (tx, _) = broadcast::channel(1024);
-        Self { inner: Arc::new(Inner { state: Mutex::new(state), tx, cfg }), script: Mutex::new(None) }
+        let (auth_tx, _) = broadcast::channel(64);
+        Self { inner: Arc::new(Inner { state: Mutex::new(state), tx, auth_tx, cfg }), script: Mutex::new(None) }
     }
 
     /// Conmuta el modo sin conexión: las operaciones devuelven `Network` y se emite `Connection`.
@@ -760,6 +778,125 @@ impl SecretChatsApi for MockBackend {
         let emoji = (0..4).map(|_| EMOJI[r.below(EMOJI.len())].to_string()).collect();
         let fingerprint = (0..8).map(|_| format!("{:04x}", r.next_u32() & 0xffff)).collect::<Vec<_>>().join(" ");
         Ok(KeyVisual { fingerprint, emoji })
+    }
+}
+
+/// Código de inicio de sesión simulado (valor de prueba del mock, nunca una credencial real).
+pub const MOCK_LOGIN_CODE: &str = "12345";
+/// Contraseña 2FA simulada (valor de prueba del mock).
+pub const MOCK_2FA_PASSWORD: &str = "prueba-2fa";
+
+impl Inner {
+    fn set_auth(&self, st: AuthState) {
+        self.lock().auth = st.clone();
+        let _ = self.auth_tx.send(st);
+    }
+
+    /// Reglas del login simulado: un teléfono que termina en `0` no tiene cuenta, uno que
+    /// termina en `2` tiene 2FA y el resto entra directamente con `MOCK_LOGIN_CODE`.
+    fn mock_code(phone: &str) -> CodeRequest {
+        CodeRequest { phone: phone.to_string(), kind: CodeKind::App, length: Some(5), next: Some(CodeKind::Sms), timeout_secs: Some(60) }
+    }
+}
+
+#[async_trait]
+impl AuthApi for MockBackend {
+    async fn auth_state(&self) -> BackendResult<AuthState> {
+        Ok(self.inner.lock().auth.clone())
+    }
+
+    async fn request_login_code(&self, phone: String) -> BackendResult<CodeRequest> {
+        self.inner.gate().await?;
+        let phone = phone.trim().to_string();
+        if phone.len() < 5 || !phone.trim_start_matches('+').chars().all(|c| c.is_ascii_digit()) {
+            return Err(BackendError::InvalidInput("phone"));
+        }
+        let req = Inner::mock_code(&phone);
+        self.inner.lock().auth_phone = Some(phone);
+        self.inner.set_auth(AuthState::WaitingCode(req.clone()));
+        Ok(req)
+    }
+
+    async fn resend_code(&self) -> BackendResult<CodeRequest> {
+        self.inner.gate().await?;
+        let phone = self.inner.lock().auth_phone.clone().ok_or(BackendError::InvalidInput("phone"))?;
+        let req = CodeRequest { kind: CodeKind::Sms, next: None, ..Inner::mock_code(&phone) };
+        self.inner.set_auth(AuthState::WaitingCode(req.clone()));
+        Ok(req)
+    }
+
+    async fn sign_in(&self, code: String) -> BackendResult<SignInResult> {
+        self.inner.gate().await?;
+        let phone = self.inner.lock().auth_phone.clone().ok_or(BackendError::InvalidInput("phone"))?;
+        if code.trim() != MOCK_LOGIN_CODE {
+            return Err(BackendError::InvalidInput("code"));
+        }
+        if phone.ends_with('0') {
+            self.inner.set_auth(AuthState::SignUpRequired);
+            return Ok(SignInResult::SignUpNeeded);
+        }
+        if phone.ends_with('2') {
+            let hint = Some("pista de prueba".to_string());
+            self.inner.set_auth(AuthState::WaitingPassword { hint: hint.clone() });
+            return Ok(SignInResult::PasswordNeeded { hint });
+        }
+        let me = self.inner.lock().me.clone();
+        self.inner.set_auth(AuthState::LoggedIn(me.clone()));
+        Ok(SignInResult::LoggedIn(me))
+    }
+
+    async fn check_password(&self, password: String) -> BackendResult<User> {
+        self.inner.gate().await?;
+        if !matches!(self.inner.lock().auth, AuthState::WaitingPassword { .. }) {
+            return Err(BackendError::InvalidInput("password"));
+        }
+        if password != MOCK_2FA_PASSWORD {
+            return Err(BackendError::InvalidInput("password"));
+        }
+        let me = self.inner.lock().me.clone();
+        self.inner.set_auth(AuthState::LoggedIn(me.clone()));
+        Ok(me)
+    }
+
+    async fn qr_login_start(&self) -> BackendResult<QrToken> {
+        self.inner.gate().await?;
+        let (token, me) = {
+            let st = self.inner.lock();
+            let token = QrToken { url: format!("tg://login?token=bW9jay1xci17fQ{}", st.clock), expires: Timestamp(st.clock + 30) };
+            (token, st.me.clone())
+        };
+        self.inner.set_auth(AuthState::WaitingQr(token.clone()));
+        // «Otro dispositivo» escanea el código tras un retraso.
+        let inner = Arc::clone(&self.inner);
+        let delay = inner.cfg.qr_accept_delay;
+        tokio::spawn(async move {
+            tokio::time::sleep(delay).await;
+            if matches!(inner.lock().auth, AuthState::WaitingQr(_)) {
+                inner.set_auth(AuthState::LoggedIn(me));
+            }
+        });
+        Ok(token)
+    }
+
+    async fn log_out(&self) -> BackendResult<()> {
+        self.inner.gate().await?;
+        self.inner.lock().auth_phone = None;
+        self.inner.set_auth(AuthState::LoggedOut);
+        Ok(())
+    }
+
+    fn auth_events(&self) -> BoxStream<'static, AuthState> {
+        let rx = self.inner.auth_tx.subscribe();
+        stream::unfold(rx, |mut rx| async move {
+            loop {
+                match rx.recv().await {
+                    Ok(ev) => return Some((ev, rx)),
+                    Err(RecvError::Lagged(_)) => continue,
+                    Err(RecvError::Closed) => return None,
+                }
+            }
+        })
+        .boxed()
     }
 }
 

@@ -1,19 +1,32 @@
 [package]
 name = "tc-secret"
-description = "Chats secretos E2E (MTProto 2.0): DH, cifrado de mensajes, secuencias, re-keying, TTL y huella. Sans-IO. EXPERIMENTAL."
+description = "Chats secretos E2E (MTProto 2.0): DH, cifrado de mensajes, secuencias, re-keying, TTL y huella. Sans-IO. EXPERIMENTAL, sin auditoría."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 
+[features]
+# Expone `testing::SeededEntropy` (entropía determinista) para que tc-mock y las
+# pruebas puedan reproducir sesiones. NUNCA activar en el binario real.
+testing = []
+
 [dependencies]
 aes.workspace = true
 ige.workspace = true
 sha1.workspace = true
 sha2.workspace = true
+# num-bigint: solo para validar parámetros PÚBLICOS (primalidad de p y (p-1)/2, rangos).
 num-bigint.workspace = true
+# crypto-bigint: exponenciación modular en tiempo constante con exponentes SECRETOS (a, b).
+# No está en [workspace.dependencies] porque solo lo usa este crate.
+crypto-bigint = { version = "0.7.10", default-features = false, features = ["zeroize"] }
 getrandom.workspace = true
 zeroize.workspace = true
 subtle.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+# Las pruebas de integración usan `tc_secret::testing`.
+tc-secret = { path = ".", features = ["testing"] }
