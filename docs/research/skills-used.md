@@ -19,3 +19,6 @@ Se actualiza cada vez que se invoca una skill. Estados: **usada** (invocada y se
 
 ## Nota de transparencia
 No se invocó ninguna skill `superpowers:*` hasta ahora. Las skills de terceros no se han instalado.
+
+## 2026-11-06 — agente CORE (Sonnet)
+- `replica-skill:replica-build`: método de rebanada vertical (backend falso con las mismas firmas que el real, datos semilla, estados vacíos/largos) aplicado a `tc-core`/`tc-mock` para M1.1–M1.3.
