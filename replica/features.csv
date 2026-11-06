@@ -1,0 +1,100 @@
+feature,area,priority,original,clone,notes
+Iniciar sesión con número de teléfono,auth,must,yes,no,S02 S04; código por SMS/app
+Verificación de código con reenvío y cambio de número,auth,must,yes,no,S04
+Contraseña 2FA en la nube,auth,should,yes,no,S05
+Iniciar sesión con código QR,auth,must,yes,no,S03; token se refresca
+Registro de cuenta nueva (nombre y foto),auth,must,yes,no,S06
+Cerrar sesión,auth,must,yes,no,
+Persistencia de sesión entre arranques,auth,must,yes,no,
+Lista de chats ordenada por actividad,chats,must,yes,no,S08
+Fila de chat con último mensaje hora y no leídos,chats,must,yes,no,
+Chats fijados,chats,should,yes,no,
+Silenciar chat,chats,must,yes,no,también S28
+Archivar chats,chats,could,yes,no,
+Indicador escribiendo en lista y cabecera,chats,should,yes,no,
+Borradores por chat,chats,should,yes,no,
+Carpetas de chats (crear editar ordenar),folders,must,yes,no,S09 S10
+Carpetas con filtros por tipo (grupos canales no leídos…),folders,should,yes,no,
+Contactos: lista y búsqueda,contacts,should,yes,no,S37
+Crear chat privado nuevo,chats,must,yes,no,S36
+Crear grupo básico,groups,should,yes,no,S36
+Conversación: historial con paginación y scroll virtual,conversation,must,yes,no,S11
+Separadores de fecha y salto a no leídos,conversation,must,yes,no,
+Botón saltar al final con contador,conversation,should,yes,no,
+Estados de mensaje (enviando enviado leído error),conversation,must,yes,no,
+Reintento de mensaje fallido,conversation,should,yes,no,
+Marcar como leído y sincronizar lectura,conversation,must,yes,no,
+Actualización en tiempo real de mensajes entrantes,realtime,must,yes,no,F16
+Reconexión y recuperación de huecos (difference),realtime,must,yes,no,parte difícil
+Cabecera de chat con estado en línea/miembros,conversation,must,yes,no,S12
+Mensaje de texto,message types,must,yes,no,
+Formato de texto (negrita cursiva código spoiler enlace),message types,should,yes,no,entidades
+Detección de enlaces y menciones,message types,should,yes,no,
+Vista previa de enlaces,message types,could,yes,no,
+Fotos,message types,must,yes,no,S19
+Vídeos,message types,must,yes,no,
+Archivos/documentos,message types,must,yes,no,
+Notas de voz,message types,should,yes,no,grabación de audio
+Audio/música (reproductor),message types,could,yes,no,
+Stickers,message types,could,yes,skip,packs son contenido con marca; solo emoji propios
+Emoji,message types,must,yes,no,selector propio
+GIFs,message types,could,yes,no,
+Álbumes de varias fotos (grouped),message types,should,yes,no,
+Ubicación,message types,could,yes,no,
+Mensajes de servicio (se unió salió fijó),message types,should,yes,no,
+Encuestas,message types,could,yes,no,
+Compositor multilinea con Enter/Shift+Enter,composer,must,yes,no,S13
+Atajos de formato en compositor,composer,should,yes,no,
+Botón enviar/voz según contenido,composer,should,yes,no,
+Responder a mensaje (cita),message actions,must,yes,no,F05
+Reenviar mensajes con atribución,message actions,must,yes,no,F06
+Reenviar ocultando remitente,message actions,could,yes,no,
+Editar mensaje propio con marca editado,message actions,must,yes,no,F07
+Borrar para mí y para todos,message actions,must,yes,no,F08
+Copiar texto del mensaje,message actions,must,yes,no,
+Fijar mensaje,message actions,should,yes,no,
+Selección múltiple y acciones en lote,message actions,should,yes,no,S18
+Menú contextual de mensaje,message actions,must,yes,no,S14
+Reacciones con emoji (poner y quitar),reactions,must,yes,no,S15
+Reacciones personalizadas premium,reactions,could,yes,skip,Premium fuera del alcance
+Búsqueda global (chats contactos mensajes),search,must,yes,no,S22
+Búsqueda dentro de un chat,search,must,yes,no,S23
+Filtros de búsqueda por tipo de medio,search,should,yes,no,
+Búsqueda por fecha,search,could,yes,no,
+Info de usuario/perfil,profile,must,yes,no,S24
+Info de grupo/canal con miembros,profile,should,yes,no,S25
+Medios compartidos del chat,profile,should,yes,no,
+Bloquear usuario,profile,should,yes,no,
+Editar perfil propio (nombre foto bio usuario),settings,must,yes,no,S27
+Ajustes de notificaciones por tipo de chat,settings,must,yes,no,S28
+Notificaciones por chat (silenciar hasta),notifications,must,yes,no,
+Notificaciones de escritorio del SO,notifications,must,yes,no,S34; libnotify/portal
+Vista previa en notificación on/off,notifications,should,yes,no,
+Icono de bandeja con contador,notifications,should,yes,no,S35
+Responder desde la notificación,notifications,could,yes,no,
+Sonido de notificación,notifications,should,yes,no,sonidos propios
+Ajustes de privacidad básicos (visto por última vez),settings,could,yes,no,S29
+Sesiones activas y cierre remoto,settings,should,yes,no,S33
+Tema claro/oscuro,settings,must,yes,no,S30
+Tamaño de texto y fondo de chat,settings,should,yes,no,
+Idioma de la interfaz,settings,should,yes,no,S32
+Ajustes de descarga automática y caché,settings,could,yes,no,S31
+Enviar archivo con selector,attachments,must,yes,no,S20
+Arrastrar y soltar archivos,attachments,must,yes,no,
+Pegar imagen desde portapapeles,attachments,should,yes,no,
+Diálogo de envío con pie de foto y comprimir/archivo,attachments,must,yes,no,S21
+Progreso de subida y descarga con cancelar,attachments,must,yes,no,
+Subida por partes reanudable,attachments,should,yes,no,parte difícil
+Visor de medios con zoom y navegación,attachments,must,yes,no,S19
+Descargar/guardar archivo,attachments,must,yes,no,
+Miniaturas y caché de medios,attachments,must,yes,no,
+Atajos de teclado básicos,ux,should,yes,no,
+Soporte Wayland/X11 y portal de archivos,platform,must,yes,no,Linux
+Chats secretos (E2E),security,could,yes,skip,fuera del slice
+Llamadas de voz y vídeo,calls,could,yes,skip,fuera del slice; WebRTC/red
+Historias,social,could,yes,skip,fuera del slice
+Bots y Mini Apps,platform,could,yes,skip,fuera del slice
+Pagos y Stars,payments,could,yes,skip,regulado/fuera
+Telegram Premium,premium,could,yes,skip,producto de pago propietario
+Red global de usuarios y servidores,network,could,yes,skip,no clonable
+Marca stickers animaciones y sonidos oficiales,brand,could,yes,skip,propiedad de Telegram

@@ -5,7 +5,7 @@ Se actualiza cada vez que se invoca una skill. Estados: **usada** (invocada y se
 | Fecha | Skill | Quién | Para qué | Estado |
 | --- | --- | --- | --- | --- |
 | 2026-11-06 | `replica-skill:replica-recon` | orquestador | Pasos de reconocimiento y plantillas (alcance, fuentes, matriz) | usada |
-| 2026-11-06 | `replica-skill:replica-recon` | agente recon (Sonnet/medium) | Generar replica/recon.md y features.csv | encargada |
+| 2026-11-06 | `replica-skill:replica-recon` | agente recon (Sonnet/medium) | Generar replica/recon.md y features.csv | usada (informe recibido) |
 | 2026-11-06 | `replica-skill:replica-design` | agente diseño (Opus/high) | Sistema de diseño y tokens | encargada |
 | 2026-11-06 | `anthropic-skills:theme-factory` | agente diseño | Apoyo para tokens de color/tipo (opcional) | encargada |
 | 2026-11-06 | `SearchSkills` / `ListSkills` (herramienta) | orquestador | Buscar skills de diseño y graphify en el catálogo del usuario; sin resultados | usada |
