@@ -8,3 +8,4 @@
 - graphify (`graphifyy`) verificado en PyPI e instalado en `.venv` → [research/graphify.md](../research/graphify.md).
 - Creada estructura `docs/`, `replica/`.
 - Creado repo git local (rama main), .gitignore, README. Repo remoto GitHub privado 'teleClon' (cuenta SirSoto25) a petición del usuario; se sube tras cada fase.
+- Creado registro de skills usadas: research/skills-used.md (regla: actualizar en cada invocación de skill).
