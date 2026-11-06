@@ -1,0 +1,16 @@
+[package]
+name = "tc-mock"
+description = "MockBackend: implementación simulada y determinista de ChatBackend para desarrollar sin red."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+tc-core.workspace = true
+tc-secret.workspace = true
+async-trait.workspace = true
+futures.workspace = true
+tokio = { workspace = true, features = ["sync", "time", "macros", "rt"] }
+tracing.workspace = true

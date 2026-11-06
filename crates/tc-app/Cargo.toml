@@ -1,0 +1,22 @@
+[package]
+name = "tc-app"
+description = "Binario de teleClon: configuración, cableado de backend/caché/UI y arranque."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "tc-app"
+path = "src/main.rs"
+
+[dependencies]
+tc-core.workspace = true
+tc-mock.workspace = true
+tc-store.workspace = true
+tc-ui.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+directories.workspace = true

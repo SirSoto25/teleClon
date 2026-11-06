@@ -1,0 +1,76 @@
+# Workspace de teleClon (nombre provisional hasta replica-brand).
+# Arquitectura: docs/architecture.md · Decisiones: docs/adr/0001-stack.md, docs/adr/0003-arquitectura.md
+# Versiones verificadas con `cargo search` / `cargo info` el 2026-11-06 (Rust 1.99.1).
+
+[workspace]
+resolver = "3"
+members = [
+    "crates/tc-core",
+    "crates/tc-mock",
+    "crates/tc-store",
+    "crates/tc-theme",
+    "crates/tc-secret",
+    "crates/tc-stickers",
+    "crates/tc-ui",
+    "crates/tc-app",
+]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.99"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[workspace.dependencies]
+# Crates internos
+tc-core = { path = "crates/tc-core" }
+tc-mock = { path = "crates/tc-mock" }
+tc-store = { path = "crates/tc-store" }
+tc-theme = { path = "crates/tc-theme" }
+tc-secret = { path = "crates/tc-secret" }
+tc-stickers = { path = "crates/tc-stickers" }
+tc-ui = { path = "crates/tc-ui" }
+
+# Async y utilidades
+tokio = { version = "1.54.1", default-features = false }
+futures = "0.3.34"
+async-trait = "0.1.92"
+thiserror = "2.0.21"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+directories = "6.0.0"
+jiff = "0.2.39"
+
+# UI: iced 0.14 (wgpu + respaldo software tiny-skia, Wayland y X11 por defecto)
+iced = { version = "0.14.0", features = ["tokio", "image", "svg", "lazy", "advanced", "qr_code"] }
+
+# Persistencia: SQLite empaquetado (sin dependencia del sqlite del sistema).
+# rusqlite_migration 2.6 exige rusqlite ^0.40, por eso las migraciones se hacen a mano con PRAGMA user_version.
+rusqlite = { version = "0.41.1", features = ["bundled"] }
+keyring = "4.2.0"
+
+# Criptografía de chats secretos (RustCrypto, mismas series que usa grammers-crypto 0.11)
+aes = "0.9.4"
+ige = { version = "0.2.1", default-features = false, features = ["zeroize"] }
+aes-gcm = "0.11.1"
+sha1 = "0.11.0"
+sha2 = "0.11.1"
+num-bigint = "0.5.1"
+getrandom = "0.4.3"
+zeroize = { version = "1.9.1", features = ["derive"] }
+subtle = "2.6.1"
+
+# Stickers
+image = { version = "0.25.10", default-features = false, features = ["webp", "png"] }
+flate2 = "1.1.11"
+rlottie = "0.5.4"
+
+# Red de Telegram (crate futuro tc-telegram, hito M2). Verificado en compilación aparte; aún no lo usa ningún miembro.
+grammers-client = "0.11.0"
+grammers-session = { version = "0.11.0", default-features = false, features = ["serde"] }
+grammers-tl-types = "0.11.0"
+
+[profile.dev.package."*"]
+# Dependencias optimizadas en debug: el render de iced y la cripto son lentos sin optimizar.
+opt-level = 2

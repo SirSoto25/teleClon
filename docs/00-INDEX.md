@@ -7,6 +7,7 @@ Clon de Telegram Desktop para Linux, escrito en Rust, con identidad visual moder
 | --- | --- |
 | [logs/log.md](logs/log.md) | Bitácora cronológica de TODO lo hecho (append-only) |
 | [adr/](adr/) | Decisiones de arquitectura/diseño (una por archivo, con motivo) |
+| [architecture.md](architecture.md) | Arquitectura: crates, trait ChatBackend, concurrencia, esquema SQLite, flujos F01-F18, orden de construcción |
 | [agents/registry.md](agents/registry.md) | Qué agente hizo qué, con qué modelo/esfuerzo y por qué |
 | [research/design-skills.md](research/design-skills.md) | Skills de diseño poco conocidas encontradas y cómo se usaron |
 | [research/graphify.md](research/graphify.md) | Cómo se instaló/usa graphify y cómo regenerar el grafo |

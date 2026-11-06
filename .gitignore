@@ -5,3 +5,7 @@ target/
 *.session
 replica/screens/
 graphify-out/cache/
+*.sqlite3
+*.sqlite3-*
+/config.toml
+/config.local.toml

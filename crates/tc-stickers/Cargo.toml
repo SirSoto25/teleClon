@@ -1,0 +1,19 @@
+[package]
+name = "tc-stickers"
+description = "Decodificación de stickers: WebP estático, TGS/Lottie animado (feature lottie) a fotogramas RGBA."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+image.workspace = true
+flate2.workspace = true
+thiserror.workspace = true
+rlottie = { workspace = true, optional = true }
+
+[features]
+default = []
+# Lottie/TGS animado vía rlottie (compila C++ de Samsung rlottie: requiere cmake, clang y g++).
+lottie = ["dep:rlottie"]

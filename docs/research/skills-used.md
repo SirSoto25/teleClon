@@ -12,6 +12,7 @@ Se actualiza cada vez que se invoca una skill. Estados: **usada** (invocada y se
 | 2026-11-06 | graphify (`graphifyy`, CLI/skill) | orquestador | Grafo de conocimiento; instalado en `.venv`, aún sin ejecutar | pendiente |
 | 2026-11-06 | Hallmark, Interface Design, Emil Kowalski, claudekit, Bencium, Awesome Claude Design, AccessLint | — | Ideas de diseño; ver [design-skills.md](design-skills.md) | consultada (no instaladas) |
 | 2026-11-06 | Scroll-Craft, Scroll-World, img2threejs | — | Orientadas a web/3D | descartada |
+| 2026-11-06 | `replica-skill:replica-architect` | agente arquitecto (Opus/high) | Stack, esquema SQLite, operaciones por flujo, orden de construcción → docs/architecture.md, ADR-0003 | usada |
 
 ## Skills previstas en fases siguientes
 `replica-architect`, `replica-build`, `replica-test`, `replica-diff`, `replica-brand`, `design:accessibility-review`, `superpowers:verification-before-completion` (antes de dar nada por terminado).

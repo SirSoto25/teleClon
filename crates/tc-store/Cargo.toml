@@ -1,0 +1,20 @@
+[package]
+name = "tc-store"
+description = "Caché local SQLite (WAL), migraciones, CachedBackend y bóveda de claves en el keyring."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+tc-core.workspace = true
+async-trait.workspace = true
+futures.workspace = true
+rusqlite.workspace = true
+keyring.workspace = true
+aes-gcm.workspace = true
+zeroize.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync", "rt"] }
+tracing.workspace = true

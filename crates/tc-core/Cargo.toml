@@ -1,0 +1,13 @@
+[package]
+name = "tc-core"
+description = "Dominio de teleClon: tipos, errores, eventos y el trait ChatBackend (sin E/S)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+futures.workspace = true
+thiserror.workspace = true

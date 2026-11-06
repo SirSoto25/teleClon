@@ -1,0 +1,19 @@
+[package]
+name = "tc-secret"
+description = "Chats secretos E2E (MTProto 2.0): DH, cifrado de mensajes, secuencias, re-keying, TTL y huella. Sans-IO. EXPERIMENTAL."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+aes.workspace = true
+ige.workspace = true
+sha1.workspace = true
+sha2.workspace = true
+num-bigint.workspace = true
+getrandom.workspace = true
+zeroize.workspace = true
+subtle.workspace = true
+thiserror.workspace = true
