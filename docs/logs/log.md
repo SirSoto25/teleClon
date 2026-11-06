@@ -18,3 +18,8 @@
 - Siguiente paso: `/replica-architect`.
 - Agente recon terminado. Limitación: no hizo fetch en vivo; contenido de memoria del modelo -> validar con capturas. Lanzado agente arquitecto (Opus/high) con replica-architect.
 - ALCANCE AMPLIADO por el usuario: stickers y chats secretos incluidos. features.csv (+11 filas, 2 skip->must), recon.md y ADR-0004 actualizados; avisado el agente arquitecto.
+- [Dirección de diseño] Invocadas `replica-skill:replica-design` y `anthropic-skills:theme-factory` (tema propio). Elegida dirección **«Brasa»** (grafito cálido + acento persimón; descartadas vidrio glacial y neobrutalismo) → [ADR 0002](../adr/0002-direccion-visual.md).
+  - Creados [design/system.md](../design/system.md) (paletas oscura/clara en OKLCH + hex, tipografía libre, espaciado, radios, elevación, muelles, specs de lista, burbujas, compositor, cabecera, raíl, diálogos, toasts, primitivas, lista anti-«aspecto IA», preferencias persistidas) y [design/tokens.json](../design/tokens.json).
+  - Hex calculados con OKLab→sRGB y reducción de croma a gama; ida y vuelta con error máx. ΔL 0.0018. Contraste con `contrast.py` de replica-design: 144 pares, 0 fallos AA. Muelles (rapido/estandar/suave/rebote) ajustados por integración numérica a 119–221 ms.
+  - Componentes cruzados con `replica/recon.md` y ADR-0004 (stickers, nota de voz, chat secreto con huella de clave propia, QR de login). Pendiente: copia de UX, marca (replica-brand), primitivas aisladas en iced. Sin código Rust ni commit.
+- Usuario dispone de api_id/api_hash. Plantilla .env.example creada; los valores van en .env local (gitignored), nunca en chat ni en el repo.
