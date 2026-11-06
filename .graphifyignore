@@ -1,0 +1,6 @@
+.venv/
+target/
+assets/
+replica/screens/
+docs/design/screens/
+.env
