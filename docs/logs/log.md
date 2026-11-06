@@ -34,3 +34,8 @@
 - Esqueleto del workspace: Cargo.toml raíz + 8 crates (tc-core, tc-mock, tc-store, tc-theme, tc-secret, tc-stickers, tc-ui, tc-app) sin funcionalidad. `cargo check --workspace` OK (1m39s en frío); `cargo check -p tc-stickers --features lottie` OK; sonda aparte de grammers 0.11 + rusqlite bundled OK.
 - .gitignore: añadidos `*.sqlite3`, `*.sqlite3-*`, `/config.toml`, `/config.local.toml`. Sin commit.
 - Siguiente: M1.1 (lista de chats contra MockBackend) con `/replica-build`; añadir pantallas S38–S41 al recon.
+
+## 2026-11-06 — Tema (agente THEME, Sonnet/medium)
+- Implementado `crates/tc-theme` (sin iced; color propio `Rgb`): `palette` (DARK/LIGHT con los 55 roles de tokens.json + capas alpha), `tokens` (espaciado, radios, bordes, elevación, tipografía, escala de usuario, layout), `fonts` (4 TTF de `assets/fonts` con `include_bytes!` + nombres de familia), `motion` (muelles rapido/estandar/suave/rebote con `step`/`settle_ms`, curvas de respaldo, `MotionPreference` que fuerza duración 0 salvo opacidad ≤100 ms), `pattern` (curvas de nivel: ruido de valor fBm sembrado con el id del chat + marching squares; spacing 28, 14 en chats secretos; determinista).
+- Tests (12): el crate coincide con `docs/design/tokens.json` (colores, alpha, espacio, radios, tipos, fuentes, layout, muelles, easing); contraste WCAG AA de los pares principales y de los ~144 pares declarados en `pairs`; determinismo/geometría/densidad del patrón. `cargo test -p tc-theme` OK. Dev-dependency: `serde_json`.
+- `cargo clippy -p tc-theme --all-targets -- -D warnings` OK usando `cargo +1.99.1` (el toolchain `stable` no tiene clippy instalado). No se tocaron otros crates ni fuentes. Sin commit.

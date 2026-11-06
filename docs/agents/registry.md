@@ -10,3 +10,4 @@ Criterio: investigación/redacción estructurada → Sonnet (esfuerzo medio); de
 | 4 | core+mock | sonnet | medium | crate de dominio + backend simulado | crates/tc-core | pendiente |
 | 5 | UI | opus | high | app iced con tema | crates/tc-ui | pendiente |
 | 6 | QA | sonnet | medium | build, clippy, tests | informe | pendiente |
+| 7 | theme | sonnet | medium | crate de tokens: paletas Brasa, tipografía/fuentes, muelles, movimiento reducido, curvas de nivel por chat | crates/tc-theme | HECHO (12 tests, clippy -D warnings OK con toolchain 1.99.1) |
