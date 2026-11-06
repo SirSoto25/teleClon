@@ -11,7 +11,12 @@ publish.workspace = true
 tc-core.workspace = true
 tc-theme.workspace = true
 tc-stickers.workspace = true
-iced.workspace = true
+# `canvas`: fondo de curvas de nivel y celdas de la huella de clave (aditivo sobre las features del workspace).
+iced = { workspace = true, features = ["canvas"] }
 futures.workspace = true
 jiff.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+tc-mock.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }

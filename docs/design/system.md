@@ -464,3 +464,4 @@ del portal XDG), densidad (cómoda | compacta), escala de texto, fondo del chat 
 | Fecha | Versión | Cambio |
 | --- | --- | --- |
 | 2026-11-06 | 1.0.0 | Creación: dirección Brasa, paletas OKLCH, escalas, muelles, componentes. |
+| 2026-11-06 | 1.0.1 | Implementación M1 en `tc-ui` (sin cambiar tokens). Adaptaciones por iced 0.14: la entrada de chat (opacidad 0 → 1) se pinta como capa `bg` que se desvanece; hover de filas/botones sin animar; sin anillo de foco en botones (iced no da foco de teclado a botones) ni en el buscador; vista previa de la lista recortada por caracteres (no hay elipsis); el «menú contextual» de mensaje es una barra de acciones al pasar el ratón + selector de 6 reacciones (clic derecho). Capturas en `screens/`. |

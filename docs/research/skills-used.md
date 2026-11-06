@@ -22,3 +22,8 @@ No se invocó ninguna skill `superpowers:*` hasta ahora. Las skills de terceros 
 
 ## 2026-11-06 — agente CORE (Sonnet)
 - `replica-skill:replica-build`: método de rebanada vertical (backend falso con las mismas firmas que el real, datos semilla, estados vacíos/largos) aplicado a `tc-core`/`tc-mock` para M1.1–M1.3.
+
+## 2026-11-06 — agente UI (Opus/high)
+| Fecha | Skill | Quién | Para qué | Estado |
+| --- | --- | --- | --- | --- |
+| 2026-11-06 | `replica-skill:replica-build` | agente UI | Rebanada vertical M1.1 (lista), M1.2 (conversación con scroll virtual), M1.3 (compositor) en tc-ui/tc-app contra el mock; columna `clone` de features.csv actualizada (29 filas yes/partial) | usada |

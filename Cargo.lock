@@ -4434,9 +4434,12 @@ name = "tc-app"
 version = "0.0.1"
 dependencies = [
  "directories",
+ "iced",
+ "image",
  "tc-core",
  "tc-mock",
  "tc-store",
+ "tc-theme",
  "tc-ui",
  "tokio",
  "tracing",
@@ -4520,8 +4523,10 @@ dependencies = [
  "iced",
  "jiff",
  "tc-core",
+ "tc-mock",
  "tc-stickers",
  "tc-theme",
+ "tokio",
  "tracing",
 ]
 

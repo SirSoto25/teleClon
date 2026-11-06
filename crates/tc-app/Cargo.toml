@@ -15,7 +15,10 @@ path = "src/main.rs"
 tc-core.workspace = true
 tc-mock.workspace = true
 tc-store.workspace = true
+tc-theme.workspace = true
 tc-ui.workspace = true
+iced.workspace = true
+image.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
