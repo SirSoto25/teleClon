@@ -23,3 +23,4 @@
   - Hex calculados con OKLab→sRGB y reducción de croma a gama; ida y vuelta con error máx. ΔL 0.0018. Contraste con `contrast.py` de replica-design: 144 pares, 0 fallos AA. Muelles (rapido/estandar/suave/rebote) ajustados por integración numérica a 119–221 ms.
   - Componentes cruzados con `replica/recon.md` y ADR-0004 (stickers, nota de voz, chat secreto con huella de clave propia, QR de login). Pendiente: copia de UX, marca (replica-brand), primitivas aisladas en iced. Sin código Rust ni commit.
 - Usuario dispone de api_id/api_hash. Plantilla .env.example creada; los valores van en .env local (gitignored), nunca en chat ni en el repo.
+- Agente diseño terminado: dirección «Brasa» (docs/design/system.md, tokens.json, ADR-0002). Scripts generadores copiados a tools/design/ (estaban en scratchpad efímero). Pendiente: fuentes OFL (Atkinson, Bricolage, JetBrains Mono) y iconos Phosphor requieren descarga -> pedir permiso al usuario.

@@ -6,8 +6,8 @@ Se actualiza cada vez que se invoca una skill. Estados: **usada** (invocada y se
 | --- | --- | --- | --- | --- |
 | 2026-11-06 | `replica-skill:replica-recon` | orquestador | Pasos de reconocimiento y plantillas (alcance, fuentes, matriz) | usada |
 | 2026-11-06 | `replica-skill:replica-recon` | agente recon (Sonnet/medium) | Generar replica/recon.md y features.csv | usada (informe recibido) |
-| 2026-11-06 | `replica-skill:replica-design` | agente diseño (Opus/high) | Sistema de diseño y tokens | encargada |
-| 2026-11-06 | `anthropic-skills:theme-factory` | agente diseño | Apoyo para tokens de color/tipo (opcional) | encargada |
+| 2026-11-06 | `replica-skill:replica-design` | agente diseño (Opus/high) | Sistema de diseño y tokens | usada (informe recibido) |
+| 2026-11-06 | `anthropic-skills:theme-factory` | agente diseño | Apoyo para tokens de color/tipo (opcional) | sin confirmar en el informe |
 | 2026-11-06 | `SearchSkills` / `ListSkills` (herramienta) | orquestador | Buscar skills de diseño y graphify en el catálogo del usuario; sin resultados | usada |
 | 2026-11-06 | graphify (`graphifyy`, CLI/skill) | orquestador | Grafo de conocimiento; instalado en `.venv`, aún sin ejecutar | pendiente |
 | 2026-11-06 | Hallmark, Interface Design, Emil Kowalski, claudekit, Bencium, Awesome Claude Design, AccessLint | — | Ideas de diseño; ver [design-skills.md](design-skills.md) | consultada (no instaladas) |
