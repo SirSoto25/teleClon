@@ -1,8 +1,10 @@
-# Marca propia — teleClon
+# Marca propia — Parlo
 
-Fecha: 2026-11-06 · Skill: `replica-skill:replica-brand` (sin consultas externas) · Estado: **propuesta, pendiente de elección del usuario**.
+Fecha: 2026-11-06 · Skill: `replica-skill:replica-brand` (sin consultas externas) · Estado: **nombre elegido: Parlo** (el usuario, 2026-11-07; ver ADR-0005). Los candidatos de abajo se conservan como registro.
 
-> **Aviso importante.** Esta sesión no ha consultado registros de marcas, dominios ni redes. Ninguno de los nombres de abajo está verificado como libre. Los chequeos de la sección 3 los tiene que hacer el usuario (no son asesoría legal). `teleClon` es solo el nombre de trabajo del repo y debe desaparecer de la cara pública: contiene «tele» y «clon».
+> **Decisión (2026-11-07).** El usuario eligió **Parlo**. La disponibilidad de marca, dominio, handles y paquetes **NO está verificada**: debe comprobarla el usuario con la sección 3 (atención a «Parler» y apps parecidas). El logo sigue pendiente: solo existe el brief de la sección 5. `teleClon` queda como nombre interno del repo y de los crates `tc-*`.
+
+> **Aviso importante.** Esta sesión no ha consultado registros de marcas, dominios ni redes. Ninguno de los nombres de abajo está verificado como libre. Los chequeos de la sección 3 los tiene que hacer el usuario (no son asesoría legal). `teleClon` era solo el nombre de trabajo del repo y debe desaparecer de la cara pública: contiene «tele» y «clon».
 
 ## 1. Criterios de nombre
 

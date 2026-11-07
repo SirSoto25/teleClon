@@ -1,6 +1,6 @@
 # tc-store
 
-Caché local de teleClon: SQLite (WAL) por cuenta, repositorios síncronos, `CachedBackend` y bóveda de secretos.
+Caché local de Parlo: SQLite (WAL) por cuenta, repositorios síncronos, `CachedBackend` y bóveda de secretos.
 
 ## Contenido
 

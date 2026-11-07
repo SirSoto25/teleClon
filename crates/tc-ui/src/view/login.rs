@@ -35,7 +35,7 @@ pub fn view(app: &App) -> Element<'_, Msg> {
         Step::SignUp => vec![
             title(b, "Ese número no tiene cuenta"),
             t(
-                "teleClon no crea cuentas nuevas. Regístrate desde la app de tu teléfono y vuelve a entrar aquí con el mismo número.",
+                "Parlo no crea cuentas nuevas. Regístrate desde la app de tu teléfono y vuelve a entrar aquí con el mismo número.",
                 ts::UI,
                 c(b.p.text_muted),
             )

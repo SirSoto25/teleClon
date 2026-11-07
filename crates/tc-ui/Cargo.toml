@@ -1,6 +1,6 @@
 [package]
 name = "tc-ui"
-description = "Interfaz iced de teleClon: shell, pantallas S01-S37, lista virtual, estilos desde tc-theme."
+description = "Interfaz iced de Parlo: shell, pantallas S01-S37, lista virtual, estilos desde tc-theme."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

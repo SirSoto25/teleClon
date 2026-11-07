@@ -1,4 +1,4 @@
-//! Interfaz iced de teleClon (dirección «Brasa», docs/design/system.md). Solo conoce
+//! Interfaz iced de Parlo (dirección «Brasa», docs/design/system.md). Solo conoce
 //! `tc_core::ChatBackend`. Ver docs/architecture.md §4 y §9.
 //!
 //! Hitos cubiertos: M1.1 lista de chats (fijados, no leídos, búsqueda local, carpetas por tipo),

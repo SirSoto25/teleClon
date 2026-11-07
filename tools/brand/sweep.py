@@ -23,7 +23,12 @@ TECH_PREFIXES = ("crates/tc-telegram/", "crates/tc-secret/", "crates/tc-core/", 
 # Fragmentos técnicos permitidos en cualquier sitio.
 ALLOWED_FRAGMENTS = re.compile(
     r"tc[-_]telegram|core\.telegram\.org|telegram\.org/(faq|api|support|blog)|desktop\.telegram\.org|"
-    r"tg://login|grammers|mtproto", re.I)
+    r"tg://login|grammers|mtproto|"
+    # Valores e identificadores técnicos del selector de backend (no son nombre de producto; ADR-0005):
+    r"TC_BACKEND=telegram|Some\(\"telegram\"\)|«telegram»|`telegram`|my\.telegram\.org|"
+    r"\.join\(\"telegram(/session\.json)?\"\)|Choice::Telegram|\bTelegram\(TelegramConfig\)|"
+    r"Telegram(Config|Paths|Stores)\b|telegram_(config|connector|stores|con_credenciales)\b|"
+    r"`telegram_stores`|tc_telegram::|\.telegram/|/telegram/session\.json", re.I)
 # Rutas de código de UI/app: lo que contenga aquí puede verse en pantalla.
 UI_PREFIXES = ("crates/tc-ui/", "crates/tc-app/", "crates/tc-theme/", "crates/tc-mock/", "assets/")
 PUBLIC_FILES = ("README.md",)
@@ -32,13 +37,18 @@ STRING_LITERAL = re.compile(r'"[^"\n]*(?:telegram|tdesktop|durov)[^"\n]*"', re.I
 
 def classify(rel, line):
     if rel in PUBLIC_FILES:
-        return "BLOQUEANTE" if not ALLOWED_FRAGMENTS.search(line) else "REVISAR"
+        return "PERMITIDA" if not TERMS.search(ALLOWED_FRAGMENTS.sub("", line)) else "BLOQUEANTE"
     if rel.startswith(DOC_PREFIXES):
         return "PERMITIDA"
     stripped = TERMS.sub("", ALLOWED_FRAGMENTS.sub("", line))
     only_allowed = not TERMS.search(ALLOWED_FRAGMENTS.sub("", line))
     if only_allowed:
         return "PERMITIDA"
+    if rel.endswith("Cargo.toml") or rel == "Cargo.lock":
+        # Comentarios y descripción del crate de red (tc-telegram) o dependencias: documentación técnica.
+        if only_allowed or line.lstrip().startswith("#") or rel.startswith("crates/tc-telegram/"):
+            return "PERMITIDA"
+        return "REVISAR"
     if rel.startswith(UI_PREFIXES):
         if STRING_LITERAL.search(line) or rel.startswith("assets/"):
             return "BLOQUEANTE"
@@ -49,8 +59,6 @@ def classify(rel, line):
         if t.startswith(("//", "///", "//!", "#", "*")) or not STRING_LITERAL.search(line):
             return "PERMITIDA"
         return "REVISAR"
-    if rel.endswith("Cargo.toml") or rel == "Cargo.lock":
-        return "PERMITIDA" if only_allowed else "REVISAR"
     return "REVISAR"
 
 

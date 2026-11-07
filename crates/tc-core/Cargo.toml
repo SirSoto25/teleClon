@@ -1,6 +1,6 @@
 [package]
 name = "tc-core"
-description = "Dominio de teleClon: tipos, errores, eventos y el trait ChatBackend (sin E/S)."
+description = "Dominio de Parlo: tipos, errores, eventos y el trait ChatBackend (sin E/S)."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

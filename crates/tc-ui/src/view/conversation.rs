@@ -45,7 +45,7 @@ pub fn experimental_pill<'a>(b: Brasa) -> Element<'a, Msg> {
 /// Aviso permanente bajo la cabecera de un chat secreto (ADR-0004: cripto propia sin auditoría).
 fn experimental_banner(app: &App) -> Element<'_, Msg> {
     let b = app.brasa;
-    let text = "Experimental: el cifrado de extremo a extremo de teleClon todavía no ha pasado una auditoría de seguridad. No lo uses para nada sensible.";
+    let text = "Experimental: el cifrado de extremo a extremo de Parlo todavía no ha pasado una auditoría de seguridad. No lo uses para nada sensible.";
     let r = row![icon(Icon::Warning, layout::ICON_SM, c(b.p.warning)), t(text, ts::CAPTION, c(b.p.text))].spacing(space::S2).align_y(Alignment::Center);
     column![
         container(r).padding(Padding::from([space::S1_5, space::S4])).width(Length::Fill).style(style::warning_banner(b)),

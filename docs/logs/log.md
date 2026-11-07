@@ -128,3 +128,10 @@
 - Agente Opus/alto: `crates/tc-app/src/stores.rs` con `VaultSessionStore` (sesión en llavero, con respaldo a fichero 0600 y migración única de session.json) y `SealedSecretStateStore` (instantáneas de chats secretos cifradas con AES-256-GCM, clave en llavero, blob en SQLite, migración 0003; falla cerrado sin llavero).
 - Variable nueva `TC_ACCOUNT`. Si se resetea el llavero, los chats secretos guardados se pierden.
 - Verificación propia: build, test y clippy `-D warnings` del workspace. Sin prueba real contra Telegram.
+
+## 2026-11-07 — Nombre Parlo
+- El usuario eligió **Parlo**. ADR-0005. Disponibilidad de marca/dominio/handles NO verificada (pendiente del usuario).
+- Renombrado visible: título de ventana, login, aviso experimental, binario `parlo` (`[[bin]]` en tc-app), README, servicio del llavero `parlo/<cuenta>`, datos en `~/.local/share/parlo`. Crates `tc-*`, repo y `TC_*` sin cambios.
+- Migración: directorio de datos antiguo `teleclon` -> `parlo` (`resolve_data_dir`, con test) y entradas del llavero copiadas desde `teleclon/<cuenta>` al primer acceso. AAD del cifrado de chats secretos conservado.
+- `tools/brand/sweep.py`: lista de permitidos ampliada con el selector técnico `TC_BACKEND=telegram` e identificadores del backend; informe: 0 bloqueantes, 0 a revisar.
+- Verificación: build, test y clippy `-D warnings` del workspace limpios. Sin commit. Logo: solo brief.

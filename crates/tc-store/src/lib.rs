@@ -1,4 +1,4 @@
-//! Caché local SQLite de teleClon (un archivo por cuenta): apertura con PRAGMAs (WAL,
+//! Caché local SQLite de Parlo (un archivo por cuenta): apertura con PRAGMAs (WAL,
 //! `foreign_keys`, `secure_delete`), migraciones con `PRAGMA user_version` (ver `migrations/`)
 //! y repositorios síncronos para diálogos, mensajes (paginación por ancla, upsert idempotente,
 //! búsqueda FTS5), borradores, ajustes, stickers y chats secretos.
@@ -30,7 +30,7 @@ mod uploads;
 mod vault;
 
 pub use cached::{CachedBackend, LocalHit};
-pub use db::{APP_DIR, SCHEMA_VERSION, Store, account_db_path, default_data_dir};
+pub use db::{APP_DIR, LEGACY_APP_DIR, SCHEMA_VERSION, Store, account_db_path, default_data_dir};
 pub use error::{Error, Result};
 pub use messages::fts_query;
 pub use seal::{SEAL_KEY_LEN, SECRET_STATE_KEY, SealError, SealKey, Sealed, TAG_LEN};
@@ -172,6 +172,24 @@ mod tests {
     fn default_dir_follows_xdg_layout() {
         let d = default_data_dir().unwrap();
         assert_eq!(d.file_name().unwrap(), APP_DIR);
+    }
+
+    #[test]
+    fn legacy_data_dir_is_migrated_once() {
+        let tmp = TmpDir::new("legacy");
+        let old = tmp.0.join("teleclon");
+        let new = tmp.0.join("share").join("parlo");
+        std::fs::create_dir_all(old.join("accounts")).unwrap();
+        std::fs::write(old.join("accounts/marca"), b"x").unwrap();
+        assert_eq!(db::resolve_data_dir(new.clone(), &old), new);
+        assert!(new.join("accounts/marca").exists());
+        assert!(!old.exists());
+        // Segunda vez: el nuevo ya existe, no se toca.
+        assert_eq!(db::resolve_data_dir(new.clone(), &old), new);
+        // Sin directorio antiguo: se devuelve el nuevo sin crearlo.
+        let other = tmp.0.join("otro").join("parlo");
+        assert_eq!(db::resolve_data_dir(other.clone(), &tmp.0.join("nada")), other);
+        assert!(!other.exists());
     }
 
     #[test]

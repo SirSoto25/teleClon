@@ -1,4 +1,4 @@
-//! Binario de teleClon: lee la configuración del entorno y de un `.env` propio (nunca del repo ni
+//! Binario de Parlo: lee la configuración del entorno y de un `.env` propio (nunca del repo ni
 //! de los registros), elige el backend (`TC_BACKEND`: `mock` por defecto o `telegram`), registra las
 //! fuentes de `tc-theme` y arranca la UI de iced. El runtime tokio lo crea iced (feature `tokio`);
 //! no se crea un segundo runtime: la red real se construye dentro de él con un `Connector`.
@@ -6,7 +6,7 @@
 //!
 //! Variables: `TC_BACKEND`, `TC_ENV_FILE` (ruta del `.env`, por defecto `./.env`),
 //! `TC_ACCOUNT` (cuenta de la red real, `[A-Za-z0-9_-]`, por defecto `default`: servicio
-//! `teleclon/<cuenta>` del llavero y base `<datos>/accounts/<cuenta>/cache.sqlite3`),
+//! `parlo/<cuenta>` del llavero y base `<datos>/accounts/<cuenta>/cache.sqlite3`),
 //! `TC_SESSION_FILE` (respaldo en claro 0600 de la sesión cuando no hay llavero, y origen de la
 //! migración única al llavero), `TC_THEME`, `TC_REDUCED_MOTION`,
 //! `TC_MOCK_LATENCY_MS`, `TC_MOCK_SCRIPT_SECS`, `TC_MOCK_LOGIN` (mock sin sesión: pantalla de
@@ -71,8 +71,8 @@ fn session_path(file: &EnvFile) -> PathBuf {
     if let Some(p) = file.get("TC_SESSION_FILE").filter(|p| !p.is_empty()) {
         return PathBuf::from(p);
     }
-    directories::ProjectDirs::from("", "", "teleclon")
-        .map_or_else(|| PathBuf::from("teleclon-data"), |d| d.data_dir().to_path_buf())
+    tc_store::default_data_dir()
+        .unwrap_or_else(|_| PathBuf::from("parlo-data"))
         .join("telegram")
         .join("session.json")
 }
@@ -147,7 +147,7 @@ fn main() -> iced::Result {
         Choice::Mock { notice } => {
             if let Some(n) = &notice {
                 tracing::warn!("{n}");
-                eprintln!("teleClon: {n}");
+                eprintln!("Parlo: {n}");
             }
             let demo = demo_dir.is_some();
             let latency = Duration::from_millis(env_u64("TC_MOCK_LATENCY_MS", 80));

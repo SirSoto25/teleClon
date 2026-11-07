@@ -132,9 +132,11 @@ mod keyring_vault {
     use super::*;
 
     /// Bóveda sobre el almacén de credenciales del sistema (crate `keyring` 4.x). Cada secreto es
-    /// una entrada `(service, key)`; `service` separa cuentas (`teleclon/<cuenta>`).
+    /// una entrada `(service, key)`; `service` separa cuentas (`parlo/<cuenta>`).
     pub struct KeyringVault {
         service: String,
+        /// Servicio antiguo (`parlo/<cuenta>`) del que se migra una vez lo que falte en el nuevo.
+        legacy_service: Option<String>,
     }
 
     impl KeyringVault {
@@ -143,10 +145,10 @@ mod keyring_vault {
             if service.is_empty() || service.len() > 128 {
                 return Err(VaultError::InvalidKey(service.to_owned()));
             }
-            Ok(Self { service: service.to_owned() })
+            Ok(Self { service: service.to_owned(), legacy_service: None })
         }
 
-        /// Bóveda de una cuenta: servicio `teleclon/<account_id>` (mismo alfabeto que la ruta de la base).
+        /// Bóveda de una cuenta: servicio `parlo/<account_id>` (mismo alfabeto que la ruta de la base).
         pub fn for_account(account_id: &str) -> VaultResult<Self> {
             let ok = !account_id.is_empty()
                 && account_id.len() <= 64
@@ -154,7 +156,9 @@ mod keyring_vault {
             if !ok {
                 return Err(VaultError::InvalidKey(account_id.to_owned()));
             }
-            Self::new(&format!("{}/{account_id}", crate::APP_DIR))
+            let mut v = Self::new(&format!("{}/{account_id}", crate::APP_DIR))?;
+            v.legacy_service = Some(format!("{}/{account_id}", crate::LEGACY_APP_DIR));
+            Ok(v)
         }
 
         /// ¿Hay un almacén de credenciales utilizable en este sistema? (Inicializa el almacén la primera vez.)
@@ -165,6 +169,19 @@ mod keyring_vault {
         fn entry(&self, key: &str) -> VaultResult<keyring::Entry> {
             check_key(key)?;
             keyring::Entry::new(&self.service, key).map_err(map_err)
+        }
+    }
+
+    impl KeyringVault {
+        /// Si existe la entrada en el servicio antiguo, la copia al nuevo, la borra del antiguo y la devuelve.
+        fn migrate_legacy(&self, key: &str) -> VaultResult<Option<Secret>> {
+            let Some(old) = &self.legacy_service else { return Ok(None) };
+            let Ok(entry) = keyring::Entry::new(old, key) else { return Ok(None) };
+            let Ok(v) = entry.get_secret() else { return Ok(None) };
+            let v = Zeroizing::new(v);
+            self.entry(key)?.set_secret(&v).map_err(map_err)?;
+            let _ = entry.delete_credential();
+            Ok(Some(v))
         }
     }
 
@@ -187,7 +204,7 @@ mod keyring_vault {
         fn get(&self, key: &str) -> VaultResult<Option<Secret>> {
             match self.entry(key)?.get_secret() {
                 Ok(v) => Ok(Some(Zeroizing::new(v))),
-                Err(keyring::Error::NoEntry) => Ok(None),
+                Err(keyring::Error::NoEntry) => self.migrate_legacy(key),
                 Err(e) => Err(map_err(e)),
             }
         }
@@ -212,7 +229,8 @@ mod keyring_vault {
             assert!(KeyringVault::new("").is_err());
             assert!(KeyringVault::for_account("../x").is_err());
             let v = KeyringVault::for_account("u1").unwrap();
-            assert_eq!(v.service, "teleclon/u1");
+            assert_eq!(v.service, "parlo/u1");
+            assert_eq!(v.legacy_service.as_deref(), Some("teleclon/u1"));
             assert!(matches!(v.get("bad key"), Err(VaultError::InvalidKey(_))));
         }
 
@@ -230,7 +248,7 @@ mod keyring_vault {
         #[test]
         #[ignore = "usa el almacén de credenciales real del sistema"]
         fn live_roundtrip() {
-            let v = KeyringVault::new(&format!("teleclon-test-{}", std::process::id())).unwrap();
+            let v = KeyringVault::new(&format!("parlo-test-{}", std::process::id())).unwrap();
             v.set("session", b"abc").unwrap();
             assert_eq!(&**v.get("session").unwrap().unwrap(), b"abc");
             assert!(v.delete("session").unwrap());

@@ -45,7 +45,7 @@ impl VaultSessionStore {
         if !self.warned.swap(true, Ordering::Relaxed) {
             tracing::warn!(
                 motivo = %e,
-                "llavero del sistema no disponible: la sesión de Telegram se guarda EN CLARO en {} (permisos 0600). \
+                "llavero del sistema no disponible: la sesión se guarda EN CLARO en {} (permisos 0600). \
                  Arranca el Secret Service (gnome-keyring, KWallet…) para protegerla",
                 self.path.display()
             );
@@ -119,6 +119,7 @@ impl SessionStore for VaultSessionStore {
 /// Versión del formato del texto en claro de `StoredSecretChat` (columna `format`).
 const STATE_FORMAT: i64 = 1;
 /// Prefijo de los datos asociados del AEAD; se completa con el id del chat (liga el blob a su fila).
+// Se conserva «teleclon» a propósito: es el contexto autenticado (AAD) del cifrado; cambiarlo invalidaría los datos ya guardados.
 const AAD_PREFIX: &[u8] = b"teleclon/secret-chat-state/v1/";
 
 fn aad(id: i32) -> Vec<u8> {
@@ -348,7 +349,7 @@ pub fn telegram_stores(account: &str, session_file: &Path, data_dir: Option<&Pat
 pub fn stores_with_vault(vault: Option<Arc<dyn SecretVault>>, account: &str, session_file: &Path, data_dir: Option<&Path>) -> TelegramStores {
     let Some(vault) = vault else {
         tracing::warn!(
-            "llavero del sistema no disponible: la sesión de Telegram se guarda EN CLARO en {} (permisos 0600) y el \
+            "llavero del sistema no disponible: la sesión se guarda EN CLARO en {} (permisos 0600) y el \
              estado de los chats secretos NO se guarda entre reinicios",
             session_file.display()
         );

@@ -1,12 +1,12 @@
-# teleClon — Índice maestro (leer primero tras perder contexto)
+# Parlo (repo teleClon) — Índice maestro (leer primero tras perder contexto)
 
-Clon de Telegram Desktop para Linux, escrito en Rust, con identidad visual moderna y propia.
+Cliente de mensajería de escritorio para Linux (compatible con MTProto), escrito en Rust, con identidad visual moderna y propia.
 
 ## Dónde está cada cosa
 | Documento | Contenido |
 | --- | --- |
 | [logs/log.md](logs/log.md) | Bitácora cronológica de TODO lo hecho (append-only) |
-| [adr/](adr/) | Decisiones de arquitectura/diseño (una por archivo, con motivo) |
+| [adr/](adr/) | Decisiones de arquitectura/diseño (una por archivo, con motivo). Última: [0005 nombre Parlo](adr/0005-nombre-parlo.md) |
 | [architecture.md](architecture.md) | Arquitectura: crates, trait ChatBackend, concurrencia, esquema SQLite, flujos F01-F18, orden de construcción |
 | [agents/registry.md](agents/registry.md) | Qué agente hizo qué, con qué modelo/esfuerzo y por qué |
 | [research/design-skills.md](research/design-skills.md) | Skills de diseño poco conocidas encontradas y cómo se usaron |

@@ -1,4 +1,4 @@
-# Workspace de teleClon (nombre provisional hasta replica-brand).
+# Workspace de Parlo (los crates y el repo conservan el prefijo interno tc-/teleClon; ADR-0005).
 # Arquitectura: docs/architecture.md · Decisiones: docs/adr/0001-stack.md, docs/adr/0003-arquitectura.md
 # Versiones verificadas con `cargo search` / `cargo info` el 2026-11-06 (Rust 1.99.1).
 

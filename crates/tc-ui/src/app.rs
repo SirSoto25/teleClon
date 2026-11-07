@@ -503,11 +503,11 @@ impl App {
 
     pub fn title(&self) -> String {
         if self.phase != Phase::Main {
-            return "Iniciar sesión · teleClon".into();
+            return "Iniciar sesión · Parlo".into();
         }
         match self.conv.as_ref().and_then(|c| self.dialog(c.peer)) {
-            Some(d) => format!("{} · teleClon", d.title),
-            None => "teleClon".into(),
+            Some(d) => format!("{} · Parlo", d.title),
+            None => "Parlo".into(),
         }
     }
 

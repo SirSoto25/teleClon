@@ -6,7 +6,7 @@ use image::{ImageEncoder, ImageFormat, codecs::webp::WebPEncoder};
 
 use crate::{Frame, StickerError};
 
-/// Lado máximo aceptado (los stickers de Telegram miden 512).
+/// Lado máximo aceptado (los stickers de la red miden 512).
 pub const MAX_SIDE: u32 = 4096;
 
 /// Decodifica un WebP (estático) a RGBA8.
