@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Version=1.5
+Name=Parlo
+GenericName=Mensajería
+GenericName[en]=Messaging
+Comment=Cliente de mensajería de escritorio
+Comment[en]=Desktop messaging client
+Exec=parlo
+Icon=parlo
+Terminal=false
+Categories=Network;InstantMessaging;Chat;
+Keywords=chat;mensajes;messaging;
+StartupNotify=true
+StartupWMClass=parlo

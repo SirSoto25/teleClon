@@ -6,6 +6,8 @@
 //!   cualquier entorno; si en tiempo de ejecución no hay servicio, **no entra en pánico**: todas las
 //!   operaciones devuelven [`VaultError::Unavailable`] y el llamador decide el respaldo.
 //! * [`MemoryVault`]: en memoria, para pruebas y modo efímero.
+//! * [`ChunkedVault`]: envoltorio que reparte valores grandes en varias entradas (Windows limita cada
+//!   credencial a 2560 bytes; ver [`KEYRING_MAX_ENTRY`]).
 //!
 //! Nombres de clave en uso: [`SESSION_KEY`] (`"session"`, sesión serializada de tc-telegram) y
 //! [`secret_chat_key_name`] (`"secret-chat/<id>"`, clave de un chat secreto; ese mismo nombre es el
@@ -121,6 +123,93 @@ impl SecretVault for MemoryVault {
     fn delete(&self, key: &str) -> VaultResult<bool> {
         check_key(key)?;
         Ok(self.lock().remove(key).is_some())
+    }
+}
+
+/// Tamaño máximo de cada entrada que [`ChunkedVault`] escribe en el llavero del sistema. Windows
+/// Credential Manager rechaza secretos de más de 2560 bytes (`CRED_MAX_CREDENTIAL_BLOB_SIZE`) y la sesión
+/// serializada (claves de los DC + pares conocidos) los supera enseguida; Keychain y Secret Service no
+/// tienen un límite práctico (ADR-0006).
+pub const KEYRING_MAX_ENTRY: usize = if cfg!(windows) { 2048 } else { usize::MAX };
+
+/// Cabecera de un valor repartido: `MAGIC`, generación (`u8`) y número de trozos (`u32` BE).
+const CHUNK_MAGIC: &[u8] = b"\0parlo-chunked/v1\0";
+const CHUNK_HEADER_LEN: usize = CHUNK_MAGIC.len() + 1 + 4;
+
+/// Envoltorio que reparte los valores mayores que `max` bytes en varias entradas (`<clave>.part<g>-<i>`)
+/// y deja en `<clave>` una cabecera. Los valores pequeños se guardan tal cual, así que los datos ya
+/// existentes siguen leyéndose igual. Cada escritura usa la generación contraria a la anterior y borra
+/// la vieja al final: si se interrumpe a medias, la cabecera sigue apuntando a trozos completos.
+pub struct ChunkedVault<V> {
+    inner: V,
+    max: usize,
+}
+
+impl<V: SecretVault> ChunkedVault<V> {
+    /// `max` = bytes por entrada (≥ cabecera); ver [`KEYRING_MAX_ENTRY`].
+    pub fn new(inner: V, max: usize) -> Self {
+        Self { inner, max: max.max(CHUNK_HEADER_LEN) }
+    }
+
+    fn part_key(key: &str, generation: u8, i: u32) -> String {
+        format!("{key}.part{generation}-{i}")
+    }
+
+    /// `(generación, trozos)` si `raw` es una cabecera.
+    fn header(raw: &[u8]) -> Option<(u8, u32)> {
+        let rest = raw.strip_prefix(CHUNK_MAGIC)?;
+        (rest.len() == 5).then(|| (rest[0], u32::from_be_bytes([rest[1], rest[2], rest[3], rest[4]])))
+    }
+
+    fn delete_parts(&self, key: &str, generation: u8, count: u32) {
+        for i in 0..count {
+            let _ = self.inner.delete(&Self::part_key(key, generation, i));
+        }
+    }
+}
+
+impl<V: SecretVault> SecretVault for ChunkedVault<V> {
+    fn get(&self, key: &str) -> VaultResult<Option<Secret>> {
+        let Some(raw) = self.inner.get(key)? else { return Ok(None) };
+        let Some((generation, count)) = Self::header(&raw) else { return Ok(Some(raw)) };
+        let mut out = Zeroizing::new(Vec::new());
+        for i in 0..count {
+            match self.inner.get(&Self::part_key(key, generation, i))? {
+                Some(part) => out.extend_from_slice(&part),
+                None => return Err(VaultError::Backend(format!("faltan trozos de {key:?}"))),
+            }
+        }
+        Ok(Some(out))
+    }
+
+    fn set(&self, key: &str, value: &[u8]) -> VaultResult<()> {
+        check_key(key)?;
+        let old = self.inner.get(key)?.and_then(|r| Self::header(&r));
+        if value.len() <= self.max && !value.starts_with(CHUNK_MAGIC) {
+            self.inner.set(key, value)?;
+        } else {
+            let generation = old.map_or(0, |(g, _)| g ^ 1);
+            let parts: Vec<&[u8]> = value.chunks(self.max).collect();
+            for (i, part) in parts.iter().enumerate() {
+                self.inner.set(&Self::part_key(key, generation, i as u32), part)?;
+            }
+            let mut header = CHUNK_MAGIC.to_vec();
+            header.push(generation);
+            header.extend_from_slice(&(parts.len() as u32).to_be_bytes());
+            self.inner.set(key, &header)?;
+        }
+        // La generación nueva siempre es la contraria a la vieja: borrar la vieja nunca toca lo recién escrito.
+        if let Some((g, n)) = old {
+            self.delete_parts(key, g, n);
+        }
+        Ok(())
+    }
+
+    fn delete(&self, key: &str) -> VaultResult<bool> {
+        if let Some((g, n)) = self.inner.get(key)?.and_then(|r| Self::header(&r)) {
+            self.delete_parts(key, g, n);
+        }
+        self.inner.delete(key)
     }
 }
 
@@ -298,6 +387,46 @@ mod tests {
         let v2 = v.clone();
         std::thread::spawn(move || save_session(&*v2, b"x").unwrap()).join().unwrap();
         assert!(load_session(&*v).unwrap().is_some());
+    }
+
+    #[test]
+    fn chunked_vault_splits_large_values_and_cleans_up() {
+        let v = ChunkedVault::new(MemoryVault::new(), 64);
+        // Pequeño: tal cual, sin trozos.
+        v.set("session", b"corto").unwrap();
+        assert_eq!(&**v.inner.get("session").unwrap().unwrap(), b"corto");
+        assert_eq!(v.inner.keys(), ["session"]);
+        // Grande: cabecera + trozos de 64 bytes; se lee entero.
+        let big: Vec<u8> = (0..300u32).map(|i| (i % 251) as u8).collect();
+        v.set("session", &big).unwrap();
+        assert_eq!(&**v.get("session").unwrap().unwrap(), &big[..]);
+        assert_eq!(v.inner.keys().len(), 1 + 5);
+        // Reescritura: alterna de generación y borra los trozos viejos.
+        let big2 = vec![9u8; 130];
+        v.set("session", &big2).unwrap();
+        assert_eq!(&**v.get("session").unwrap().unwrap(), &big2[..]);
+        assert_eq!(v.inner.keys(), ["session", "session.part1-0", "session.part1-1", "session.part1-2"]);
+        // Vuelve a pequeño: sin trozos huérfanos.
+        v.set("session", b"x").unwrap();
+        assert_eq!(v.inner.keys(), ["session"]);
+        // Borrar un valor repartido borra también sus trozos.
+        v.set("session", &big).unwrap();
+        assert!(v.delete("session").unwrap());
+        assert!(v.inner.keys().is_empty());
+        assert!(!v.delete("session").unwrap());
+        assert!(v.get("session").unwrap().is_none());
+    }
+
+    #[test]
+    fn chunked_vault_reports_missing_parts_and_keeps_magic_values_intact() {
+        let v = ChunkedVault::new(MemoryVault::new(), 32);
+        v.set("k", &[1u8; 100]).unwrap();
+        v.inner.delete("k.part0-2").unwrap();
+        assert!(matches!(v.get("k"), Err(VaultError::Backend(_))));
+        // Un valor corto que empieza como la cabecera se reparte para no confundirse con ella.
+        let tricky = [CHUNK_MAGIC, b"\x00\x00\x00\x00\x01"].concat();
+        v.set("t", &tricky).unwrap();
+        assert_eq!(&**v.get("t").unwrap().unwrap(), &tricky[..]);
     }
 
     /// El `key_ref` que guarda la base nunca contiene la clave, solo su nombre.

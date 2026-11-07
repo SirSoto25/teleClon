@@ -9,3 +9,4 @@ graphify-out/cache/
 *.sqlite3-*
 /config.toml
 /config.local.toml
+dist/

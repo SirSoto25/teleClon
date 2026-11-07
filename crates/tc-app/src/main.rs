@@ -4,7 +4,8 @@
 //! no se crea un segundo runtime: la red real se construye dentro de él con un `Connector`.
 //! Ver docs/architecture.md §10.
 //!
-//! Variables: `TC_BACKEND`, `TC_ENV_FILE` (ruta del `.env`, por defecto `./.env`),
+//! Variables: `TC_BACKEND`, `TC_ENV_FILE` (ruta del `.env`; por defecto `./.env` y, si no existe,
+//! `<datos>/.env`, necesario al abrir la app empaquetada desde el menú/Finder, ADR-0006),
 //! `TC_ACCOUNT` (cuenta de la red real, `[A-Za-z0-9_-]`, por defecto `default`: servicio
 //! `parlo/<cuenta>` del llavero y base `<datos>/accounts/<cuenta>/cache.sqlite3`),
 //! `TC_SESSION_FILE` (respaldo en claro 0600 de la sesión cuando no hay llavero, y origen de la
@@ -12,6 +13,8 @@
 //! `TC_MOCK_LATENCY_MS`, `TC_MOCK_SCRIPT_SECS`, `TC_MOCK_LOGIN` (mock sin sesión: pantalla de
 //! login), `TC_MOCK_QR_SECS`, `TC_DEMO_SHOTS=<dir>` (guion de capturas).
 #![forbid(unsafe_code)]
+// En Windows, el binario de release no abre una consola junto a la ventana (en debug sí, para ver los registros).
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod envfile;
 mod select;
@@ -42,21 +45,29 @@ fn env_flag(name: &str) -> bool {
 
 /// Carga el `.env` (si existe). Solo se registra cuántas variables tiene, nunca cuáles valen qué.
 fn load_env_file() -> EnvFile {
-    let path = std::env::var_os("TC_ENV_FILE").map_or_else(|| PathBuf::from(".env"), PathBuf::from);
-    match EnvFile::load(&path) {
-        Ok(Some((f, bad))) => {
-            tracing::info!(variables = f.len(), "leído {}", path.display());
-            if bad > 0 {
-                tracing::warn!(lineas = bad, "{} tiene líneas que no son asignaciones CLAVE=valor; se ignoran", path.display());
+    let candidates = match std::env::var_os("TC_ENV_FILE") {
+        Some(p) => vec![PathBuf::from(p)],
+        // Al abrir la app desde el menú, el Explorador o el Finder el directorio actual no es el del
+        // usuario: también se busca en el directorio de datos (%APPDATA%\Parlo, Application Support...).
+        None => std::iter::once(PathBuf::from(".env")).chain(tc_store::default_data_dir().ok().map(|d| d.join(".env"))).collect(),
+    };
+    for path in candidates {
+        match EnvFile::load(&path) {
+            Ok(Some((f, bad))) => {
+                tracing::info!(variables = f.len(), "leído {}", path.display());
+                if bad > 0 {
+                    tracing::warn!(lineas = bad, "{} tiene líneas que no son asignaciones CLAVE=valor; se ignoran", path.display());
+                }
+                return f;
             }
-            f
-        }
-        Ok(None) => EnvFile::default(),
-        Err(e) => {
-            tracing::warn!("no se pudo leer {}: {}", path.display(), e.kind());
-            EnvFile::default()
+            Ok(None) => {}
+            Err(e) => {
+                tracing::warn!("no se pudo leer {}: {}", path.display(), e.kind());
+                return EnvFile::default();
+            }
         }
     }
+    EnvFile::default()
 }
 
 /// Configuración de la red real: entorno del proceso (`from_env`) y, si falta algo, el `.env`.
@@ -186,12 +197,26 @@ fn main() -> iced::Result {
         .style(tc_ui::App::style)
         .subscription(tc_ui::App::subscription)
         .default_font(tc_ui::style::ui_font())
-        .window_size((1240.0, 800.0))
+        .window(window_settings())
         .antialiasing(true);
     for font in tc_theme::fonts::BUNDLED {
         app = app.font(font);
     }
     app.run()
+}
+
+/// Icono PROVISIONAL de la ventana (tools/packaging/make_icons.py; ADR-0006).
+const WINDOW_ICON: &[u8] = include_bytes!("../../../packaging/icons/parlo-256.png");
+
+fn window_settings() -> iced::window::Settings {
+    iced::window::Settings {
+        size: iced::Size::new(1240.0, 800.0),
+        icon: iced::window::icon::from_file_data(WINDOW_ICON, Some(image::ImageFormat::Png)).ok(),
+        // Wayland/X11: el id coincide con packaging/linux/parlo.desktop para que el escritorio asocie icono y nombre.
+        #[cfg(target_os = "linux")]
+        platform_specific: iced::window::settings::PlatformSpecific { application_id: "parlo".into(), ..Default::default() },
+        ..Default::default()
+    }
 }
 
 fn save_png(path: &str, w: u32, h: u32, rgba: &[u8]) {

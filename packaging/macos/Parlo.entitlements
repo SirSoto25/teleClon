@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Entitlements de Parlo.app con hardened runtime (codesign -o runtime), necesario para notarizar.
+     Vacío a propósito: Parlo no usa JIT, no carga bibliotecas de terceros sin firmar, no es una app con
+     sandbox (App Sandbox exigiría com.apple.security.network.client y grupos de llavero) y no accede a
+     cámara/micrófono. Añadir aquí solo lo que una función nueva necesite de verdad (p. ej.
+     com.apple.security.device.audio-input para notas de voz) y documentarlo en docs/packaging.md. -->
+<plist version="1.0">
+<dict>
+</dict>
+</plist>

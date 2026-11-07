@@ -1,0 +1,166 @@
+# Empaquetado de Parlo (ADR-0006, docs/packaging.md).
+# - Manual (workflow_dispatch): construye los paquetes y los deja como artefactos del run.
+# - Etiqueta v* (p. ej. v0.0.1): además crea un GitHub Release en BORRADOR con todos los paquetes.
+# Firma y notarización son opcionales: solo se activan si existen los secretos (ver docs/packaging.md).
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  RUST_TOOLCHAIN: "1.99.1"
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  meta:
+    name: versión
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        name: Leer la versión de Cargo y comprobar la etiqueta
+        run: |
+          # tc-app hereda la versión del workspace (version.workspace = true).
+          version="$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["version"])')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF_TYPE" == tag && "$GITHUB_REF_NAME" != "v$version" ]]; then
+            echo "::error::La etiqueta $GITHUB_REF_NAME no coincide con la versión de Cargo (v$version)."
+            exit 1
+          fi
+
+  windows:
+    name: Windows (exe, zip, instalador)
+    needs: meta
+    runs-on: windows-latest
+    env:
+      WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+      WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain de Rust
+        shell: bash
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --target x86_64-pc-windows-msvc
+          rustup default "$RUST_TOOLCHAIN"
+      - uses: Swatinem/rust-cache@v2
+      - name: Inno Setup 6
+        shell: pwsh
+        run: |
+          $iscc = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ }
+          if (-not $iscc) { choco install innosetup -y --no-progress }
+      - name: Empaquetar
+        shell: pwsh
+        run: ./packaging/windows/build.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: parlo-windows
+          path: |
+            dist/*-windows-x86_64-portable.zip
+            dist/*-windows-x86_64-setup.exe
+          if-no-files-found: error
+
+  macos:
+    name: macOS (Parlo.app universal, dmg)
+    needs: meta
+    runs-on: macos-latest
+    env:
+      MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+      MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+      # Nombre distinto de MACOS_SIGN_IDENTITY: el paso de importación exporta esa variable por GITHUB_ENV
+      # (un `env:` del YAML con el mismo nombre la taparía).
+      MACOS_SIGN_IDENTITY_SECRET: ${{ secrets.MACOS_SIGN_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain de Rust
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --target aarch64-apple-darwin --target x86_64-apple-darwin
+          rustup default "$RUST_TOOLCHAIN"
+      - uses: Swatinem/rust-cache@v2
+      - name: Importar el certificado Developer ID (opcional)
+        if: env.MACOS_CERT_P12_BASE64 != ''
+        run: |
+          keychain="$RUNNER_TEMP/parlo-signing.keychain-db"
+          keychain_password="$(openssl rand -base64 24)"
+          echo "$MACOS_CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/parlo-cert.p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$RUNNER_TEMP/parlo-cert.p12" -P "$MACOS_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/parlo-cert.p12"
+          identity="$MACOS_SIGN_IDENTITY_SECRET"
+          if [[ -z "$identity" ]]; then
+            identity="$(security find-identity -v -p codesigning "$keychain" | sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' | head -n1)"
+          fi
+          if [[ -z "$identity" ]]; then
+            echo "::error::El certificado importado no contiene una identidad «Developer ID Application»."
+            exit 1
+          fi
+          echo "MACOS_SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+      - name: Empaquetar
+        run: packaging/macos/build-macos.sh
+      - name: Borrar el llavero temporal
+        if: always() && env.MACOS_CERT_P12_BASE64 != ''
+        run: security delete-keychain "$RUNNER_TEMP/parlo-signing.keychain-db" || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: parlo-macos
+          path: dist/*-macos-*.dmg
+          if-no-files-found: error
+
+  linux:
+    name: Linux (tar.gz)
+    needs: meta
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain de Rust
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
+          rustup default "$RUST_TOOLCHAIN"
+      - uses: Swatinem/rust-cache@v2
+      - name: Empaquetar
+        run: packaging/linux/build-linux.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: parlo-linux
+          path: dist/*-linux-*.tar.gz
+          if-no-files-found: error
+
+  release:
+    name: GitHub Release (borrador)
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    needs: [meta, windows, macos, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Sumas SHA-256
+        working-directory: dist
+        run: sha256sum -- * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Crear el borrador
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.meta.outputs.version }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft \
+            --title "Parlo $VERSION" \
+            --generate-notes

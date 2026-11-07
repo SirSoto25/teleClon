@@ -30,7 +30,7 @@ mod uploads;
 mod vault;
 
 pub use cached::{CachedBackend, LocalHit};
-pub use db::{APP_DIR, LEGACY_APP_DIR, SCHEMA_VERSION, Store, account_db_path, default_data_dir};
+pub use db::{APP_DIR, DATA_DIR_NAME, LEGACY_APP_DIR, SCHEMA_VERSION, Store, account_db_path, default_data_dir};
 pub use error::{Error, Result};
 pub use messages::fts_query;
 pub use seal::{SEAL_KEY_LEN, SECRET_STATE_KEY, SealError, SealKey, Sealed, TAG_LEN};
@@ -38,7 +38,7 @@ pub use secret::{NONCE_LEN, SecretChatStateRow};
 pub use stickers::RECENT_CAP;
 pub use types::*;
 pub use vault::{
-    MemoryVault, SESSION_KEY, Secret, SecretVault, VaultError, VaultResult, clear_session, delete_secret_chat_key,
+    ChunkedVault, KEYRING_MAX_ENTRY, MemoryVault, SESSION_KEY, Secret, SecretVault, VaultError, VaultResult, clear_session, delete_secret_chat_key,
     load_secret_chat_key, load_session, save_secret_chat_key, save_session, secret_chat_key_name,
 };
 #[cfg(feature = "keyring-vault")]
@@ -171,7 +171,9 @@ mod tests {
     #[test]
     fn default_dir_follows_xdg_layout() {
         let d = default_data_dir().unwrap();
-        assert_eq!(d.file_name().unwrap(), APP_DIR);
+        assert_eq!(d.file_name().unwrap(), DATA_DIR_NAME);
+        #[cfg(all(unix, not(target_os = "macos")))]
+        assert_eq!(DATA_DIR_NAME, "parlo");
     }
 
     #[test]

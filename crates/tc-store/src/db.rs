@@ -1,12 +1,17 @@
-//! Apertura de la base, PRAGMAs, migraciones y rutas XDG.
+//! Apertura de la base, PRAGMAs, migraciones y directorio de datos por sistema operativo.
 
 use crate::error::{Error, Result};
 use rusqlite::Connection;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-/// Nombre de la app para las rutas XDG y el servicio del llavero (marca: Parlo, ADR-0005).
+/// Nombre de la app para el servicio del llavero y el directorio XDG (marca: Parlo, ADR-0005).
 pub const APP_DIR: &str = "parlo";
+
+/// Nombre del directorio de datos: `parlo` (XDG, minúsculas) en Linux/BSD y `Parlo` en Windows
+/// (`%APPDATA%\Parlo`) y macOS (`~/Library/Application Support/Parlo`), según la convención de cada SO
+/// (ADR-0006).
+pub const DATA_DIR_NAME: &str = if cfg!(any(windows, target_os = "macos")) { "Parlo" } else { APP_DIR };
 
 /// Nombre anterior (provisional) de las rutas y del servicio del llavero; solo se lee para migrar.
 pub const LEGACY_APP_DIR: &str = "teleclon";
@@ -86,16 +91,17 @@ impl Store {
     }
 }
 
-/// Directorio de datos por defecto: `$XDG_DATA_HOME/parlo` o `~/.local/share/parlo`.
-/// Si solo existe el directorio antiguo (`teleclon`), se renombra una vez; si no se puede
-/// renombrar, se sigue usando el antiguo para no perder datos.
+/// Directorio de datos por defecto, según el SO (ADR-0006):
+/// - Linux/BSD: `$XDG_DATA_HOME/parlo` o `~/.local/share/parlo`.
+/// - Windows: `%APPDATA%\Parlo` (perfil itinerante, solo accesible por el usuario).
+/// - macOS: `~/Library/Application Support/Parlo`.
+///
+/// Si solo existe el directorio antiguo (`teleclon`, junto al nuevo), se renombra una vez; si no se
+/// puede renombrar, se sigue usando el antiguo para no perder datos.
 pub fn default_data_dir() -> Result<PathBuf> {
-    let new = directories::ProjectDirs::from("", "", APP_DIR).map(|d| d.data_dir().to_path_buf()).ok_or(Error::NoDataDir)?;
-    let legacy = directories::ProjectDirs::from("", "", LEGACY_APP_DIR).map(|d| d.data_dir().to_path_buf());
-    Ok(match legacy {
-        Some(old) => resolve_data_dir(new, &old),
-        None => new,
-    })
+    let base = directories::BaseDirs::new().ok_or(Error::NoDataDir)?;
+    let root = base.data_dir();
+    Ok(resolve_data_dir(root.join(DATA_DIR_NAME), &root.join(LEGACY_APP_DIR)))
 }
 
 /// Elige entre el directorio nuevo y el antiguo, migrando el antiguo si hace falta.

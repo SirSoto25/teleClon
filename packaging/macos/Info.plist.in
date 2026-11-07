@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Plantilla del Info.plist de Parlo.app (ADR-0006). build-macos.sh sustituye @VERSION@ por la versión
+     de Cargo. El bundle id app.parlo.Parlo es PROVISIONAL: confirmarlo cuando se verifique el dominio
+     (ADR-0005); cambiarlo después invalida el acceso al llavero y las preferencias ya guardadas. -->
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>es</string>
+  <key>CFBundleName</key>
+  <string>Parlo</string>
+  <key>CFBundleDisplayName</key>
+  <string>Parlo</string>
+  <key>CFBundleIdentifier</key>
+  <string>app.parlo.Parlo</string>
+  <key>CFBundleExecutable</key>
+  <string>parlo</string>
+  <key>CFBundleIconFile</key>
+  <string>Parlo</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleShortVersionString</key>
+  <string>@VERSION@</string>
+  <key>CFBundleVersion</key>
+  <string>@VERSION@</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>11.0</string>
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.social-networking</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+  <key>NSSupportsAutomaticGraphicsSwitching</key>
+  <true/>
+  <key>NSPrincipalClass</key>
+  <string>NSApplication</string>
+  <key>NSHumanReadableCopyright</key>
+  <string>Parlo · MIT OR Apache-2.0</string>
+</dict>
+</plist>

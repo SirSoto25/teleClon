@@ -335,7 +335,8 @@ pub struct TelegramStores {
 /// Síncrono (toca el llavero y abre SQLite): llamar desde `spawn_blocking`.
 pub fn telegram_stores(account: &str, session_file: &Path, data_dir: Option<&Path>) -> TelegramStores {
     let vault: Option<Arc<dyn SecretVault>> = match tc_store::KeyringVault::for_account(account) {
-        Ok(v) if tc_store::KeyringVault::is_available() => Some(Arc::new(v)),
+        // Windows limita cada credencial a 2560 bytes: la sesión se reparte en varias entradas.
+        Ok(v) if tc_store::KeyringVault::is_available() => Some(Arc::new(tc_store::ChunkedVault::new(v, tc_store::KEYRING_MAX_ENTRY))),
         Ok(_) => None,
         Err(e) => {
             tracing::warn!(motivo = %e, "TC_ACCOUNT no válido para el llavero (solo [A-Za-z0-9_-], hasta 64)");

@@ -24,7 +24,7 @@ pub enum Error {
         /// Última migración conocida.
         supported: i64,
     },
-    /// No se pudo determinar el directorio de datos (sin HOME ni XDG).
+    /// No se pudo determinar el directorio de datos (sin HOME/XDG ni perfil de usuario de Windows).
     #[error("no se pudo determinar el directorio de datos del usuario")]
     NoDataDir,
     /// Argumento inválido (id de cuenta, longitud de nonce...).

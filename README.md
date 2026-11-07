@@ -1,12 +1,14 @@
 # Parlo
 
-Cliente de mensajería de escritorio para Linux escrito en Rust, compatible con el protocolo MTProto (clean-room: código, assets y marca propios). Interfaz moderna y propia.
+Cliente de mensajería de escritorio para Linux (y, en preparación, Windows y macOS) escrito en Rust, compatible con el protocolo MTProto (clean-room: código, assets y marca propios). Interfaz moderna y propia.
 
-Documentación y memoria del proyecto: [docs/00-INDEX.md](docs/00-INDEX.md).
+Documentación y memoria del proyecto: [docs/00-INDEX.md](docs/00-INDEX.md). Empaquetado y releases: [docs/packaging.md](docs/packaging.md).
 
 ## Red real: dónde se guardan los secretos
 
 Con `TC_BACKEND=telegram` (credenciales `TC_API_ID`/`TC_API_HASH`, ver `.env.example`):
+
+Rutas de Linux; en Windows y macOS ver la tabla de [docs/packaging.md](docs/packaging.md#dónde-guarda-parlo-los-datos).
 
 | Variable | Por defecto | Uso |
 |---|---|---|
