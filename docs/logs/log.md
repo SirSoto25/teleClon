@@ -143,3 +143,6 @@
 - `packaging/`: iconos PROVISIONALES (`tools/packaging/make_icons.py`, solo stdlib), manifiesto + `parlo.iss` (Inno Setup) + `build.ps1` (zip portable, instalador, firma opcional); `Info.plist.in`, `Parlo.entitlements`, `build-macos.sh` (lipo universal, codesign, hdiutil, notarytool opcional); `parlo.desktop` + `build-linux.sh` (tar.gz). AppImage pendiente.
 - `.github/workflows/ci.yml` (build/test/clippy en 3 SO) y `release.yml` (artefactos; en `v*` Release en borrador). `dist/` en `.gitignore`.
 - Verificación: build, test y clippy `-D warnings` del workspace en Linux; `cargo check --all-targets` con `-D warnings` para `x86_64-pc-windows-msvc` y `aarch64-apple-darwin` (targets añadidos con rustup; C de SQLite sustituido por un compilador ficticio: no enlaza); `build-linux.sh`; YAML, XML y `.desktop` validados. NO probado en Windows/macOS reales ni ejecutado ningún workflow; sin `actionlint`. Sin commit.
+
+## 2026-11-07 — Alcance personal
+- Decisión del usuario: Parlo es de uso personal y no se comercializa; se descartan los checks de marca/dominio/handle. El bundle id `app.parlo.Parlo` pasa a ser definitivo salvo cambio de opinión. Solo se retomaría si se distribuyera públicamente.

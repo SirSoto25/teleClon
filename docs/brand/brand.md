@@ -78,3 +78,6 @@ La comprobación automática es `python3 tools/brand/sweep.py --root . --out doc
 2. Con el nombre elegido: renombrar crates `tc-*` (o mantener el prefijo interno, decisión de ADR), `Cargo.toml`, título de ventana, `.desktop`, id de Flatpak.
 3. Cambiar la línea de «inspirado en…» del README por una nota de atribución sin marca, si procede.
 4. Repetir el barrido y dejarlo en limpio antes de `replica-launch`.
+
+## Aclaración de alcance (2026-11-07)
+El usuario confirma que Parlo es un proyecto de **uso personal, sin intención de comercializarlo**. Por tanto las comprobaciones de disponibilidad de marca, dominio y usuarios de este documento quedan **descartadas** (ya no son un pendiente). Si el proyecto se distribuyera públicamente en el futuro, habría que retomarlas, además de la nota sobre «Parler».
