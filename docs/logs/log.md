@@ -146,3 +146,4 @@
 
 ## 2026-11-07 — Alcance personal
 - Decisión del usuario: Parlo es de uso personal y no se comercializa; se descartan los checks de marca/dominio/handle. El bundle id `app.parlo.Parlo` pasa a ser definitivo salvo cambio de opinión. Solo se retomaría si se distribuyera públicamente.
+- CI: actions subidas a checkout@v7, upload-artifact@v7, download-artifact@v8 (aviso Node 20 obsoleto).

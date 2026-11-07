@@ -24,7 +24,7 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: v
         name: Leer la versión de Cargo y comprobar la etiqueta
         run: |
@@ -44,7 +44,7 @@ jobs:
       WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
       WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Toolchain de Rust
         shell: bash
         run: |
@@ -59,7 +59,7 @@ jobs:
       - name: Empaquetar
         shell: pwsh
         run: ./packaging/windows/build.ps1
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: parlo-windows
           path: |
@@ -81,7 +81,7 @@ jobs:
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Toolchain de Rust
         run: |
           rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --target aarch64-apple-darwin --target x86_64-apple-darwin
@@ -114,7 +114,7 @@ jobs:
       - name: Borrar el llavero temporal
         if: always() && env.MACOS_CERT_P12_BASE64 != ''
         run: security delete-keychain "$RUNNER_TEMP/parlo-signing.keychain-db" || true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: parlo-macos
           path: dist/*-macos-*.dmg
@@ -125,7 +125,7 @@ jobs:
     needs: meta
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Toolchain de Rust
         run: |
           rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
@@ -133,7 +133,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Empaquetar
         run: packaging/linux/build-linux.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: parlo-linux
           path: dist/*-linux-*.tar.gz
@@ -147,7 +147,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
