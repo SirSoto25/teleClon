@@ -5,13 +5,17 @@
 //! Ver docs/architecture.md §10.
 //!
 //! Variables: `TC_BACKEND`, `TC_ENV_FILE` (ruta del `.env`, por defecto `./.env`),
-//! `TC_SESSION_FILE` (sesión de la red real), `TC_THEME`, `TC_REDUCED_MOTION`,
+//! `TC_ACCOUNT` (cuenta de la red real, `[A-Za-z0-9_-]`, por defecto `default`: servicio
+//! `teleclon/<cuenta>` del llavero y base `<datos>/accounts/<cuenta>/cache.sqlite3`),
+//! `TC_SESSION_FILE` (respaldo en claro 0600 de la sesión cuando no hay llavero, y origen de la
+//! migración única al llavero), `TC_THEME`, `TC_REDUCED_MOTION`,
 //! `TC_MOCK_LATENCY_MS`, `TC_MOCK_SCRIPT_SECS`, `TC_MOCK_LOGIN` (mock sin sesión: pantalla de
 //! login), `TC_MOCK_QR_SECS`, `TC_DEMO_SHOTS=<dir>` (guion de capturas).
 #![forbid(unsafe_code)]
 
 mod envfile;
 mod select;
+mod stores;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -20,7 +24,7 @@ use std::time::{Duration, Instant};
 use iced::widget::text_editor::{Action, Edit};
 use tc_core::{ChatBackend, GroupId, PeerRef, StickerId};
 use tc_mock::{ANIMATED_SET_ID, BIG_CHAT, MOCK_2FA_PASSWORD, MOCK_LOGIN_CODE, MockBackend, MockConfig, SECRET_ID};
-use tc_telegram::{FileSessionStore, GrammersBackend, SessionStore, TelegramConfig};
+use tc_telegram::{GrammersBackend, TelegramConfig};
 use tc_theme::ThemeKind;
 use tc_ui::{Connector, DemoStep, LoginMsg, Msg, Session};
 use tracing_subscriber::EnvFilter;
@@ -73,14 +77,39 @@ fn session_path(file: &EnvFile) -> PathBuf {
         .join("session.json")
 }
 
-/// Crea el `GrammersBackend` dentro del runtime de iced (lanza sus tareas al construirse).
-fn telegram_connector(cfg: TelegramConfig, path: PathBuf) -> Connector {
+/// Cuenta de la red real (`TC_ACCOUNT`, entorno o `.env`; por defecto `default`).
+fn account_id(file: &EnvFile) -> String {
+    std::env::var("TC_ACCOUNT")
+        .ok()
+        .or_else(|| file.get("TC_ACCOUNT").map(str::to_string))
+        .map(|a| a.trim().to_string())
+        .filter(|a| !a.is_empty())
+        .unwrap_or_else(|| "default".to_string())
+}
+
+/// Dónde guarda la red real su estado.
+#[derive(Clone)]
+struct TelegramPaths {
+    account: String,
+    session_file: PathBuf,
+    data_dir: Option<PathBuf>,
+}
+
+/// Crea el `GrammersBackend` dentro del runtime de iced (lanza sus tareas al construirse). La sesión va
+/// al llavero del sistema (respaldo: archivo 0600) y el estado de los chats secretos, cifrado, a SQLite.
+fn telegram_connector(cfg: TelegramConfig, paths: TelegramPaths) -> Connector {
     Arc::new(move || {
-        let (cfg, path) = (cfg.clone(), path.clone());
+        let (cfg, paths) = (cfg.clone(), paths.clone());
         Box::pin(async move {
-            let store: Arc<dyn SessionStore> = Arc::new(FileSessionStore::new(path));
-            match GrammersBackend::connect(cfg, store).await {
+            // Llavero (D-Bus) y SQLite son síncronos: fuera del hilo del runtime.
+            let stores = tokio::task::spawn_blocking(move || stores::telegram_stores(&paths.account, &paths.session_file, paths.data_dir.as_deref()))
+                .await
+                .map_err(|_| "No se pudo preparar el almacenamiento local.".to_string())?;
+            match GrammersBackend::connect(cfg, stores.session).await {
                 Ok(b) => {
+                    if let Some(secrets) = stores.secrets {
+                        b.set_secret_store(secrets).await;
+                    }
                     let b = Arc::new(b);
                     Ok(Session { chat: b.clone(), auth: Some(b) })
                 }
@@ -107,9 +136,13 @@ fn main() -> iced::Result {
 
     let flags = match choice {
         Choice::Telegram(cfg) => {
-            let path = session_path(&file);
-            tracing::info!("backend: red real (sesión en {})", path.display());
-            tc_ui::Flags { theme, reduced_motion, on_screenshot: Some(on_screenshot), ..tc_ui::Flags::with_connector(telegram_connector(cfg, path)) }
+            let paths = TelegramPaths {
+                account: account_id(&file),
+                session_file: session_path(&file),
+                data_dir: tc_store::default_data_dir().ok(),
+            };
+            tracing::info!(cuenta = %paths.account, "backend: red real (sesión en el llavero; respaldo {})", paths.session_file.display());
+            tc_ui::Flags { theme, reduced_motion, on_screenshot: Some(on_screenshot), ..tc_ui::Flags::with_connector(telegram_connector(cfg, paths)) }
         }
         Choice::Mock { notice } => {
             if let Some(n) = &notice {

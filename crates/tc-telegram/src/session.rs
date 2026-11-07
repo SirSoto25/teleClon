@@ -1,9 +1,10 @@
 //! Sesión MTProto propia (implementa `grammers_session::Session`) y su persistencia.
 //!
 //! La sesión contiene la clave de autorización (equivale a estar logueado): se serializa a
-//! bytes (`SessionFile`, JSON) y se entrega a un `SessionStore`. El almacén seguro (keyring)
-//! lo integra otro paso; aquí hay un almacén en memoria (pruebas) y uno en archivo 0600
-//! (respaldo cuando no hay Secret Service, ver docs/architecture.md §7).
+//! bytes (`SessionFile`, JSON) y se entrega a un `SessionStore`. El almacén seguro (llavero del
+//! sistema, `VaultSessionStore`) está en tc-app porque necesita tc-store; aquí hay un almacén en
+//! memoria (pruebas) y uno en archivo 0600 (respaldo cuando no hay Secret Service, ver
+//! docs/architecture.md §7).
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard};

@@ -10,9 +10,11 @@ Caché local de teleClon: SQLite (WAL) por cuenta, repositorios síncronos, `Cac
 | Repositorios | usuarios, grupos, diálogos, borradores, ajustes de notificación, mensajes (paginación por ancla, FTS5), reacciones, carpetas, subidas reanudables, stickers, chats secretos (solo blobs cifrados). |
 | `CachedBackend<B>` | Decorador de `ChatBackend` (ver abajo). |
 | Bóveda (`vault.rs`) | `SecretVault`, `KeyringVault`, `MemoryVault`. |
+| Sellado (`seal.rs`) | `SealKey`: AEAD AES-256-GCM con clave aleatoria de 256 bits guardada en la bóveda (`load_or_create`). |
 
-Migraciones (`migrations/`): `0001_init.sql` (esquema completo) y `0002_groups_folders_reactions_uploads.sql`
-(`dialogs.title`, `messages.sticker_json`, `uploads.last_error` e índices). Una base v1 se actualiza sin perder datos.
+Migraciones (`migrations/`): `0001_init.sql` (esquema completo), `0002_groups_folders_reactions_uploads.sql`
+(`dialogs.title`, `messages.sticker_json`, `uploads.last_error` e índices) y `0003_secret_chat_states.sql` (tabla
+`secret_chat_states`: estado de protocolo de los chats secretos, solo cifrado). Una base v1/v2 se actualiza sin perder datos.
 
 ## CachedBackend
 
@@ -50,6 +52,18 @@ SQLite en claro**: la base solo guarda la referencia.
   `KeyringVault::is_available()` lo comprueba. Sin la feature solo existe `MemoryVault` y no se enlaza `keyring`.
 * `MemoryVault`: pruebas y modo efímero.
 
+## Sellado y estado cifrado de chats secretos
+
+`SealKey::load_or_create(vault, SECRET_STATE_KEY)` lee (o crea con `getrandom` y guarda) la clave
+`"secret-state-key"`; `seal(aad, texto)` devuelve nonce aleatorio de 12 bytes + cifrado‖etiqueta y `open` rechaza
+(`SealError::Rejected`) cualquier blob manipulado, truncado, con otra clave o con otros datos asociados. La clave va en
+`Zeroizing` y su `Debug` no la muestra. Sin bóveda (`VaultError::Unavailable`) no hay clave: el llamador no persiste.
+
+Repositorio `secret_chat_states` (`put_/get_/list_/delete_secret_chat_state`, fila `SecretChatStateRow`): solo
+acepta blobs sellados (nonce de 12 bytes, al menos la etiqueta). Lo usa el adaptador `SealedSecretStateStore` de
+tc-app, que sella el `StoredSecretChat` de tc-telegram (metadatos + `SessionSnapshot`) con el id del chat en los datos
+asociados (un blob copiado a otra fila no descifra).
+
 ## Decisiones y límites
 
 * **Cifrado en reposo de la base: no se hace.** SQLCipher exige `bundled-sqlcipher` de rusqlite, que sustituye a
@@ -63,5 +77,10 @@ SQLite en claro**: la base solo guarda la referencia.
   mensaje del diálogo) puede servir un tramo con huecos en casos raros; el refresco en segundo plano lo corrige.
 * Los diálogos borrados en el servidor no se eliminan de la caché al refrescar una página (solo se actualizan los que llegan).
 * Los packs de stickers y el estado de protocolo de los chats secretos no pasan por `CachedBackend`.
-* El almacén de sesión de tc-telegram (`SessionStore`) aún no está conectado a `KeyringVault`; `load_session` /
-  `save_session` / `clear_session` tienen exactamente su forma (bytes, síncronos).
+* tc-store no depende de tc-telegram (ni al revés): los adaptadores `VaultSessionStore` (sesión en el llavero, clave
+  `"session"`, respaldo `FileSessionStore` 0600 con aviso y migración única de `session.json`) y
+  `SealedSecretStateStore` viven en `tc-app/src/stores.rs`.
+* AEAD: AES-256-GCM (ya era dependencia del crate) en lugar de ChaCha20-Poly1305; nonces aleatorios de 96 bits
+  (límite práctico ~2³² sellados por clave, muy por encima del uso).
+* Si se pierde la clave del llavero (llavero reiniciado), los blobs existentes ya no descifran: se ignoran con aviso
+  (no se borran) y se crea una clave nueva.

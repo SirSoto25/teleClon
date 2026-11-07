@@ -165,6 +165,67 @@ impl Store {
     pub fn purge_expired_secret_messages(&self, now: i64) -> Result<usize> {
         Ok(self.conn.execute("DELETE FROM secret_messages WHERE destroy_at IS NOT NULL AND destroy_at<=?1", [now])?)
     }
+
+    /// Inserta o sustituye el estado cifrado de un chat secreto (tabla `secret_chat_states`). Solo acepta
+    /// blobs ya sellados (nonce de [`NONCE_LEN`] bytes y al menos la etiqueta AEAD).
+    pub fn put_secret_chat_state(&self, row: &SecretChatStateRow) -> Result<()> {
+        if row.nonce.len() != NONCE_LEN {
+            return Err(Error::Invalid(format!("el nonce debe medir {NONCE_LEN} bytes, mide {}", row.nonce.len())));
+        }
+        if row.ciphertext.len() < crate::seal::TAG_LEN {
+            return Err(Error::Invalid("el blob cifrado es más corto que la etiqueta AEAD".into()));
+        }
+        self.conn.execute(
+            "INSERT INTO secret_chat_states (secret_chat_id, format, nonce, ciphertext, updated_at) VALUES (?1,?2,?3,?4,?5)
+             ON CONFLICT(secret_chat_id) DO UPDATE SET format=excluded.format, nonce=excluded.nonce,
+               ciphertext=excluded.ciphertext, updated_at=excluded.updated_at",
+            params![row.secret_chat_id, row.format, row.nonce, row.ciphertext, row.updated_at],
+        )?;
+        Ok(())
+    }
+
+    /// Estado cifrado de un chat secreto.
+    pub fn get_secret_chat_state(&self, secret_chat_id: i64) -> Result<Option<SecretChatStateRow>> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT secret_chat_id, format, nonce, ciphertext, updated_at FROM secret_chat_states WHERE secret_chat_id=?1",
+                [secret_chat_id],
+                state_from_row,
+            )
+            .optional()?)
+    }
+
+    /// Todos los estados cifrados, por id.
+    pub fn list_secret_chat_states(&self) -> Result<Vec<SecretChatStateRow>> {
+        let mut st = self.conn.prepare(
+            "SELECT secret_chat_id, format, nonce, ciphertext, updated_at FROM secret_chat_states ORDER BY secret_chat_id",
+        )?;
+        let rows = st.query_map([], state_from_row)?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// Borra el estado cifrado de un chat (con `secure_delete`). `false` si no existía.
+    pub fn delete_secret_chat_state(&self, secret_chat_id: i64) -> Result<bool> {
+        Ok(self.conn.execute("DELETE FROM secret_chat_states WHERE secret_chat_id=?1", [secret_chat_id])? > 0)
+    }
+}
+
+/// Fila de `secret_chat_states`: estado de protocolo de un chat secreto, **solo cifrado** (AEAD con una
+/// clave de la bóveda, ver [`crate::SealKey`]). La base no sabe descifrarlo.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SecretChatStateRow {
+    pub secret_chat_id: i64,
+    /// Versión del formato del texto en claro (la decide quien sella).
+    pub format: i64,
+    pub nonce: Vec<u8>,
+    /// Texto cifrado ‖ etiqueta.
+    pub ciphertext: Vec<u8>,
+    pub updated_at: i64,
+}
+
+fn state_from_row(r: &Row<'_>) -> rusqlite::Result<SecretChatStateRow> {
+    Ok(SecretChatStateRow { secret_chat_id: r.get(0)?, format: r.get(1)?, nonce: r.get(2)?, ciphertext: r.get(3)?, updated_at: r.get(4)? })
 }
 
 #[cfg(test)]
@@ -289,6 +350,26 @@ mod tests {
         assert_eq!(s.purge_expired_secret_messages(130).unwrap(), 1);
         assert!(s.get_secret_message(1, 1).unwrap().is_none());
         assert!(s.get_secret_message(1, 2).unwrap().is_some());
+    }
+
+    #[test]
+    fn sealed_state_rows_roundtrip_upsert_and_validation() {
+        let s = Store::open_in_memory().unwrap();
+        let row = |id: i64, b: u8| SecretChatStateRow { secret_chat_id: id, format: 1, nonce: vec![b; NONCE_LEN], ciphertext: vec![b; 40], updated_at: 7 };
+        assert!(s.get_secret_chat_state(1).unwrap().is_none());
+        s.put_secret_chat_state(&row(2, 2)).unwrap();
+        s.put_secret_chat_state(&row(1, 1)).unwrap();
+        s.put_secret_chat_state(&row(1, 9)).unwrap(); // sustituye
+        assert_eq!(s.get_secret_chat_state(1).unwrap().unwrap(), row(1, 9));
+        assert_eq!(s.list_secret_chat_states().unwrap().iter().map(|r| r.secret_chat_id).collect::<Vec<_>>(), [1, 2]);
+        let mut bad = row(3, 3);
+        bad.nonce.pop();
+        assert!(matches!(s.put_secret_chat_state(&bad), Err(Error::Invalid(_))));
+        let mut bad = row(3, 3);
+        bad.ciphertext.truncate(15);
+        assert!(matches!(s.put_secret_chat_state(&bad), Err(Error::Invalid(_))));
+        assert!(s.delete_secret_chat_state(1).unwrap());
+        assert!(!s.delete_secret_chat_state(1).unwrap());
     }
 
     #[test]

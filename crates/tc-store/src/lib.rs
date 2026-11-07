@@ -8,7 +8,8 @@
 //! cifrados y metadatos; las claves viven en el keyring. Ver docs/architecture.md §7.
 //!
 //! Además: `CachedBackend` (decorador de `ChatBackend`, ver `cached.rs`), repositorios de grupos, carpetas,
-//! reacciones y subidas, y la bóveda de secretos (`SecretVault`, `KeyringVault`, `MemoryVault`).
+//! reacciones y subidas, la bóveda de secretos (`SecretVault`, `KeyringVault`, `MemoryVault`) y el sellado
+//! AEAD de blobs con clave de la bóveda (`SealKey`, tabla `secret_chat_states`).
 #![forbid(unsafe_code)]
 
 mod cached;
@@ -20,6 +21,7 @@ mod folders;
 mod groups;
 mod messages;
 mod reactions;
+mod seal;
 mod secret;
 mod settings;
 mod stickers;
@@ -31,7 +33,8 @@ pub use cached::{CachedBackend, LocalHit};
 pub use db::{APP_DIR, SCHEMA_VERSION, Store, account_db_path, default_data_dir};
 pub use error::{Error, Result};
 pub use messages::fts_query;
-pub use secret::NONCE_LEN;
+pub use seal::{SEAL_KEY_LEN, SECRET_STATE_KEY, SealError, SealKey, Sealed, TAG_LEN};
+pub use secret::{NONCE_LEN, SecretChatStateRow};
 pub use stickers::RECENT_CAP;
 pub use types::*;
 pub use vault::{
@@ -69,9 +72,9 @@ mod tests {
     fn migrates_from_scratch_in_memory() {
         let s = Store::open_in_memory().unwrap();
         assert_eq!(s.schema_version().unwrap(), SCHEMA_VERSION);
-        assert_eq!(SCHEMA_VERSION, 2);
-        let n: i64 = s.conn.query_row("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('dialogs','messages','messages_fts','secret_messages','sticker_sets','meta')", [], |r| r.get(0)).unwrap();
-        assert_eq!(n, 6);
+        assert_eq!(SCHEMA_VERSION, 3);
+        let n: i64 = s.conn.query_row("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('dialogs','messages','messages_fts','secret_messages','sticker_sets','meta','secret_chat_states')", [], |r| r.get(0)).unwrap();
+        assert_eq!(n, 7);
         let fk: i64 = s.conn.pragma_query_value(None, "foreign_keys", |r| r.get(0)).unwrap();
         assert_eq!(fk, 1);
         let fkv: Vec<String> = s.conn.prepare("PRAGMA foreign_key_check").unwrap().query_map([], |r| r.get(0)).unwrap().map(|x| x.unwrap()).collect();
@@ -118,7 +121,7 @@ mod tests {
             .unwrap();
         }
         let s = Store::open(&path).unwrap();
-        assert_eq!(s.schema_version().unwrap(), 2);
+        assert_eq!(s.schema_version().unwrap(), SCHEMA_VERSION);
         assert_eq!(s.get_dialog(1).unwrap().unwrap().title, "");
         assert_eq!(s.get_message(1, 1).unwrap().unwrap().sticker_json, None);
         assert_eq!(s.search_messages("anterior", None, 5).unwrap().len(), 1);
@@ -132,7 +135,7 @@ mod tests {
         let path = dir.0.join("c.sqlite3");
         drop(Store::open(&path).unwrap());
         rusqlite::Connection::open(&path).unwrap().pragma_update(None, "user_version", 99).unwrap();
-        assert!(matches!(Store::open(&path), Err(Error::SchemaTooNew { found: 99, supported: 2 })));
+        assert!(matches!(Store::open(&path), Err(Error::SchemaTooNew { found: 99, supported: SCHEMA_VERSION })));
     }
 
     #[test]

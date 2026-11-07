@@ -3,14 +3,15 @@
 //!
 //! - Credenciales: `TelegramConfig::from_env()` lee `TC_API_ID`/`TC_API_HASH` del entorno.
 //! - Sesión: `TcSession` (sesión propia de grammers) serializada a un `SessionStore`
-//!   (el keyring lo integra otro paso; aquí hay memoria y archivo 0600).
+//!   (aquí hay memoria y archivo 0600; el del llavero, `VaultSessionStore`, está en tc-app).
 //! - Llamadas: TL crudo a través de `Transport` (real: `SenderPool` de grammers) con
 //!   reintento de `FLOOD_WAIT` corto y reconexión con espera exponencial.
 //! - Tiempo real: `UpdatesReceiver` de grammers (gestiona pts/qts y huecos con
 //!   `getDifference`) → `events::apply_batch` → `BackendEvent`.
 //! - Chats secretos (EXPERIMENTAL, sin auditoría, sin prueba de interoperabilidad con
 //!   clientes oficiales): TL crudo enrutado a `tc-secret`, estado en un
-//!   `SecretStateStore` inyectable. Solo texto. Ver `secret.rs`.
+//!   `SecretStateStore` inyectable (el cifrado con clave del llavero, `SealedSecretStateStore`,
+//!   está en tc-app). Solo texto. Ver `secret.rs`.
 //!
 //! Nada de esto se ha probado contra los servidores reales: ver docs/logs/log.md.
 #![forbid(unsafe_code)]

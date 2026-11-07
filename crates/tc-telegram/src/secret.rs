@@ -14,7 +14,8 @@
 //! Estado: cada chat (metadatos + instantánea de `tc-secret` con claves, seq_no, capa,
 //! TTL y re-keying) se guarda en un [`SecretStateStore`] inyectable **antes** de enviar
 //! nada (así un reinicio no reutiliza números de secuencia). Aquí solo hay
-//! [`MemorySecretStateStore`]; el almacén real (cifrado/keyring) es de `tc-store`.
+//! [`MemorySecretStateStore`]; el almacén real (`SealedSecretStateStore` de tc-app: AES-256-GCM
+//! con clave del llavero, blob en SQLite de tc-store) se inyecta con `set_secret_store`.
 //!
 //! Limitaciones (TODO):
 //! - Solo texto. Los medios cifrados (`sendEncryptedFile`, `decryptedMessageMedia*`,

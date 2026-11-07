@@ -14,7 +14,9 @@ futures.workspace = true
 rusqlite.workspace = true
 directories.workspace = true
 keyring = { workspace = true, optional = true }
-aes-gcm.workspace = true
+# AEAD del sellado (`SealKey`): AES-256-GCM; `zeroize` borra la expansión de la clave al soltarla.
+aes-gcm = { workspace = true, features = ["zeroize"] }
+getrandom.workspace = true
 zeroize.workspace = true
 thiserror.workspace = true
 serde_json.workspace = true

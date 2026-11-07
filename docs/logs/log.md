@@ -123,3 +123,8 @@
 - README: reescrita la línea que citaba la marca original (bloqueante del sweep).
 - Verificación propia: build, test y clippy `-D warnings` del workspace limpios.
 - Sin cablear aún: SessionStore↔KeyringVault, SecretStateStore↔tc-store, Lottie real. Sin prueba real contra Telegram (excluida por el usuario).
+
+## 2026-11-07 — Cableado de llavero y secretos
+- Agente Opus/alto: `crates/tc-app/src/stores.rs` con `VaultSessionStore` (sesión en llavero, con respaldo a fichero 0600 y migración única de session.json) y `SealedSecretStateStore` (instantáneas de chats secretos cifradas con AES-256-GCM, clave en llavero, blob en SQLite, migración 0003; falla cerrado sin llavero).
+- Variable nueva `TC_ACCOUNT`. Si se resetea el llavero, los chats secretos guardados se pierden.
+- Verificación propia: build, test y clippy `-D warnings` del workspace. Sin prueba real contra Telegram.
