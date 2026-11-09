@@ -159,3 +159,8 @@
 - Verificación: `cargo build --workspace`, `cargo test --workspace`, `cargo +1.99.1 clippy --workspace --all-targets -D warnings` limpios; guion de capturas del mock (avatares y foto en burbuja dibujados). NO probado contra Telegram real: copia de autorización entre DC, `FILE_MIGRATE`, refresco de referencias, JPEG reales y rendimiento con cuentas grandes.
 - Pendiente: miniatura incrustada (`stripped_thumb`) como placeholder instantáneo, updates de cambio de foto (`updateUserPhoto` y similares; se actualiza al recargar), zoom en el visor, descarga de documentos a disco, medios en chats secretos.
 - Corrección: mensajes de «Mensajes guardados» sin flag out se tratan como salientes (remitente=yo); log de errores RPC en tc-telegram.
+
+## 2026-11-09 — Primera prueba real contra Telegram (usuario)
+- OK: login, sesión que se recupera al reabrir, lista de chats, enviar/recibir en Mensajes guardados y chats normales.
+- Fallos detectados: audio/notas de voz; reacción → `PREMIUM_ACCOUNT_REQUIRED` en `messages.sendReaction`; stickers solo emoji (sin packs reales). Corrigiéndose.
+- NO probado: chats secretos contra Telegram real (el usuario no tiene cuenta secundaria). Siguen EXPERIMENTALES y sin interoperabilidad verificada.
