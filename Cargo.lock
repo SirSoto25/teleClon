@@ -4989,6 +4989,7 @@ version = "0.0.1"
 dependencies = [
  "async-trait",
  "futures",
+ "image",
  "tc-core",
  "tc-secret",
  "tc-stickers",
@@ -5079,6 +5080,7 @@ version = "0.0.1"
 dependencies = [
  "futures",
  "iced",
+ "image",
  "jiff",
  "tc-core",
  "tc-mock",

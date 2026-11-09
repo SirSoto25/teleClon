@@ -6,6 +6,7 @@
 //! responder, borrar, reaccionar, reintentar), inicio de sesión (teléfono, código, 2FA y QR sobre
 //! `AuthApi`), selector y render de stickers (`tc-stickers`, estáticos y animados) y chats
 //! secretos (crear, aceptar, TTL, cerrar, huella y aviso EXPERIMENTAL) solo vía `SecretChatsApi`.
+//! Fotos de perfil y de mensajes cargadas de forma perezosa por `MediaApi` (ver `media.rs`), con visor.
 #![forbid(unsafe_code)]
 
 pub mod anim;
@@ -15,6 +16,7 @@ pub mod format;
 pub mod icon;
 pub mod login;
 pub mod measure;
+pub mod media;
 pub mod stickers;
 pub mod style;
 pub mod view;
@@ -27,3 +29,5 @@ pub use login::LoginMsg;
 mod tests;
 #[cfg(test)]
 mod tests_m2;
+#[cfg(test)]
+mod tests_media;

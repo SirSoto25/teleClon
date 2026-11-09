@@ -253,7 +253,7 @@ impl Inner {
     }
 }
 
-fn messages_of(r: tl::enums::messages::Messages) -> (Vec<tl::enums::Message>, Vec<tl::enums::User>, Vec<tl::enums::Chat>) {
+pub(crate) fn messages_of(r: tl::enums::messages::Messages) -> (Vec<tl::enums::Message>, Vec<tl::enums::User>, Vec<tl::enums::Chat>) {
     match r {
         tl::enums::messages::Messages::Messages(m) => (m.messages, m.users, m.chats),
         tl::enums::messages::Messages::Slice(m) => (m.messages, m.users, m.chats),
@@ -464,7 +464,9 @@ impl MessagesApi for GrammersBackend {
         if let PeerRef::Secret(id) = peer {
             return self.inner.secret_send_text(id, msg).await;
         }
-        let input = self.inner.input_peer(peer)?;
+        let input = self.inner.input_peer(peer).inspect_err(|e| {
+            tracing::warn!(error = %e, "send_text: no se pudo resolver el destinatario (falta access_hash en caché)");
+        })?;
         let req = tl::functions::messages::SendMessage {
             no_webpage: false,
             silent: false,

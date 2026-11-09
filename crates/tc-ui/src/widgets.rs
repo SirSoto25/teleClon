@@ -4,8 +4,8 @@
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::canvas::{self, Path, Stroke};
 use iced::widget::text::{IntoFragment, LineHeight};
-use iced::widget::{Space, button, container, stack, text};
-use iced::{Border, Color, Element, Length, Pixels, Rectangle, Renderer, Theme, mouse};
+use iced::widget::{Space, button, container, image, stack, text};
+use iced::{Border, Color, ContentFit, Element, Length, Pixels, Rectangle, Renderer, Theme, mouse};
 use tc_theme::TextStyle;
 use tc_theme::pattern::{ContourParams, contours};
 use tc_theme::tokens::{radius, text as ts};
@@ -46,18 +46,35 @@ pub fn hfill() -> Space {
 /// Avatar sin foto: cuadrado redondeado (radio 0.32 × lado), color `name-n` e iniciales.
 /// `online_ring` dibuja el punto «en línea» con un aro del color de fondo de la fila.
 pub fn avatar<'a>(name: &str, seed: i64, size: f32, online_ring: Option<Color>, b: Brasa) -> Element<'a, Msg> {
-    let ink = style::avatar_ink();
-    let initials = crate::format::initials(name);
-    let font_size = (size * 0.38).round();
-    let label = t1(initials, TextStyle { size: font_size, line: font_size * 1.2, ..style::with_weight(ts::UI, 600) }, ink);
-    let square = container(label)
-        .width(Length::Fixed(size))
-        .height(Length::Fixed(size))
-        .align_x(Horizontal::Center)
-        .align_y(Vertical::Center)
-        .style(style::rounded_fill(Brasa::avatar_color(seed), avatar_radius(size)));
+    avatar_photo(name, seed, size, online_ring, None, b)
+}
+
+/// Avatar con la foto de perfil ya decodificada (recortada al mismo cuadrado redondeado); sin
+/// foto (o mientras carga), el generado de [`avatar`].
+pub fn avatar_photo<'a>(name: &str, seed: i64, size: f32, online_ring: Option<Color>, photo: Option<image::Handle>, b: Brasa) -> Element<'a, Msg> {
+    let square: Element<'a, Msg> = match photo {
+        Some(h) => image(h)
+            .width(Length::Fixed(size))
+            .height(Length::Fixed(size))
+            .content_fit(ContentFit::Cover)
+            .border_radius(avatar_radius(size))
+            .into(),
+        None => {
+            let ink = style::avatar_ink();
+            let initials = crate::format::initials(name);
+            let font_size = (size * 0.38).round();
+            let label = t1(initials, TextStyle { size: font_size, line: font_size * 1.2, ..style::with_weight(ts::UI, 600) }, ink);
+            container(label)
+                .width(Length::Fixed(size))
+                .height(Length::Fixed(size))
+                .align_x(Horizontal::Center)
+                .align_y(Vertical::Center)
+                .style(style::rounded_fill(Brasa::avatar_color(seed), avatar_radius(size)))
+                .into()
+        }
+    };
     match online_ring {
-        None => square.into(),
+        None => square,
         Some(ring) => {
             let dot = container(Space::new().width(Length::Fixed(10.0)).height(Length::Fixed(10.0))).style(move |_| {
                 container::Style {

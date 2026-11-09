@@ -144,6 +144,50 @@ fn media_kind_parse(s: &str) -> core::MediaKind {
     }
 }
 
+// ---- fotos de perfil y referencias de descarga ---------------------------------------------
+
+/// Guarda la foto de perfil del interlocutor (usuarios y grupos; los chats secretos nunca).
+fn persist_photo(store: &Store, kind: db::PeerKind, id: i64, photo: Option<core::ProfilePhoto>) -> Result<()> {
+    if kind == db::PeerKind::Secret {
+        return Ok(());
+    }
+    store.set_peer_photo(kind, id, photo.map(|p| (p.id, i64::from(p.dc_id))))
+}
+
+fn load_photo(store: &Store, kind: db::PeerKind, id: i64) -> Result<Option<core::ProfilePhoto>> {
+    Ok(store.get_peer_photo(kind, id)?.map(|(id, dc)| core::ProfilePhoto { id, dc_id: i32::try_from(dc).unwrap_or(0) }))
+}
+
+fn file_ref_row(media_id: i64, f: &core::FileRef) -> crate::files::MediaRefRow {
+    crate::files::MediaRefRow {
+        media_id,
+        kind: match f.kind {
+            core::FileKind::Photo => "photo",
+            core::FileKind::Document => "document",
+        }
+        .into(),
+        access_hash: f.access_hash,
+        file_reference: f.file_reference.clone(),
+        dc_id: i64::from(f.dc_id),
+        size: i64::try_from(f.size_bytes).unwrap_or(i64::MAX),
+        thumb: f.thumb.clone(),
+        full: f.full.clone(),
+    }
+}
+
+fn file_ref_from(r: crate::files::MediaRefRow) -> core::FileRef {
+    core::FileRef {
+        kind: if r.kind == "photo" { core::FileKind::Photo } else { core::FileKind::Document },
+        id: r.media_id,
+        access_hash: r.access_hash,
+        file_reference: r.file_reference,
+        dc_id: i32::try_from(r.dc_id).unwrap_or(0),
+        size_bytes: u64::try_from(r.size).unwrap_or(0),
+        thumb: r.thumb,
+        full: r.full,
+    }
+}
+
 // ---- diálogos -------------------------------------------------------------------------------
 
 /// Título provisional de un chat que aún no llegó en la lista: el de su usuario o grupo, si se conocen.
@@ -196,6 +240,7 @@ pub(crate) fn persist_dialog(store: &Store, d: &core::Dialog) -> Result<i64> {
     row.updated_at = now();
     let ck = store.upsert_dialog(&row)?;
     if !secret {
+        persist_photo(store, kind, id, d.photo)?;
         let draft = d.draft.as_ref().map(|dr| db::Draft { text: dr.text.clone(), entities: None, reply_to: dr.reply_to.map(|m| i64::from(m.0)), date: now() });
         store.set_draft(ck, draft.as_ref())?;
         if let Some(m) = &d.last_message {
@@ -237,6 +282,7 @@ pub(crate) fn load_dialog(store: &Store, row: &db::DialogRow) -> Result<Option<c
         draft,
         activity: Timestamp(row.last_message_at.unwrap_or(row.updated_at)),
         read_outbox_max_id: msg_id32(row.read_outbox_max_id),
+        photo: load_photo(store, row.peer_kind, row.peer_id)?,
     }))
 }
 
@@ -301,6 +347,10 @@ pub(crate) fn persist_message(store: &Store, m: &core::Message, fallback_rid: Op
             updated_at: now(),
             ..Default::default()
         })?;
+        match &md.file {
+            Some(f) => store.upsert_media_ref(&file_ref_row(md.id, f))?,
+            None => store.delete_media_ref(md.id)?,
+        }
     }
     let msg_id = i64::from(m.id.0);
     let row = db::MessageRow {
@@ -347,7 +397,9 @@ pub(crate) fn persist_message(store: &Store, m: &core::Message, fallback_rid: Op
 
 pub(crate) fn load_message(store: &Store, peer: PeerRef, row: &db::MessageRow) -> Result<core::Message> {
     let media = match row.media_id {
-        Some(id) => store.get_media(id)?.map(|m| core::Media {
+        Some(id) => {
+            let file = store.get_media_ref(id)?.map(file_ref_from);
+            store.get_media(id)?.map(|m| core::Media {
             id: m.id,
             kind: media_kind_parse(&m.kind),
             file_name: m.file_name,
@@ -356,7 +408,9 @@ pub(crate) fn load_message(store: &Store, peer: PeerRef, row: &db::MessageRow) -
             height: u32::try_from(m.height.unwrap_or(0)).unwrap_or(0),
             duration_secs: m.duration_ms.and_then(|ms| u32::try_from(ms / 1000).ok()),
             local_path: m.local_path,
-        }),
+            file,
+        })
+        }
         None => None,
     };
     let reactions = store
@@ -499,7 +553,8 @@ pub(crate) fn persist_user(store: &Store, u: &core::User, is_self: Option<bool>)
         updated_at: now(),
     })?;
     let (status, last_seen_at) = presence(u.status);
-    store.set_user_extra(u.id.0, &db::UserExtra { is_bot: u.is_bot, status, last_seen_at })
+    store.set_user_extra(u.id.0, &db::UserExtra { is_bot: u.is_bot, status, last_seen_at })?;
+    persist_photo(store, db::PeerKind::User, u.id.0, u.photo)
 }
 
 pub(crate) fn load_user(store: &Store, row: db::UserRow) -> Result<core::User> {
@@ -518,6 +573,7 @@ pub(crate) fn load_user(store: &Store, row: db::UserRow) -> Result<core::User> {
         status,
         is_contact: row.is_contact,
         is_bot: x.is_some_and(|x| x.is_bot),
+        photo: load_photo(store, db::PeerKind::User, row.id)?,
     })
 }
 
@@ -539,11 +595,13 @@ pub(crate) fn persist_group(store: &Store, g: &core::Group) -> Result<()> {
         can_send: old.as_ref().is_none_or(|o| o.can_send),
         created_at: old.as_ref().and_then(|o| o.created_at),
         updated_at: now(),
-    })
+    })?;
+    persist_photo(store, db::PeerKind::Group, g.id.0, g.photo)
 }
 
-pub(crate) fn load_group(row: db::GroupRow) -> core::Group {
-    core::Group {
+pub(crate) fn load_group(store: &Store, row: db::GroupRow) -> Result<core::Group> {
+    let photo = load_photo(store, db::PeerKind::Group, row.id)?;
+    Ok(core::Group {
         id: GroupId(row.id),
         kind: match row.kind {
             db::GroupKindRow::Group => core::GroupKind::Basic,
@@ -553,5 +611,6 @@ pub(crate) fn load_group(row: db::GroupRow) -> core::Group {
         title: row.title,
         username: row.username,
         member_count: row.participants_count.and_then(|n| u32::try_from(n).ok()).unwrap_or(0),
-    }
+        photo,
+    })
 }

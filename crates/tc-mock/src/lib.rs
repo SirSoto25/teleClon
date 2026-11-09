@@ -7,6 +7,7 @@
 #![forbid(unsafe_code)]
 
 mod data;
+mod images;
 mod rng;
 
 use std::collections::{BTreeMap, HashMap};
@@ -167,6 +168,16 @@ impl State {
             PeerRef::User(u) => self.users.get(&u).map(User::display_name),
             PeerRef::Group(g) => self.groups.get(&g).map(|g| g.title.clone()),
             PeerRef::Secret(s) => self.secrets.get(&s).and_then(|s| self.users.get(&s.user)).map(User::display_name),
+        }
+    }
+
+    /// Foto de perfil vigente del chat (en un chat secreto, la del otro usuario).
+    fn peer_photo(&self, peer: PeerRef) -> Option<ProfilePhoto> {
+        match peer {
+            PeerRef::User(u) if u == self.me.id => self.me.photo,
+            PeerRef::User(u) => self.users.get(&u).and_then(|u| u.photo),
+            PeerRef::Group(g) => self.groups.get(&g).and_then(|g| g.photo),
+            PeerRef::Secret(s) => self.secrets.get(&s).and_then(|s| self.users.get(&s.user)).and_then(|u| u.photo),
         }
     }
 
@@ -621,7 +632,11 @@ impl MediaApi for MockBackend {
                     height: item.height,
                     duration_secs: None,
                     local_path: Some(item.path.clone()),
+                    file: None,
                 });
+                if let Some(md) = m.media.as_mut() {
+                    md.file = Some(images::file_ref(md.kind, md.id, md.size_bytes));
+                }
                 if i == 0 {
                     m.text = media.caption.clone();
                     m.reply_to = media.reply_to;
@@ -635,6 +650,48 @@ impl MediaApi for MockBackend {
         }
         events.into_iter().for_each(|e| self.inner.emit(e));
         Ok(out)
+    }
+
+    /// PNG sintético (cuadrado de 160 o 640 px) si `photo` es la foto vigente del chat.
+    async fn download_profile_photo(&self, peer: PeerRef, photo: ProfilePhoto, size: PhotoSize) -> BackendResult<Vec<u8>> {
+        self.inner.gate().await?;
+        if self.inner.lock().peer_photo(peer) != Some(photo) {
+            return Err(BackendError::NotFound);
+        }
+        let side = images::profile_side(size);
+        // Codificar el PNG cuesta unos ms: fuera del hilo del runtime si lo hay.
+        Ok(off_thread(move || images::png(photo.id, side, side)).await)
+    }
+
+    /// PNG sintético con las proporciones del medio (vista previa ≤ 800 px, completa ≤ 1600 px); los
+    /// documentos devuelven bytes de relleno en `Full` y no tienen vista previa.
+    async fn download_media(&self, peer: PeerRef, msg: MsgId, file: FileRef, variant: MediaVariant) -> BackendResult<Vec<u8>> {
+        self.inner.gate().await?;
+        let (w, h) = {
+            let st = self.inner.lock();
+            let m = st.messages.get(&peer).and_then(|l| l.iter().find(|m| m.id == msg)).ok_or(BackendError::NotFound)?;
+            let md = m.media.as_ref().filter(|md| md.file.as_ref().is_some_and(|f| f.id == file.id)).ok_or(BackendError::NotFound)?;
+            (md.width, md.height)
+        };
+        match (file.kind, variant) {
+            (FileKind::Photo, v) => {
+                let (w, h) = images::variant_dims(w, h, v);
+                Ok(off_thread(move || images::png(file.id, w, h)).await)
+            }
+            (FileKind::Document, MediaVariant::Full) => Ok(images::document(file.id, file.size_bytes)),
+            (FileKind::Document, MediaVariant::Thumb) => Err(BackendError::NotFound),
+        }
+    }
+}
+
+/// Ejecuta `f` en el pool bloqueante de tokio (o aquí mismo sin runtime).
+async fn off_thread<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> T {
+    match tokio::runtime::Handle::try_current() {
+        Ok(h) => match h.spawn_blocking(f).await {
+            Ok(v) => v,
+            Err(e) => std::panic::resume_unwind(e.into_panic()),
+        },
+        Err(_) => f(),
     }
 }
 
@@ -694,6 +751,7 @@ impl SecretChatsApi for MockBackend {
                 draft: None,
                 activity,
                 read_outbox_max_id: MsgId(0),
+                photo: st.users.get(&user).and_then(|u| u.photo),
             };
             st.dialogs.insert(peer, d.clone());
             st.messages.insert(peer, Vec::new());

@@ -11,6 +11,8 @@ publish.workspace = true
 tc-core.workspace = true
 tc-secret.workspace = true
 tc-stickers.workspace = true
+# Imágenes sintéticas (PNG en memoria) para las fotos de perfil y de los mensajes.
+image.workspace = true
 async-trait.workspace = true
 futures.workspace = true
 tokio = { workspace = true, features = ["sync", "time", "macros", "rt"] }

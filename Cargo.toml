@@ -64,7 +64,8 @@ zeroize = { version = "1.9.1", features = ["derive"] }
 subtle = "2.6.1"
 
 # Stickers
-image = { version = "0.25.10", default-features = false, features = ["webp", "png"] }
+# jpeg: fotos de perfil y de mensajes de la red (decodificador zune-jpeg, Rust puro).
+image = { version = "0.25.10", default-features = false, features = ["webp", "png", "jpeg"] }
 flate2 = "1.1.11"
 rlottie = "0.5.4"
 

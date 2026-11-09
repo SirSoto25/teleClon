@@ -14,6 +14,9 @@ tc-stickers.workspace = true
 # `canvas`: fondo de curvas de nivel y celdas de la huella de clave (aditivo sobre las features del workspace).
 iced = { workspace = true, features = ["canvas"] }
 futures.workspace = true
+# Decodificar fotos de perfil y de mensajes (JPEG/PNG/WebP) fuera del hilo de la UI.
+image.workspace = true
+tokio = { workspace = true, features = ["rt"] }
 jiff.workspace = true
 tracing.workspace = true
 

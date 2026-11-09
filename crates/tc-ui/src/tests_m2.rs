@@ -159,6 +159,7 @@ async fn login_por_qr_numero_sin_cuenta_y_escape() {
         status: UserStatus::Online,
         is_contact: false,
         is_bot: false,
+        photo: None,
     };
     let _ = app.update(lm(LoginMsg::Event(AuthState::LoggedIn(user))));
     assert_eq!(app.phase, Phase::Main);

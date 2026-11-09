@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use grammers_session::types::{ChannelKind, PeerAuth, PeerId, PeerInfo};
 use grammers_tl_types as tl;
-use tc_core::{BackendError, BackendResult, Group, GroupId, GroupKind, PeerRef, User, UserId, UserStatus};
+use tc_core::{BackendError, BackendResult, Group, GroupId, GroupKind, PeerRef, ProfilePhoto, User, UserId, UserStatus};
 
 use crate::ids::{GroupTarget, channel_group, chat_group, decode_group};
 use crate::session::TcSession;
@@ -24,6 +24,22 @@ pub fn user_status(s: Option<&tl::enums::UserStatus>) -> UserStatus {
         Some(tl::enums::UserStatus::Offline(o)) => UserStatus::LastSeen(tc_core::Timestamp(o.was_online.into())),
         Some(tl::enums::UserStatus::Recently(_)) => UserStatus::Recently,
         _ => UserStatus::Offline,
+    }
+}
+
+/// Foto de perfil de un usuario.
+pub fn user_photo(p: Option<&tl::enums::UserProfilePhoto>) -> Option<ProfilePhoto> {
+    match p {
+        Some(tl::enums::UserProfilePhoto::Photo(p)) => Some(ProfilePhoto { id: p.photo_id, dc_id: p.dc_id }),
+        _ => None,
+    }
+}
+
+/// Foto de un grupo o canal.
+pub fn chat_photo(p: &tl::enums::ChatPhoto) -> Option<ProfilePhoto> {
+    match p {
+        tl::enums::ChatPhoto::Photo(p) => Some(ProfilePhoto { id: p.photo_id, dc_id: p.dc_id }),
+        tl::enums::ChatPhoto::Empty => None,
     }
 }
 
@@ -46,6 +62,7 @@ pub fn user_from_tl(u: &tl::types::User) -> User {
         status: user_status(u.status.as_ref()),
         is_contact: u.contact,
         is_bot: u.bot,
+        photo: user_photo(u.photo.as_ref()),
     }
 }
 
@@ -58,9 +75,10 @@ pub fn group_from_tl(c: &tl::enums::Chat) -> Option<Group> {
             title: c.title.clone(),
             username: None,
             member_count: c.participants_count.max(0) as u32,
+            photo: chat_photo(&c.photo),
         },
         tl::enums::Chat::Forbidden(c) => {
-            Group { id: chat_group(c.id), kind: GroupKind::Basic, title: c.title.clone(), username: None, member_count: 0 }
+            Group { id: chat_group(c.id), kind: GroupKind::Basic, title: c.title.clone(), username: None, member_count: 0, photo: None }
         }
         tl::enums::Chat::Channel(c) => Group {
             id: channel_group(c.id),
@@ -68,6 +86,7 @@ pub fn group_from_tl(c: &tl::enums::Chat) -> Option<Group> {
             title: c.title.clone(),
             username: c.username.clone(),
             member_count: c.participants_count.unwrap_or(0).max(0) as u32,
+            photo: chat_photo(&c.photo),
         },
         tl::enums::Chat::ChannelForbidden(c) => Group {
             id: channel_group(c.id),
@@ -75,6 +94,7 @@ pub fn group_from_tl(c: &tl::enums::Chat) -> Option<Group> {
             title: c.title.clone(),
             username: None,
             member_count: 0,
+            photo: None,
         },
         _ => return None,
     })
@@ -92,6 +112,9 @@ impl PeerStore {
                 if let Some(prev) = self.users.get(&mapped.id) {
                     mapped.is_contact = prev.is_contact;
                     mapped.status = prev.status;
+                    if !u.apply_min_photo {
+                        mapped.photo = prev.photo;
+                    }
                 }
             } else if let Some(h) = u.access_hash {
                 self.user_hash.insert(u.id, h);
@@ -144,6 +167,16 @@ impl PeerStore {
             PeerRef::User(u) => self.users.get(&u).map_or_else(|| format!("Usuario {}", u.0), User::display_name),
             PeerRef::Group(g) => self.groups.get(&g).map_or_else(|| "Grupo".to_string(), |g| g.title.clone()),
             PeerRef::Secret(_) => "Chat secreto".to_string(),
+        }
+    }
+
+    /// Foto del chat: la del usuario o grupo. «Mensajes guardados» (yo) no usa la mía.
+    pub fn photo(&self, peer: PeerRef, me: Option<UserId>) -> Option<ProfilePhoto> {
+        match peer {
+            PeerRef::User(u) if Some(u) == me => None,
+            PeerRef::User(u) => self.users.get(&u).and_then(|u| u.photo),
+            PeerRef::Group(g) => self.groups.get(&g).and_then(|g| g.photo),
+            PeerRef::Secret(_) => None,
         }
     }
 

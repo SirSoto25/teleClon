@@ -12,6 +12,8 @@
 //!   clientes oficiales): TL crudo enrutado a `tc-secret`, estado en un
 //!   `SecretStateStore` inyectable (el cifrado con clave del llavero, `SealedSecretStateStore`,
 //!   está en tc-app). Solo texto. Ver `secret.rs`.
+//! - Descargas de fotos de perfil y de medios con `upload.getFile` (DC del archivo, copia de la
+//!   autorización, `FILE_MIGRATE`, referencias caducadas, máximo 4 a la vez). Ver `media.rs`.
 //!
 //! Nada de esto se ha probado contra los servidores reales: ver docs/logs/log.md.
 #![forbid(unsafe_code)]
@@ -96,6 +98,10 @@ pub(crate) struct Inner {
     pub(crate) logged_in: watch::Sender<bool>,
     /// Chats secretos (estado de `tc-secret` y su almacén).
     pub(crate) secret: secret::SecretRuntime,
+    /// Límite de descargas simultáneas.
+    pub(crate) downloads: tokio::sync::Semaphore,
+    /// Generación de la autorización copiada a cada DC ajeno (ver `media.rs`).
+    pub(crate) dc_auth: tokio::sync::Mutex<std::collections::HashMap<i32, u64>>,
 }
 
 impl Inner {
@@ -120,6 +126,8 @@ impl Inner {
         match self.net.invoke(req).await {
             Ok(r) => Ok(r),
             Err(e) => {
+                // Solo el nombre/código del error de Telegram, nunca contenido de mensajes.
+                tracing::warn!(error = %e, "llamada a Telegram fallida");
                 if is_session_gone(&e) && *self.logged_in.borrow() {
                     self.session_lost().await;
                 }
@@ -252,6 +260,8 @@ impl GrammersBackend {
             qr_wake: Notify::new(),
             logged_in,
             secret: secret::SecretRuntime::new(Arc::new(MemorySecretStateStore::default())),
+            downloads: tokio::sync::Semaphore::new(media::MAX_DOWNLOADS),
+            dc_auth: tokio::sync::Mutex::new(std::collections::HashMap::new()),
         });
         let tasks = vec![
             tokio::spawn(startup(Arc::clone(&inner))),

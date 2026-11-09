@@ -105,7 +105,7 @@ Operaciones ("rutas" del cliente). Cada fila es una operación del backend; en e
 | Messages | `set_typing` / `pin_message` | estado | peer, … → () | — |
 | Media | `upload` | sube por partes, reanudable | path, kind → `UploadHandle` (progreso por evento) | F10 |
 | Media | `send_media` | envía álbum/archivo | peer, `OutgoingMedia{items, caption, compress}` → `Vec<Message>` | F10 |
-| Media | `download` / `thumbnail` | descarga | `MediaRef`, destino → ruta | F10/S19 |
+| Media | `download_profile_photo` / `download_media` (implementado 2026-11-09) | descarga a memoria | peer, `ProfilePhoto`, `PhotoSize` / peer, msg, `FileRef`, `MediaVariant{Thumb,Full}` → bytes | F10/S19 |
 | Search | `search_global` / `search_in_chat` | búsqueda servidor | query, filtro, offset → `SearchPage` | F11 |
 | Profile | `user_full` / `group_full` | info | id → `UserFull` / `GroupFull` | F13 |
 | Profile | `set_blocked` / `update_profile` / `set_username` / `set_profile_photo` | perfil | … → () | F13/S27 |
@@ -184,7 +184,7 @@ Verificación: pruebas de ida y vuelta entre las dos cuentas del mock, pruebas d
 
 ## 7. Persistencia (tc-store)
 
-Ubicación (XDG vía `directories`): `$XDG_DATA_HOME/<app>/accounts/<account_id>/cache.sqlite3` (0600), `…/media/` (caché de archivos, LRU con tope configurable). Configuración en `$XDG_CONFIG_HOME/<app>/config.toml`.
+Ubicación (XDG vía `directories`): `$XDG_DATA_HOME/<app>/accounts/<account_id>/cache.sqlite3` (0600), `…/media/` (caché de archivos `MediaCache`: directorio 0700, archivos 0600, índice `file_cache` en SQLite, LRU con tope de 512 MiB; nunca guarda nada de chats secretos; migración 0004). Configuración en `$XDG_CONFIG_HOME/<app>/config.toml`.
 
 Al abrir: `journal_mode=WAL`, `synchronous=NORMAL`, `foreign_keys=ON`, `secure_delete=ON`, `busy_timeout=5000`; luego se aplican las migraciones pendientes comparando `PRAGMA user_version` con la lista `migrations/NNNN_*.sql` (`include_str!`), cada una en su transacción.
 

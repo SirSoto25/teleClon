@@ -23,6 +23,7 @@ use crate::conv::{self, Conversation, LayoutInput, MsgKey, PAGE};
 use crate::format;
 use crate::login::{self, Login, LoginMsg};
 use crate::measure::IcedMeasurer;
+use crate::media::{self, ImageKey, ImageRequest, Images};
 use crate::stickers::{self, Art, Nav, Picker};
 use crate::style::Brasa;
 
@@ -199,6 +200,8 @@ pub enum Overlay {
     NewSecret { query: String, user: Option<UserId>, busy: bool },
     /// Autodestrucción del chat secreto abierto (y cerrarlo, con confirmación).
     Ttl { confirm_discard: bool },
+    /// Visor de una foto a pantalla completa.
+    Photo { peer: PeerRef, msg: MsgId },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -293,6 +296,10 @@ pub enum Msg {
     Op(BackendResult<()>),
     DemoTick(Instant),
     Shot(String, window::Screenshot),
+    /// Terminó la carga de una foto (`None`: falló la descarga o el decodificado).
+    ImageLoaded(ImageKey, Option<media::Decoded>),
+    /// Abrir el visor de la foto de un mensaje.
+    OpenPhoto { peer: PeerRef, msg: MsgId },
 }
 
 pub struct App {
@@ -345,6 +352,10 @@ pub struct App {
     local_seq: i32,
     pub tz: TimeZone,
     pub bg_cache: canvas::Cache,
+    /// Fotos decodificadas (avatares y medios) y cargas en curso.
+    pub images: Images,
+    /// Progreso de las descargas largas (id de archivo → hechos, total).
+    pub downloads: HashMap<i64, (u64, u64)>,
     pub dots: u8,
     demo: std::collections::VecDeque<(Duration, DemoStep)>,
     demo_start: Option<Instant>,
@@ -433,6 +444,8 @@ impl App {
             local_seq: 0,
             tz: TimeZone::system(),
             bg_cache: canvas::Cache::new(),
+            images: Images::default(),
+            downloads: HashMap::new(),
             dots: 0,
             demo: flags.demo.into_iter().collect(),
             demo_start: None,
@@ -497,6 +510,8 @@ impl App {
         self.dialogs.clear();
         self.dialogs_state = LoadState::Loading;
         self.me = None;
+        self.images.clear();
+        self.downloads.clear();
         self.toast("La sesión se ha cerrado. Vuelve a entrar.".into(), true);
         operation::focus(Id::new(login::PHONE_ID))
     }
@@ -793,9 +808,99 @@ impl App {
         RandomId(nanos ^ (i64::from(self.local_seq) << 48) ^ 0x5bd1_e995)
     }
 
+    // ------------------------------------------------------------ fotos
+
+    /// Avatar cargado de un chat (o `None`: se dibuja el generado).
+    pub fn avatar_handle(&self, peer: PeerRef, photo: Option<ProfilePhoto>) -> Option<iced::widget::image::Handle> {
+        photo.and_then(|p| self.images.handle(&ImageKey::Avatar { peer, photo: p.id }))
+    }
+
+    /// Avatar cargado de un usuario (remitentes en grupos, contactos).
+    pub fn user_avatar(&self, u: UserId) -> Option<iced::widget::image::Handle> {
+        self.avatar_handle(PeerRef::User(u), self.users.get(&u).and_then(|u| u.photo))
+    }
+
+    fn avatar_request(peer: PeerRef, photo: Option<ProfilePhoto>) -> Option<ImageRequest> {
+        photo.map(|photo| ImageRequest::Avatar { peer, photo })
+    }
+
+    /// Petición de la foto (o miniatura de vídeo) de un mensaje, si tiene algo que mostrar.
+    pub fn media_request(peer: PeerRef, m: &Message, variant: MediaVariant) -> Option<ImageRequest> {
+        let md = m.media.as_ref()?;
+        let file = md.file.as_ref()?;
+        let visual = matches!(md.kind, MediaKind::Photo | MediaKind::Video | MediaKind::Gif);
+        if !visual || conv::is_local(m) || !file.has_image(variant) {
+            return None;
+        }
+        Some(ImageRequest::Media { peer, msg: m.id, file: file.clone(), variant, aspect: media::bubble_aspect(md.width, md.height) })
+    }
+
+    /// Lo que se ve ahora, por prioridad: visor, conversación (cabecera, burbujas visibles y avatares de
+    /// remitentes), filas visibles de la lista y contactos del panel de chat secreto.
+    fn wanted_images(&self) -> Vec<ImageRequest> {
+        let mut out = Vec::new();
+        if let Some(Overlay::Photo { peer, msg }) = &self.overlay
+            && let Some(m) = self.conv.as_ref().filter(|c| c.peer == *peer).and_then(|c| c.find(*msg))
+        {
+            out.extend(Self::media_request(*peer, m, MediaVariant::Full));
+            out.extend(Self::media_request(*peer, m, MediaVariant::Thumb));
+        }
+        if let Some(cv) = &self.conv {
+            out.extend(Self::avatar_request(cv.peer, self.dialog(cv.peer).and_then(|d| d.photo)));
+            let (a, z) = cv.image_range();
+            let group = self.is_group_chat(cv.peer);
+            for m in &cv.messages[a..z] {
+                out.extend(Self::media_request(cv.peer, m, MediaVariant::Thumb));
+                if group && !m.outgoing && let Some(s) = m.sender {
+                    out.extend(Self::avatar_request(PeerRef::User(s), self.users.get(&s).and_then(|u| u.photo)));
+                }
+            }
+        }
+        let list = self.visible_dialogs();
+        let (first, last) = crate::view::sidebar::visible_rows(self.list_from_top, self.list_viewport, list.len());
+        for d in &list[first..last] {
+            out.extend(Self::avatar_request(d.peer, d.photo));
+        }
+        if let Some(Overlay::NewSecret { query, .. }) = &self.overlay {
+            for u in self.secret_candidates(query).into_iter().take(12) {
+                out.extend(Self::avatar_request(PeerRef::User(u.id), u.photo));
+            }
+        }
+        out
+    }
+
+    /// Lanza la carga de lo visible que aún no está (como mucho `media::MAX_INFLIGHT` a la vez, salvo
+    /// la foto del visor).
+    pub(crate) fn pump_images(&mut self) -> Task<Msg> {
+        let Some(backend) = self.backend.clone().filter(|_| self.phase == Phase::Main) else { return Task::none() };
+        let now = Instant::now();
+        let mut seen = HashSet::new();
+        let mut tasks = Vec::new();
+        for req in self.wanted_images() {
+            let key = req.key();
+            // La foto del visor la ha pedido el usuario: no espera a que acaben los avatares.
+            if !self.images.can_start() && !matches!(key, ImageKey::Full { .. }) {
+                break;
+            }
+            if !seen.insert(key) || !self.images.wants(&key, now) {
+                continue;
+            }
+            self.images.start(key);
+            tasks.push(Task::perform(media::load(backend.clone(), req), move |img| Msg::ImageLoaded(key, img)));
+        }
+        Task::batch(tasks)
+    }
+
     // ------------------------------------------------------------ update
 
     pub fn update(&mut self, msg: Msg) -> Task<Msg> {
+        // Los mensajes de cada frame, reloj, ratón y tecleo no cambian lo que hay que cargar.
+        let pump = !matches!(msg, Msg::Frame(_) | Msg::Tick(_) | Msg::Hover(_) | Msg::Edit(_) | Msg::DemoTick(_));
+        let task = self.update_inner(msg);
+        if pump { Task::batch([task, self.pump_images()]) } else { task }
+    }
+
+    fn update_inner(&mut self, msg: Msg) -> Task<Msg> {
         match msg {
             Msg::Started => Task::none(),
             Msg::Connected(Ok(s)) => {
@@ -1184,6 +1289,21 @@ impl App {
                 self.toast(error_text(&e), true);
                 Task::none()
             }
+            Msg::ImageLoaded(key, img) => {
+                if let ImageKey::Full { file, .. } = key {
+                    self.downloads.remove(&file);
+                }
+                self.images.finish(key, img, Instant::now());
+                Task::none()
+            }
+            Msg::OpenPhoto { peer, msg } => {
+                if self.conv.as_ref().is_none_or(|c| c.peer != peer) {
+                    return Task::none();
+                }
+                self.overlay = Some(Overlay::Photo { peer, msg });
+                self.open_overlay_anim();
+                Task::none()
+            }
         }
     }
 
@@ -1399,6 +1519,10 @@ impl App {
                 let want = self.want_user(Some(s.user));
                 self.secrets.insert(s.id, s);
                 want
+            }
+            BackendEvent::Download { file_id, done, total } => {
+                self.downloads.insert(file_id, (done, total));
+                Task::none()
             }
         }
     }

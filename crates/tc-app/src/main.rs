@@ -122,7 +122,12 @@ fn telegram_connector(cfg: TelegramConfig, paths: TelegramPaths) -> Connector {
                         b.set_secret_store(secrets).await;
                     }
                     let b = Arc::new(b);
-                    Ok(Session { chat: b.clone(), auth: Some(b) })
+                    // Las descargas (fotos de perfil y de mensajes) pasan por la caché de disco de la cuenta.
+                    let chat: Arc<dyn ChatBackend> = match stores.media {
+                        Some(media) => Arc::new(tc_store::MediaCacheLayer::new(b.clone(), media)),
+                        None => b.clone(),
+                    };
+                    Ok(Session { chat, auth: Some(b) })
                 }
                 Err(e) => Err(format!("No se pudo preparar la conexión con la red: {}", tc_ui::app::error_text(&e))),
             }

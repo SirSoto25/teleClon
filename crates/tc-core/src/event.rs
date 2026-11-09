@@ -26,4 +26,6 @@ pub enum BackendEvent {
     UserStatus { user: UserId, status: UserStatus },
     Reactions { peer: PeerRef, msg_id: MsgId, reactions: Vec<ReactionCount> },
     SecretChat(SecretChat),
+    /// Progreso de una descarga larga (id del archivo, bytes recibidos, total conocido). Efímero.
+    Download { file_id: i64, done: u64, total: u64 },
 }

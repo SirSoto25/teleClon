@@ -9,6 +9,9 @@
 //! * **Eventos**: cada evento de `events()` se persiste antes de entregarse (al consumir el stream).
 //! * **Búsqueda local** FTS5 con [`CachedBackend::search_local`].
 //! * **Chats secretos**: todo pasa por el backend sin escribir contenido en la base (ver `convert.rs`).
+//! * **Descargas** (fotos de perfil y medios): con [`CachedBackend::with_media_cache`] los bytes se sirven
+//!   desde la caché de archivos (`MediaCache`, LRU en disco) y solo se piden a la red una vez; nunca los
+//!   de chats secretos.
 //!
 //! Todo el acceso a SQLite va por `spawn_blocking`, por lo que requiere un runtime de tokio.
 
@@ -21,10 +24,12 @@ use futures::StreamExt;
 use futures::stream::BoxStream;
 use std::future::Future;
 use std::sync::{Arc, Mutex, Weak};
+use crate::media_cache::{MediaCache, fetch_cached, media_key, profile_photo_key};
 use tc_core::{
-    Anchor, BackendError, BackendEvent, BackendResult, ChatBackend, Dialog, DialogsApi, DialogsPage, Draft, Group, GroupId,
-    KeyVisual, MediaApi, Message, MessagesApi, MsgId, OutgoingMedia, OutgoingText, PeerRef, ProfileApi, RandomId,
-    SecretChat, SecretChatId, SecretChatsApi, SendState, StickerId, StickerSet, StickersApi, TextEntity, Timestamp, User, UserId,
+    Anchor, BackendError, BackendEvent, BackendResult, ChatBackend, Dialog, DialogsApi, DialogsPage, Draft, FileRef, Group, GroupId,
+    KeyVisual, MediaApi, MediaVariant, Message, MessagesApi, MsgId, OutgoingMedia, OutgoingText, PeerRef, PhotoSize, ProfileApi,
+    ProfilePhoto, RandomId, SecretChat, SecretChatId, SecretChatsApi, SendState, StickerId, StickerSet, StickersApi, TextEntity,
+    Timestamp, User, UserId,
 };
 use tokio::sync::broadcast;
 
@@ -43,6 +48,8 @@ struct Shared<B> {
     store: Mutex<Store>,
     /// Eventos generados por la propia caché (refrescos en segundo plano).
     local: broadcast::Sender<BackendEvent>,
+    /// Caché de archivos descargados (opcional).
+    media: Option<Arc<MediaCache>>,
 }
 
 /// Decorador de caché sobre un backend. Se clona barato (comparte la base y el backend).
@@ -159,7 +166,7 @@ impl<B: ChatBackend> Shared<B> {
                     }
                     // Sin efecto en la base: estado de conexión, «escribiendo…» y chats secretos (su estado de
                     // protocolo y claves los gestiona quien implementa el backend, no esta caché).
-                    BackendEvent::Connection(_) | BackendEvent::Typing { .. } | BackendEvent::SecretChat(_) => {}
+                    BackendEvent::Connection(_) | BackendEvent::Typing { .. } | BackendEvent::SecretChat(_) | BackendEvent::Download { .. } => {}
                 }
                 Ok(())
             })
@@ -173,8 +180,22 @@ impl<B: ChatBackend> Shared<B> {
 impl<B: ChatBackend> CachedBackend<B> {
     /// Envuelve `inner` con la caché `store` (una por cuenta).
     pub fn new(inner: B, store: Store) -> Self {
+        Self::build(inner, store, None)
+    }
+
+    /// Como [`CachedBackend::new`], y además sirve las descargas desde `media` (caché de archivos).
+    pub fn with_media_cache(inner: B, store: Store, media: Arc<MediaCache>) -> Self {
+        Self::build(inner, store, Some(media))
+    }
+
+    fn build(inner: B, store: Store, media: Option<Arc<MediaCache>>) -> Self {
         let (local, _) = broadcast::channel(256);
-        Self { shared: Arc::new(Shared { inner, store: Mutex::new(store), local }) }
+        Self { shared: Arc::new(Shared { inner, store: Mutex::new(store), local, media }) }
+    }
+
+    /// La caché de archivos, si la hay.
+    pub fn media_cache(&self) -> Option<&Arc<MediaCache>> {
+        self.shared.media.as_ref()
     }
 
     /// El backend decorado.
@@ -284,7 +305,7 @@ impl<B: ChatBackend> ProfileApi for CachedBackend<B> {
                 Ok(g)
             }
             Err(e) if is_transient(&e) => {
-                let cached = self.shared.db(move |s| Ok(s.get_group(id.0)?.map(cv::load_group))).await?;
+                let cached = self.shared.db(move |s| s.get_group(id.0)?.map(|r| cv::load_group(s, r)).transpose()).await?;
                 cached.ok_or(e)
             }
             Err(e) => Err(e),
@@ -512,6 +533,16 @@ impl<B: ChatBackend> MediaApi for CachedBackend<B> {
         let sent = self.shared.inner.send_media(peer, media).await?;
         self.remember(sent.clone(), None).await;
         Ok(sent)
+    }
+
+    async fn download_profile_photo(&self, peer: PeerRef, photo: ProfilePhoto, size: PhotoSize) -> BackendResult<Vec<u8>> {
+        let key = profile_photo_key(peer, photo, size);
+        fetch_cached(self.shared.media.clone(), key, self.shared.inner.download_profile_photo(peer, photo, size)).await
+    }
+
+    async fn download_media(&self, peer: PeerRef, msg: MsgId, file: FileRef, variant: MediaVariant) -> BackendResult<Vec<u8>> {
+        let key = media_key(peer, &file, variant);
+        fetch_cached(self.shared.media.clone(), key, self.shared.inner.download_media(peer, msg, file, variant)).await
     }
 }
 

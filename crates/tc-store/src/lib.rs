@@ -9,7 +9,8 @@
 //!
 //! Además: `CachedBackend` (decorador de `ChatBackend`, ver `cached.rs`), repositorios de grupos, carpetas,
 //! reacciones y subidas, la bóveda de secretos (`SecretVault`, `KeyringVault`, `MemoryVault`) y el sellado
-//! AEAD de blobs con clave de la bóveda (`SealKey`, tabla `secret_chat_states`).
+//! AEAD de blobs con clave de la bóveda (`SealKey`, tabla `secret_chat_states`), y la caché de archivos
+//! descargados (`MediaCache`, LRU en disco con índice SQLite; `MediaCacheLayer` la añade a cualquier backend).
 #![forbid(unsafe_code)]
 
 mod cached;
@@ -17,8 +18,10 @@ mod convert;
 mod db;
 mod dialogs;
 mod error;
+mod files;
 mod folders;
 mod groups;
+mod media_cache;
 mod messages;
 mod reactions;
 mod seal;
@@ -32,6 +35,8 @@ mod vault;
 pub use cached::{CachedBackend, LocalHit};
 pub use db::{APP_DIR, DATA_DIR_NAME, LEGACY_APP_DIR, SCHEMA_VERSION, Store, account_db_path, default_data_dir};
 pub use error::{Error, Result};
+pub use files::{CacheEntry, MediaRefRow};
+pub use media_cache::{DEFAULT_MEDIA_CACHE_LIMIT, MEDIA_DIR, MediaCache, MediaCacheLayer, fetch_cached, media_key, profile_photo_key};
 pub use messages::fts_query;
 pub use seal::{SEAL_KEY_LEN, SECRET_STATE_KEY, SealError, SealKey, Sealed, TAG_LEN};
 pub use secret::{NONCE_LEN, SecretChatStateRow};
@@ -72,9 +77,9 @@ mod tests {
     fn migrates_from_scratch_in_memory() {
         let s = Store::open_in_memory().unwrap();
         assert_eq!(s.schema_version().unwrap(), SCHEMA_VERSION);
-        assert_eq!(SCHEMA_VERSION, 3);
-        let n: i64 = s.conn.query_row("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('dialogs','messages','messages_fts','secret_messages','sticker_sets','meta','secret_chat_states')", [], |r| r.get(0)).unwrap();
-        assert_eq!(n, 7);
+        assert_eq!(SCHEMA_VERSION, 4);
+        let n: i64 = s.conn.query_row("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('dialogs','messages','messages_fts','secret_messages','sticker_sets','meta','secret_chat_states','peer_photos','media_refs','file_cache')", [], |r| r.get(0)).unwrap();
+        assert_eq!(n, 10);
         let fk: i64 = s.conn.pragma_query_value(None, "foreign_keys", |r| r.get(0)).unwrap();
         assert_eq!(fk, 1);
         let fkv: Vec<String> = s.conn.prepare("PRAGMA foreign_key_check").unwrap().query_map([], |r| r.get(0)).unwrap().map(|x| x.unwrap()).collect();

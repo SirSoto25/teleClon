@@ -11,6 +11,9 @@
 //!   vive en el llavero (`"secret-state-key"`) y el blob va a la tabla `secret_chat_states` de SQLite.
 //!   Sin llavero **no se persiste** (falla cerrado: nunca en claro) y se avisa.
 //!
+//! * Caché de archivos descargados (`tc_store::MediaCache`, `<datos>/accounts/<cuenta>/media/`, 0700/0600,
+//!   LRU con tope de 512 MiB): fotos de perfil y de mensajes de chats NO secretos. No depende del llavero.
+//!
 //! Todo es síncrono: `tc-telegram` llama a estos almacenes desde `spawn_blocking`.
 
 use std::path::{Path, PathBuf};
@@ -18,7 +21,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use tc_core::{SecretChatId, SecretChatState, UserId};
-use tc_store::{SECRET_STATE_KEY, SESSION_KEY, SealError, SealKey, SecretChatStateRow, SecretVault, Store, VaultError};
+use tc_store::{MediaCache, SECRET_STATE_KEY, SESSION_KEY, SealError, SealKey, SecretChatStateRow, SecretVault, Store, VaultError};
 use tc_telegram::{FileSessionStore, SecretStateStore, SessionStore, StoreError, StoredSecretChat};
 use zeroize::Zeroizing;
 
@@ -329,6 +332,20 @@ pub struct TelegramStores {
     pub session: Arc<dyn SessionStore>,
     /// `None` = sin persistencia de chats secretos (el backend usa su almacén en memoria).
     pub secrets: Option<Arc<dyn SecretStateStore>>,
+    /// Caché de archivos descargados (`None`: sin directorio de datos; se descarga siempre de la red).
+    pub media: Option<Arc<MediaCache>>,
+}
+
+/// Abre la caché de archivos de la cuenta (no necesita llavero: nunca guarda nada de chats secretos).
+fn media_cache(account: &str, data_dir: Option<&Path>) -> Option<Arc<MediaCache>> {
+    let dir = data_dir?;
+    match MediaCache::open_account(dir, account, tc_store::DEFAULT_MEDIA_CACHE_LIMIT) {
+        Ok(c) => Some(Arc::new(c)),
+        Err(e) => {
+            tracing::warn!(motivo = %e, "no se pudo abrir la caché de archivos: las fotos se descargarán cada vez");
+            None
+        }
+    }
 }
 
 /// Construye los almacenes con el llavero del sistema (`KeyringVault` de la cuenta `account`).
@@ -354,7 +371,7 @@ pub fn stores_with_vault(vault: Option<Arc<dyn SecretVault>>, account: &str, ses
              estado de los chats secretos NO se guarda entre reinicios",
             session_file.display()
         );
-        return TelegramStores { session: Arc::new(FileSessionStore::new(session_file)), secrets: None };
+        return TelegramStores { session: Arc::new(FileSessionStore::new(session_file)), secrets: None, media: media_cache(account, data_dir) };
     };
     let session: Arc<dyn SessionStore> = Arc::new(VaultSessionStore::new(Arc::clone(&vault), session_file));
     let db = data_dir.ok_or_else(|| "sin directorio de datos".to_string()).and_then(|d| Store::open_account(d, account).map_err(|e| e.to_string()));
@@ -365,7 +382,7 @@ pub fn stores_with_vault(vault: Option<Arc<dyn SecretVault>>, account: &str, ses
             None
         }
     };
-    TelegramStores { session, secrets }
+    TelegramStores { session, secrets, media: media_cache(account, data_dir) }
 }
 
 #[cfg(test)]
@@ -463,6 +480,10 @@ mod tests {
         assert!(s.secrets.is_none());
         s.session.save(b"x").unwrap();
         assert!(path.exists());
+        // La caché de archivos no depende del llavero.
+        let media = s.media.expect("caché de archivos");
+        assert_eq!(media.dir(), dir.0.join("accounts/u1/media"));
+        assert!(stores_with_vault(None, "u1", &path, None).media.is_none());
     }
 
     // ---- estado de chats secretos ----

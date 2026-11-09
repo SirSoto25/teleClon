@@ -113,6 +113,7 @@ pub fn build(seed: u64, now: i64) -> Seed {
         status: UserStatus::Online,
         is_contact: false,
         is_bot: false,
+        photo: crate::images::profile_photo(ME.0),
     };
     let mut users = BTreeMap::new();
     for (i, (first, last, username)) in PEOPLE.iter().enumerate() {
@@ -133,6 +134,7 @@ pub fn build(seed: u64, now: i64) -> Seed {
                 status,
                 is_contact: true,
                 is_bot: false,
+                photo: crate::images::profile_photo(id.0),
             },
         );
     }
@@ -141,7 +143,7 @@ pub fn build(seed: u64, now: i64) -> Seed {
         let id = GroupId(5000 + i as i64);
         groups.insert(
             id,
-            Group { id, kind: *kind, title: (*title).into(), username: None, member_count: *members },
+            Group { id, kind: *kind, title: (*title).into(), username: None, member_count: *members, photo: crate::images::profile_photo(id.0) },
         );
     }
 
@@ -201,6 +203,11 @@ pub fn build(seed: u64, now: i64) -> Seed {
             PeerRef::Secret(s) => users[&secrets[&s].user].display_name(),
         }
     };
+    let photo_of = |peer: PeerRef| match peer {
+        PeerRef::User(u) => users[&u].photo,
+        PeerRef::Group(g) => groups[&g].photo,
+        PeerRef::Secret(s) => users[&secrets[&s].user].photo,
+    };
     let mut peers: Vec<PeerRef> = messages.keys().copied().collect();
     peers.sort_by_key(|p| format!("{p:?}"));
     for (k, peer) in peers.iter().enumerate() {
@@ -224,6 +231,7 @@ pub fn build(seed: u64, now: i64) -> Seed {
                 draft: None,
                 activity,
                 read_outbox_max_id: read_out,
+                photo: photo_of(*peer),
             },
         );
     }
@@ -322,15 +330,18 @@ fn gen_history(
             let set = if k.is_multiple_of(3) && sets.len() > 1 { &sets[1] } else { &sets[0] };
             m.sticker = Some(set.stickers[k.min(set.stickers.len() - 1)].clone());
         } else if roll < 9 {
+            let id = 70_000 + i as i64;
+            let size_bytes = 80_000 + rng.below(900_000) as u64;
             m.media = Some(Media {
-                id: 70_000 + i as i64,
+                id,
                 kind: MediaKind::Photo,
                 file_name: None,
-                size_bytes: 80_000 + rng.below(900_000) as u64,
+                size_bytes,
                 width: *rng.pick(&[1280, 1080, 960]),
                 height: *rng.pick(&[720, 1080, 1280]),
                 duration_secs: None,
                 local_path: None,
+                file: Some(crate::images::file_ref(MediaKind::Photo, id, size_bytes)),
             });
             if rng.chance(50) {
                 m.text = rng.pick(PHRASES).to_string();
@@ -338,15 +349,19 @@ fn gen_history(
         } else if roll < 12 {
             m.text = LONG_PHRASE.to_string();
         } else if roll < 14 {
+            let id = 80_000 + i as i64;
+            let file_name = Some(rng.pick(&["presupuesto.pdf", "ruta_sierra.gpx", "apuntes_tema3.odt"]).to_string());
+            let size_bytes = 20_000 + rng.below(4_000_000) as u64;
             m.media = Some(Media {
-                id: 80_000 + i as i64,
+                id,
                 kind: MediaKind::File,
-                file_name: Some(rng.pick(&["presupuesto.pdf", "ruta_sierra.gpx", "apuntes_tema3.odt"]).to_string()),
-                size_bytes: 20_000 + rng.below(4_000_000) as u64,
+                file_name,
+                size_bytes,
                 width: 0,
                 height: 0,
                 duration_secs: None,
                 local_path: None,
+                file: Some(crate::images::file_ref(MediaKind::File, id, size_bytes)),
             });
         } else {
             m.text = rng.pick(PHRASES).to_string();

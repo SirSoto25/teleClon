@@ -440,9 +440,9 @@ impl Inner {
     }
 
     fn secret_dialog(&self, c: &Chat) -> Dialog {
-        let title = {
+        let (title, photo) = {
             let cache = self.cache();
-            cache.peers.title(PeerRef::User(c.user), cache.me)
+            (cache.peers.title(PeerRef::User(c.user), cache.me), cache.peers.photo(PeerRef::User(c.user), cache.me))
         };
         let last = c.log.last().cloned();
         Dialog {
@@ -457,7 +457,13 @@ impl Inner {
             muted: false,
             draft: None,
             read_outbox_max_id: c.read_outbox,
+            photo,
         }
+    }
+
+    /// Usuario al otro lado de un chat secreto (su foto es la del chat).
+    pub(crate) async fn secret_partner(&self, id: SecretChatId) -> BackendResult<UserId> {
+        self.secrets().await?.chats.get(&id.0).map(|c| c.user).ok_or(BackendError::NotFound)
     }
 
     /// Traduce los eventos de tc-secret a eventos de la UI. Devuelve plazos de TTL nuevos.

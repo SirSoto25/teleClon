@@ -6,14 +6,15 @@ pub mod sidebar;
 pub mod stickers;
 
 use iced::alignment::{Horizontal, Vertical};
-use iced::widget::{Space, button, checkbox, column, container, mouse_area, opaque, responsive, row, scrollable, stack, text_input};
-use iced::{Alignment, Element, Length, Padding};
+use iced::widget::{Space, button, checkbox, column, container, image, mouse_area, opaque, responsive, row, scrollable, stack, text_input};
+use iced::{Alignment, ContentFit, Element, Length, Padding};
 use tc_core::PeerRef;
 use tc_theme::tokens::{layout, radius, space, text as ts};
 
 use crate::app::{AnimKey, App, Msg, Overlay, Phase, TTL_OPTIONS};
 use crate::format;
 use crate::icon::{Icon, icon, icon_fill};
+use crate::media::ImageKey;
 use crate::style::{self, c};
 use crate::widgets::{hfill, t, t1, vgap};
 
@@ -80,6 +81,9 @@ fn toasts(app: &App) -> Element<'_, Msg> {
 fn overlay<'a>(app: &'a App, o: &'a Overlay) -> Element<'a, Msg> {
     let b = app.brasa;
     let k = app.anim.value(AnimKey::Overlay, 1.0);
+    if let Overlay::Photo { peer, msg } = o {
+        return photo_viewer(app, *peer, *msg, k);
+    }
     let scale = if app.anim.pref.is_reduced() { 1.0 } else { 0.97 + 0.03 * k };
     let width = 480.0 * scale;
     let panel: Element<'a, Msg> = match o {
@@ -113,10 +117,55 @@ fn overlay<'a>(app: &'a App, o: &'a Overlay) -> Element<'a, Msg> {
         Overlay::Key(kv) => key_panel(app, kv.as_ref()),
         Overlay::NewSecret { query, user, busy } => new_secret_panel(app, query, *user, *busy),
         Overlay::Ttl { confirm_discard } => ttl_panel(app, *confirm_discard),
+        Overlay::Photo { .. } => unreachable!("el visor se dibuja aparte"),
     };
     let panel = container(panel).padding(space::S6).width(Length::Fixed(width)).style(style::raised(b, 3, radius::XL));
     let scrim = mouse_area(container(Space::new()).width(Length::Fill).height(Length::Fill).style(style::scrim(b, k))).on_press(Msg::CloseOverlay);
     opaque(stack![scrim, container(opaque(panel)).center(Length::Fill)])
+}
+
+/// Visor de foto a pantalla completa: la versión completa en cuanto llega (antes, la de la burbuja
+/// ampliada), con el progreso de la descarga si es larga. Se cierra con Escape, la X o pulsando fuera.
+fn photo_viewer<'a>(app: &'a App, peer: PeerRef, msg: tc_core::MsgId, k: f32) -> Element<'a, Msg> {
+    let b = app.brasa;
+    let file = app.conv.as_ref().filter(|c| c.peer == peer).and_then(|c| c.find(msg)).and_then(|m| m.media.as_ref()).and_then(|md| md.file.as_ref());
+    let full_key = file.map(|f| ImageKey::Full { peer, msg, file: f.id });
+    let thumb_key = file.map(|f| ImageKey::Thumb { peer, msg, file: f.id });
+    let shown = full_key.and_then(|key| app.images.get(&key)).or_else(|| thumb_key.and_then(|key| app.images.get(&key)));
+    let status = match (file, full_key) {
+        (None, _) => Some("Esta foto ya no está disponible.".to_string()),
+        (Some(_), Some(key)) if app.images.failed(&key) => Some("No se pudo cargar la foto completa.".to_string()),
+        (Some(f), Some(key)) if app.images.get(&key).is_none() => Some(match app.downloads.get(&f.id) {
+            Some((done, total)) if *total > 0 => format!("Cargando la foto… {} %", done * 100 / total),
+            _ => "Cargando la foto…".to_string(),
+        }),
+        _ => None,
+    };
+    let picture: Element<'a, Msg> = match shown {
+        Some(d) => image(d.handle.clone()).content_fit(ContentFit::Contain).width(Length::Fill).height(Length::Fill).opacity(k).into(),
+        None => Space::new().into(),
+    };
+    let ink = c(b.p.on_accent);
+    let close = button(icon(Icon::Close, layout::ICON_MD, ink)).padding(8).style(style::ghost(b, radius::SM)).on_press(Msg::CloseOverlay);
+    let mut layers = vec![
+        mouse_area(container(Space::new()).width(Length::Fill).height(Length::Fill).style(style::fill(iced::Color { a: 0.88 * k, ..iced::Color::BLACK })))
+            .on_press(Msg::CloseOverlay)
+            .into(),
+        container(opaque(picture)).padding(space::S8).center(Length::Fill).into(),
+        container(close).width(Length::Fill).align_x(Horizontal::Right).padding(space::S3).into(),
+    ];
+    if let Some(s) = status {
+        layers.push(
+            container(container(t1(s, ts::UI, ink)).padding([6, 12]).style(style::rounded_fill(iced::Color { a: 0.6, ..iced::Color::BLACK }, style::r(radius::PILL))))
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_x(Horizontal::Center)
+                .align_y(Vertical::Bottom)
+                .padding(space::S6)
+                .into(),
+        );
+    }
+    opaque(stack(layers).width(Length::Fill).height(Length::Fill))
 }
 
 /// Huella de clave (§8.9): cuadrícula 4×4 con colores `name-n` y 4 grupos de 5 cifras.
@@ -185,7 +234,7 @@ fn new_secret_panel<'a>(app: &'a App, query: &'a str, user: Option<tc_core::User
     for u in &list {
         let active = chosen == Some(u.id);
         let name = u.display_name();
-        let mut r = row![crate::widgets::avatar(&name, u.id.0, layout::AVATAR_MD, None, b), t1(format::ellipsize(&name, 36), ts::UI_STRONG, c(b.p.text))]
+        let mut r = row![crate::widgets::avatar_photo(&name, u.id.0, layout::AVATAR_MD, None, app.avatar_handle(PeerRef::User(u.id), u.photo), b), t1(format::ellipsize(&name, 36), ts::UI_STRONG, c(b.p.text))]
             .spacing(space::S3)
             .align_y(Alignment::Center);
         if active {

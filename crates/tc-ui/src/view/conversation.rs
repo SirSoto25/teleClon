@@ -3,8 +3,8 @@
 use iced::alignment::{Horizontal, Vertical};
 use iced::keyboard::{Key, key::Named};
 use iced::widget::text::LineHeight;
-use iced::widget::{Space, button, column, container, mouse_area, responsive, rich_text, row, scrollable, stack, text_editor};
-use iced::{Alignment, Color, Element, Length, Padding, Pixels};
+use iced::widget::{Space, button, column, container, image, mouse_area, responsive, rich_text, row, scrollable, stack, text_editor};
+use iced::{Alignment, Color, ContentFit, Element, Length, Padding, Pixels};
 use tc_core::{GroupKind, Message, PeerRef, SecretChatState, SendState};
 use tc_theme::tokens::{layout, radius, space, text as ts};
 use tc_theme::{TextStyle, tokens};
@@ -15,8 +15,9 @@ use crate::conv::{self, Body, Conversation, Item, LayoutInput, MsgKey, MsgLayout
 use crate::format;
 use crate::icon::{Icon, icon, icon_fill};
 use crate::measure::{IcedMeasurer, to_spans};
+use crate::media::ImageKey;
 use crate::style::{self, Brasa, GroupPos, c, fade, with_weight};
-use crate::widgets::{avatar, contour_bg, hfill, hgap, icon_button, t, t1, vgap};
+use crate::widgets::{avatar_photo, contour_bg, hfill, hgap, icon_button, t, t1, vgap};
 
 /// Ancho máximo de burbuja: 560 o 72 % de la columna (menos el avatar en grupos), lo menor.
 pub fn bubble_max(col_w: f32, group: bool) -> f32 {
@@ -82,7 +83,7 @@ fn header<'a>(app: &'a App, cv: &'a Conversation, narrow: bool) -> Element<'a, M
     if narrow {
         left = left.push(icon_button(Icon::Back, layout::ICON_MD, c(b.p.text), Some(Msg::CloseChat), b));
     }
-    left = left.push(avatar(title, App::peer_seed(peer), layout::AVATAR_MD, None, b));
+    left = left.push(avatar_photo(title, App::peer_seed(peer), layout::AVATAR_MD, None, app.avatar_handle(peer, d.and_then(|d| d.photo)), b));
 
     let mut name = row![].spacing(space::S1).align_y(Alignment::Center);
     if matches!(peer, PeerRef::Secret(_)) {
@@ -304,6 +305,11 @@ fn messages<'a>(app: &'a App, cv: &'a Conversation, col_w: f32, vh: f32, x_shift
 
     let mut col = column![Space::new().height(Length::Fixed(win.top_space + filler))].width(Length::Fill).align_x(Alignment::Center);
     let mut li = items[..win.start].iter().filter(|i| matches!(i, Item::Msg { .. })).count();
+    let idx = items[win.start..win.end].iter().filter_map(|it| match it {
+        Item::Msg { idx, .. } => Some(*idx),
+        _ => None,
+    });
+    cv.visible.set(idx.clone().min().zip(idx.max()).map(|(a, z)| (a, z + 1)));
     cv.anim_visible.set(items[win.start..win.end].iter().any(|it| match it {
         Item::Msg { idx, .. } => cv.messages[*idx].sticker.as_ref().is_some_and(crate::stickers::is_animated),
         _ => false,
@@ -391,7 +397,7 @@ fn message_row<'a>(
         if group {
             let av: Element<'_, Msg> = if show_avatar {
                 let name = m.sender.map(|s| app.user_name(s)).unwrap_or_default();
-                avatar(&name, m.sender.map_or(0, |s| s.0), conv::GROUP_AVATAR, None, b)
+                avatar_photo(&name, m.sender.map_or(0, |s| s.0), conv::GROUP_AVATAR, None, m.sender.and_then(|s| app.user_avatar(s)), b)
             } else {
                 Space::new().width(Length::Fixed(conv::GROUP_AVATAR)).into()
             };
@@ -556,14 +562,7 @@ fn bubble<'a>(app: &'a App, cv: &'a Conversation, m: &'a Message, l: &MsgLayout,
         col = col.push(quote).push(vgap(conv::REPLY_GAP));
     }
     if let (Some(md), Some(sz)) = (&m.media, l.media) {
-        let ic = if md.kind == tc_core::MediaKind::Photo { Icon::Image } else { Icon::File };
-        let label = md.file_name.clone().unwrap_or_else(|| format!("{} × {}", md.width, md.height));
-        col = col.push(
-            container(column![icon(ic, 32.0, meta_c), t1(label, ts::CAPTION, meta_c)].spacing(space::S1).align_x(Alignment::Center))
-                .center_x(Length::Fixed(sz.width))
-                .center_y(Length::Fixed(sz.height))
-                .style(style::rounded_fill(fade(c(b.p.surface_hover), opacity), style::r(radius::MD))),
-        );
+        col = col.push(media_box(app, cv.peer, m, md, sz, opacity, meta_c));
         if !m.text.trim().is_empty() {
             col = col.push(vgap(conv::MEDIA_GAP));
         }
@@ -599,6 +598,51 @@ fn bubble<'a>(app: &'a App, cv: &'a Conversation, m: &'a Message, l: &MsgLayout,
         .clip(true)
         .style(style::bubble(b, m.outgoing, pos, opacity, menu_open))
         .into()
+}
+
+/// Medio en la burbuja: la foto (o la miniatura del vídeo) si ya está cargada; si no, el
+/// marcador de Brasa (icono y nombre o dimensiones) en el mismo hueco, para que nada salte al llegar.
+/// Las fotos abren el visor al pulsarlas.
+fn media_box<'a>(app: &'a App, peer: PeerRef, m: &'a Message, md: &'a tc_core::Media, sz: iced::Size, opacity: f32, meta_c: Color) -> Element<'a, Msg> {
+    use tc_core::MediaKind;
+    let b = app.brasa;
+    let handle = md.file.as_ref().and_then(|f| app.images.handle(&ImageKey::Thumb { peer, msg: m.id, file: f.id }));
+    let el: Element<'a, Msg> = match handle {
+        Some(h) => {
+            let img = image(h)
+                .width(Length::Fixed(sz.width))
+                .height(Length::Fixed(sz.height))
+                .content_fit(ContentFit::Cover)
+                .border_radius(style::r(radius::MD))
+                .opacity(opacity);
+            if matches!(md.kind, MediaKind::Video | MediaKind::Gif) {
+                let play = container(icon_fill(Icon::Play, 22.0, c(b.p.on_accent)))
+                    .center(Length::Fixed(44.0))
+                    .style(style::rounded_fill(Color { a: 0.55, ..Color::BLACK }, style::r(radius::PILL)));
+                stack![img, container(play).center_x(Length::Fixed(sz.width)).center_y(Length::Fixed(sz.height))].into()
+            } else {
+                img.into()
+            }
+        }
+        None => {
+            let ic = match md.kind {
+                MediaKind::Photo => Icon::Image,
+                MediaKind::Video | MediaKind::Gif => Icon::Play,
+                _ => Icon::File,
+            };
+            let label = md.file_name.clone().unwrap_or_else(|| format!("{} × {}", md.width, md.height));
+            container(column![icon(ic, 32.0, meta_c), t1(label, ts::CAPTION, meta_c)].spacing(space::S1).align_x(Alignment::Center))
+                .center_x(Length::Fixed(sz.width))
+                .center_y(Length::Fixed(sz.height))
+                .style(style::rounded_fill(fade(c(b.p.surface_hover), opacity), style::r(radius::MD)))
+                .into()
+        }
+    };
+    if md.kind == MediaKind::Photo && md.file.is_some() && !conv::is_local(m) {
+        mouse_area(el).interaction(iced::mouse::Interaction::Pointer).on_press(Msg::OpenPhoto { peer, msg: m.id }).into()
+    } else {
+        el
+    }
 }
 
 // ------------------------------------------------------------------ compositor

@@ -352,3 +352,15 @@ fn own_send_confirmed_via_update_message_id() {
     assert!(c.pending.is_empty());
     assert!(c.sent.contains_key(&777));
 }
+
+#[test]
+fn saved_messages_without_out_flag_are_outgoing() {
+    // «Mensajes guardados»: chat conmigo mismo, Telegram puede mandar out=false.
+    let p = store();
+    let m = message_from_tl(&msg_enum(8, peer_user(77), "nota", false, 103), Some(ME), &p).unwrap();
+    assert!(m.outgoing);
+    assert_eq!(m.sender, Some(ME));
+    // Un privado con otra persona sigue siendo entrante.
+    let m = message_from_tl(&msg_enum(9, peer_user(10), "hola", false, 104), Some(ME), &p).unwrap();
+    assert!(!m.outgoing);
+}

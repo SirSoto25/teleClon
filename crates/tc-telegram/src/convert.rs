@@ -116,6 +116,63 @@ fn photo_dims(sizes: &[tl::enums::PhotoSize]) -> (u32, u32, u64) {
     })
 }
 
+/// `(tipo, ancho, alto, bytes)` de un tamaño descargable (sin las miniaturas incrustadas «i»/«j»).
+fn size_info(s: &tl::enums::PhotoSize) -> Option<(&str, i32, i32, i64)> {
+    match s {
+        tl::enums::PhotoSize::Size(s) => Some((s.r#type.as_str(), s.w, s.h, i64::from(s.size))),
+        tl::enums::PhotoSize::Progressive(s) => Some((s.r#type.as_str(), s.w, s.h, i64::from(s.sizes.iter().copied().max().unwrap_or(0)))),
+        tl::enums::PhotoSize::PhotoCachedSize(s) => Some((s.r#type.as_str(), s.w, s.h, s.bytes.len() as i64)),
+        _ => None,
+    }
+}
+
+/// Lado máximo de la vista previa: cabe en la burbuja (320 px lógicos) con pantallas HiDPI.
+pub(crate) const THUMB_MAX_SIDE: i32 = 800;
+
+/// Variantes de una foto: `(vista previa, completa, bytes de la completa)`. La vista previa es el
+/// tamaño mayor que no pasa de `THUMB_MAX_SIDE` (o el menor si todos pasan); la completa, el mayor.
+pub(crate) fn pick_sizes(sizes: &[tl::enums::PhotoSize]) -> (Option<String>, Option<String>, u64) {
+    let all: Vec<(&str, i32, i32, i64)> = sizes.iter().filter_map(size_info).filter(|s| s.1 > 0 && s.2 > 0).collect();
+    let area = |s: &(&str, i32, i32, i64)| i64::from(s.1) * i64::from(s.2);
+    let full = all.iter().max_by_key(|s| area(s));
+    let thumb = all
+        .iter()
+        .filter(|s| s.1.max(s.2) <= THUMB_MAX_SIDE)
+        .max_by_key(|s| area(s))
+        .or_else(|| all.iter().min_by_key(|s| area(s)));
+    (thumb.map(|s| s.0.to_string()), full.map(|s| s.0.to_string()), full.map_or(0, |s| s.3.max(0) as u64))
+}
+
+/// Referencia de descarga de una foto.
+pub fn photo_file_ref(ph: &tl::types::Photo) -> FileRef {
+    let (thumb, full, size) = pick_sizes(&ph.sizes);
+    FileRef {
+        kind: FileKind::Photo,
+        id: ph.id,
+        access_hash: ph.access_hash,
+        file_reference: ph.file_reference.clone(),
+        dc_id: ph.dc_id,
+        size_bytes: size,
+        thumb,
+        full,
+    }
+}
+
+/// Referencia de descarga de un documento (vista previa = su miniatura, si tiene).
+pub fn document_file_ref(d: &tl::types::Document) -> FileRef {
+    let (thumb, _, _) = d.thumbs.as_deref().map_or((None, None, 0), pick_sizes);
+    FileRef {
+        kind: FileKind::Document,
+        id: d.id,
+        access_hash: d.access_hash,
+        file_reference: d.file_reference.clone(),
+        dc_id: d.dc_id,
+        size_bytes: d.size.max(0) as u64,
+        thumb,
+        full: None,
+    }
+}
+
 /// Sticker si el documento lo es.
 pub fn sticker_from_document(d: &tl::types::Document) -> Option<Sticker> {
     let mut sticker = None;
@@ -173,7 +230,17 @@ pub fn media_from_document(d: &tl::types::Document, voice_flag: bool, video_flag
     } else if video_flag && kind == MediaKind::File {
         kind = MediaKind::Video;
     }
-    Media { id: d.id, kind, file_name, size_bytes: d.size.max(0) as u64, width: w, height: h, duration_secs: dur, local_path: None }
+    Media {
+        id: d.id,
+        kind,
+        file_name,
+        size_bytes: d.size.max(0) as u64,
+        width: w,
+        height: h,
+        duration_secs: dur,
+        local_path: None,
+        file: Some(document_file_ref(d)),
+    }
 }
 
 /// `(media, sticker)` de un `MessageMedia`. Lo no soportado (encuestas, ubicación…) da `(None, None)`.
@@ -192,6 +259,7 @@ pub fn media_from_tl(m: &tl::enums::MessageMedia) -> (Option<Media>, Option<Stic
                         height: h,
                         duration_secs: None,
                         local_path: None,
+                        file: Some(photo_file_ref(ph)),
                     }),
                     None,
                 )
@@ -264,6 +332,8 @@ pub fn message_from_tl(m: &tl::enums::Message, me: Option<UserId>, peers: &PeerS
         tl::enums::Message::Message(m) => {
             let peer = peer_from_tl(&m.peer_id);
             let sender = sender_of(m.from_id.as_ref(), peer, m.out, me);
+            // En «Mensajes guardados» Telegram no siempre marca `out`: si el remitente soy yo, es saliente.
+            let outgoing = m.out || (me.is_some() && sender == me);
             let (media, sticker) = m.media.as_ref().map_or((None, None), media_from_tl);
             Some(Message {
                 id: MsgId(m.id),
@@ -271,7 +341,7 @@ pub fn message_from_tl(m: &tl::enums::Message, me: Option<UserId>, peers: &PeerS
                 sender,
                 date: Timestamp(m.date.into()),
                 edit_date: if m.edit_hide { None } else { m.edit_date.map(|d| Timestamp(d.into())) },
-                outgoing: m.out,
+                outgoing,
                 text: m.message.clone(),
                 entities: entities_from_tl(&m.message, m.entities.as_ref()),
                 reply_to: reply_id(m.reply_to.as_ref()),
@@ -386,6 +456,7 @@ pub fn dialog_from_tl(d: &tl::types::Dialog, last: Option<Message>, pinned_order
         draft: draft_from_tl(d.draft.as_ref()),
         activity: Timestamp(activity),
         read_outbox_max_id: MsgId(d.read_outbox_max_id),
+        photo: ctx.peers.photo(peer, ctx.me),
     }
 }
 
@@ -403,5 +474,6 @@ pub fn dialog_stub(peer: PeerRef, ctx: &DialogCtx) -> Dialog {
         draft: None,
         activity: Timestamp(0),
         read_outbox_max_id: MsgId(0),
+        photo: ctx.peers.photo(peer, ctx.me),
     }
 }

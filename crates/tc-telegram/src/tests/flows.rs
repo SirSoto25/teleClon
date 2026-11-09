@@ -140,7 +140,7 @@ async fn qr_login_renews_migrates_and_completes() {
 }
 
 /// Backend con sesión restaurada y la cuenta propia confirmada por `users.getUsers`.
-async fn restored(handler: impl FnMut(i32, u32, &[u8]) -> Reply + Send + 'static, src: Option<Box<dyn UpdateSource>>) -> (GrammersBackend, Arc<Fake>, Arc<MemorySessionStore>) {
+pub(super) async fn restored(handler: impl FnMut(i32, u32, &[u8]) -> Reply + Send + 'static, src: Option<Box<dyn UpdateSource>>) -> (GrammersBackend, Arc<Fake>, Arc<MemorySessionStore>) {
     let mut h = handler;
     let fake = Fake::new(move |dc, id, body| {
         if id == cid::<tl::functions::users::GetUsers>() {

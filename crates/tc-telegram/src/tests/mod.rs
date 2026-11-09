@@ -3,6 +3,7 @@
 mod fixtures;
 mod flows;
 mod mapping;
+mod media;
 mod secret;
 
 use std::collections::VecDeque;

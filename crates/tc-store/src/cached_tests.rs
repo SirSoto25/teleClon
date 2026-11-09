@@ -48,8 +48,8 @@ async fn dialogs_roundtrip_exactly_and_survive_offline() {
     assert!(fresh.len() > 20);
     c.inner().set_offline(true);
     let cache = c.dialogs(all(false)).await.unwrap(); // sin red: de la caché
-    // Los secretos se guardan sin último mensaje ni borrador (privacidad); el resto, idéntico.
-    let strip = |d: &Dialog| Dialog { last_message: None, draft: None, ..d.clone() };
+    // Los secretos se guardan sin último mensaje, borrador ni foto (privacidad); el resto, idéntico.
+    let strip = |d: &Dialog| Dialog { last_message: None, draft: None, photo: None, ..d.clone() };
     let norm = |v: Vec<Dialog>| -> Vec<Dialog> { v.into_iter().map(|d| if matches!(d.peer, PeerRef::Secret(_)) { strip(&d) } else { d }).collect() };
     assert_eq!(sorted(norm(fresh.clone())), sorted(cache.clone()));
     // Mismo orden que el backend (fijados primero, luego actividad).
@@ -137,7 +137,7 @@ async fn history_roundtrips_media_stickers_reactions_and_entities() {
         v.into_iter()
             .map(|mut m| {
                 if let Some(md) = m.media.as_mut().filter(|md| clash.contains(&md.id)) {
-                    *md = Media { id: md.id, kind: md.kind, file_name: None, size_bytes: 0, width: 0, height: 0, duration_secs: None, local_path: None };
+                    *md = Media { id: md.id, kind: md.kind, file_name: None, size_bytes: 0, width: 0, height: 0, duration_secs: None, local_path: None, file: None };
                 }
                 m
             })
@@ -350,4 +350,68 @@ async fn events_stream_ends_when_the_decorator_and_backend_are_gone() {
     drop(c);
     let end = tokio::time::timeout(Duration::from_secs(5), async { while ev.next().await.is_some() {} }).await;
     assert!(end.is_ok(), "el stream debe terminar al soltar el decorador");
+}
+
+fn tmp_dir(tag: &str) -> std::path::PathBuf {
+    let p = std::env::temp_dir().join(format!("tc-cached-{tag}-{}-{:?}", std::process::id(), std::thread::current().id()));
+    let _ = std::fs::remove_dir_all(&p);
+    p
+}
+
+#[tokio::test]
+async fn downloads_are_cached_on_disk_but_never_for_secret_chats() {
+    let dir = tmp_dir("media");
+    let media = std::sync::Arc::new(crate::MediaCache::open(dir.join("media"), Store::open_in_memory().unwrap(), 64 << 20).unwrap());
+    let c = CachedBackend::with_media_cache(mock(), Store::open_in_memory().unwrap(), media.clone());
+    let dialogs = c.dialogs(all(false)).await.unwrap();
+    // Las fotos de perfil sobreviven a la caché SQLite (y la del chat secreto, solo en memoria).
+    let user = dialogs.iter().find(|d| matches!(d.peer, PeerRef::User(_)) && d.photo.is_some()).expect("algún usuario con foto");
+    let photo = user.photo.unwrap();
+    c.inner().set_offline(true);
+    let offline = c.dialogs(all(false)).await.unwrap();
+    assert_eq!(offline.iter().find(|d| d.peer == user.peer).unwrap().photo, Some(photo));
+    assert!(offline.iter().filter(|d| matches!(d.peer, PeerRef::Secret(_))).all(|d| d.photo.is_none()));
+    // Sin red y sin caché: error; con red, una sola descarga y luego desde el disco.
+    assert_eq!(c.download_profile_photo(user.peer, photo, PhotoSize::Small).await, Err(BackendError::Network));
+    c.inner().set_offline(false);
+    let png = c.download_profile_photo(user.peer, photo, PhotoSize::Small).await.unwrap();
+    assert_eq!(&png[1..4], b"PNG");
+    c.inner().set_offline(true);
+    assert_eq!(c.download_profile_photo(user.peer, photo, PhotoSize::Small).await.unwrap(), png);
+    assert!(c.download_profile_photo(user.peer, photo, PhotoSize::Big).await.is_err(), "otro tamaño, otra clave");
+    c.inner().set_offline(false);
+
+    // Medios: la referencia de descarga se guarda con el mensaje y la miniatura queda en disco.
+    let mut found = None;
+    for d in &dialogs {
+        if matches!(d.peer, PeerRef::Secret(_)) {
+            continue;
+        }
+        let h = c.history(d.peer, Anchor::Latest, 200).await.unwrap();
+        if let Some(m) = h.iter().find(|m| m.media.as_ref().is_some_and(|md| md.kind == MediaKind::Photo)) {
+            found = Some((d.peer, m.clone()));
+            break;
+        }
+    }
+    let (peer, m) = found.expect("alguna foto en el historial del mock");
+    let file = m.media.as_ref().unwrap().file.clone().expect("referencia de descarga");
+    c.inner().set_offline(true);
+    let again = c.history(peer, Anchor::Latest, 200).await.unwrap();
+    assert_eq!(again.iter().find(|x| x.id == m.id).and_then(|x| x.media.as_ref()).and_then(|md| md.file.clone()), Some(file.clone()));
+    c.inner().set_offline(false);
+    let used = media.usage().unwrap();
+    let thumb = c.download_media(peer, m.id, file.clone(), MediaVariant::Thumb).await.unwrap();
+    assert!(media.usage().unwrap() > used);
+    c.inner().set_offline(true);
+    assert_eq!(c.download_media(peer, m.id, file.clone(), MediaVariant::Thumb).await.unwrap(), thumb);
+    c.inner().set_offline(false);
+
+    // Chat secreto: la foto del otro se descarga pero no se escribe nada en disco.
+    let secret = dialogs.iter().find(|d| d.peer == PeerRef::Secret(SECRET_ID)).unwrap();
+    if let Some(p) = secret.photo {
+        let before = media.usage().unwrap();
+        c.download_profile_photo(secret.peer, p, PhotoSize::Big).await.unwrap();
+        assert_eq!(media.usage().unwrap(), before);
+    }
+    let _ = std::fs::remove_dir_all(&dir);
 }

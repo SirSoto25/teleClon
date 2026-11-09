@@ -11,7 +11,7 @@ use tc_theme::tokens::{layout, radius, space, text as ts};
 use crate::app::{App, Folder, LIST_SCROLL_ID, LoadState, Msg, SEARCH_ID};
 use crate::icon::{Icon, icon, icon_fill};
 use crate::style::{self, c, with_weight};
-use crate::widgets::{avatar, badge, hfill, hgap, t, t1, vgap};
+use crate::widgets::{avatar_photo, badge, hfill, hgap, t, t1, vgap};
 
 const ROW_H: f32 = layout::CHAT_ITEM_HEIGHT_COMFORTABLE;
 
@@ -155,6 +155,14 @@ fn skeleton(app: &App) -> Element<'_, Msg> {
     col.into()
 }
 
+/// Filas `[desde, hasta)` que se dibujan (las visibles y un margen). Virtualización por índice
+/// directo: filas de alto fijo.
+pub fn visible_rows(from_top: f32, viewport: f32, len: usize) -> (usize, usize) {
+    let first = ((from_top / ROW_H).floor() as usize).saturating_sub(4).min(len);
+    let count = (viewport / ROW_H).ceil() as usize + 8;
+    (first, (first + count).min(len))
+}
+
 fn rows(app: &App) -> Element<'_, Msg> {
     let b = app.brasa;
     let list = app.visible_dialogs();
@@ -166,10 +174,7 @@ fn rows(app: &App) -> Element<'_, Msg> {
         };
         return container(t(msg, ts::UI, c(b.p.text_muted))).padding(space::S4).into();
     }
-    // Virtualización por índice directo: filas fijas de 68 px.
-    let first = ((app.list_from_top / ROW_H).floor() as usize).saturating_sub(4).min(list.len());
-    let count = (app.list_viewport / ROW_H).ceil() as usize + 8;
-    let last = (first + count).min(list.len());
+    let (first, last) = visible_rows(app.list_from_top, app.list_viewport, list.len());
     let mut col = column![Space::new().height(Length::Fixed(first as f32 * ROW_H))];
     for d in &list[first..last] {
         col = col.push(chat_row(app, d));
@@ -196,7 +201,7 @@ fn chat_row<'a>(app: &'a App, d: &'a Dialog) -> Element<'a, Msg> {
         PeerRef::User(u) => app.users.get(&u).is_some_and(|u| u.status == UserStatus::Online),
         _ => false,
     };
-    let av = avatar(&d.title, App::peer_seed(d.peer), layout::AVATAR_LG, online.then_some(row_bg), b);
+    let av = avatar_photo(&d.title, App::peer_seed(d.peer), layout::AVATAR_LG, online.then_some(row_bg), app.avatar_handle(d.peer, d.photo), b);
 
     // Línea 1: [escudo] nombre · hora
     let unread = d.unread_count > 0;

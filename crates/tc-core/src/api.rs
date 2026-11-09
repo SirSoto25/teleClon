@@ -55,6 +55,13 @@ pub trait MessagesApi: Send + Sync {
 pub trait MediaApi: Send + Sync {
     /// Envía fotos/archivos (un mensaje por elemento; la leyenda va en el primero).
     async fn send_media(&self, peer: PeerRef, media: OutgoingMedia) -> BackendResult<Vec<Message>>;
+    /// Bytes de la foto de perfil `photo` del chat `peer` (usuario, grupo, canal; en un chat secreto,
+    /// la del otro usuario). Formato de imagen tal cual lo da la red (JPEG en Telegram, PNG en el mock).
+    async fn download_profile_photo(&self, peer: PeerRef, photo: ProfilePhoto, size: PhotoSize) -> BackendResult<Vec<u8>>;
+    /// Bytes de un medio del mensaje `msg` de `peer` (la vista previa o el archivo completo). `msg`
+    /// permite al backend refrescar una `file_reference` caducada. Los archivos grandes pueden emitir
+    /// `BackendEvent::Download` con el progreso.
+    async fn download_media(&self, peer: PeerRef, msg: MsgId, file: FileRef, variant: MediaVariant) -> BackendResult<Vec<u8>>;
 }
 
 #[async_trait]

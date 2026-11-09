@@ -388,6 +388,9 @@ pub struct Conversation {
     pub last_viewport: std::cell::Cell<f32>,
     /// Hay algún sticker animado en la ventana visible (lo fija la vista; decide si se piden frames).
     pub anim_visible: std::cell::Cell<bool>,
+    /// Índices `[desde, hasta)` de los mensajes de la ventana visible (lo fija la vista; decide qué
+    /// fotos se cargan).
+    pub visible: std::cell::Cell<Option<(usize, usize)>>,
 }
 
 impl Conversation {
@@ -407,6 +410,18 @@ impl Conversation {
             last_col: std::cell::Cell::new(0.0),
             last_viewport: std::cell::Cell::new(0.0),
             anim_visible: std::cell::Cell::new(false),
+            visible: std::cell::Cell::new(None),
+        }
+    }
+
+    /// Mensajes cuyas fotos interesan: la ventana visible con un margen, o los últimos antes de la
+    /// primera maquetación (al abrir se ve el final).
+    pub fn image_range(&self) -> (usize, usize) {
+        const MARGIN: usize = 6;
+        let n = self.messages.len();
+        match self.visible.get() {
+            Some((a, z)) => (a.saturating_sub(MARGIN).min(n), z.saturating_add(MARGIN).min(n)),
+            None => (n.saturating_sub(20), n),
         }
     }
 
