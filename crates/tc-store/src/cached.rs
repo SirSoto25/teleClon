@@ -510,6 +510,10 @@ impl<B: ChatBackend> MessagesApi for CachedBackend<B> {
             .await
     }
 
+    async fn available_reactions(&self, peer: PeerRef) -> BackendResult<Vec<String>> {
+        self.shared.inner.available_reactions(peer).await
+    }
+
     async fn mark_read(&self, peer: PeerRef, max_id: MsgId) -> BackendResult<()> {
         self.shared.inner.mark_read(peer, max_id).await?;
         self.shared
@@ -557,6 +561,14 @@ impl<B: ChatBackend> StickersApi for CachedBackend<B> {
         let m = self.shared.inner.send_sticker(peer, sticker, reply_to, random_id).await?;
         self.remember(vec![m.clone()], Some(random_id)).await;
         Ok(m)
+    }
+
+    async fn recent_stickers(&self) -> BackendResult<Vec<tc_core::Sticker>> {
+        self.shared.inner.recent_stickers().await
+    }
+
+    async fn faved_stickers(&self) -> BackendResult<Vec<tc_core::Sticker>> {
+        self.shared.inner.faved_stickers().await
     }
 }
 

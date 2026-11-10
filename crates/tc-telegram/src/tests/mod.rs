@@ -1,10 +1,12 @@
 //! Pruebas sin red: mapeo TL → dominio y flujos completos contra un transporte falso
 //! que decodifica las peticiones TL y responde con TL serializado.
+mod audio;
 mod fixtures;
 mod flows;
 mod mapping;
 mod media;
 mod secret;
+mod stickers_reactions;
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};

@@ -14,6 +14,7 @@ members = [
     "crates/tc-ui",
     "crates/tc-app",
     "crates/tc-telegram",
+    "crates/tc-audio",
 ]
 
 [workspace.package]
@@ -33,6 +34,7 @@ tc-secret = { path = "crates/tc-secret" }
 tc-stickers = { path = "crates/tc-stickers" }
 tc-ui = { path = "crates/tc-ui" }
 tc-telegram = { path = "crates/tc-telegram" }
+tc-audio = { path = "crates/tc-audio" }
 
 # Async y utilidades
 tokio = { version = "1.54.1", default-features = false }
@@ -78,6 +80,20 @@ serde_json = "1.0.154"
 grammers-session = { version = "0.11.0", default-features = false, features = ["serde"] }
 grammers-tl-types = "0.11.0"
 
+# Audio (crate tc-audio, ADR-0007): Rust puro salvo la salida de cpal (ALSA en Linux, WASAPI en
+# Windows, CoreAudio en macOS). rodio solo para la salida (sin sus decodificadores); symphonia 0.5
+# (la misma serie que usa rodio) para MP3/AAC-M4A/FLAC/WAV/Vorbis y opus-decoder para las notas de voz.
+rodio = { version = "0.23.0", default-features = false, features = ["playback"] }
+symphonia = { version = "0.5.5", default-features = false, features = ["mp3", "aac", "isomp4", "flac", "wav", "pcm", "ogg", "vorbis"] }
+opus-decoder = "0.1.1"
+
 [profile.dev.package."*"]
 # Dependencias optimizadas en debug: el render de iced y la cripto son lentos sin optimizar.
 opt-level = 2
+
+[profile.dev.package.opus-decoder]
+# opus-decoder 0.1.1 desplaza un `u8` 8 bits o más en la máscara de anti-colapso de CELT
+# (`celt/vq.rs`, `extract_collapse_mask`) y en debug eso es un pánico; en release se envuelve. Se
+# compila igual que en release para que debug y pruebas se comporten como la app. Además tc-audio
+# atrapa cualquier pánico del decodificador (ADR-0007).
+overflow-checks = false

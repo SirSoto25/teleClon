@@ -13,6 +13,8 @@ pub mod error;
 pub mod event;
 pub mod ids;
 pub mod model;
+/// Forma de onda de 5 bits de las notas de voz (decodificar/codificar/reescalar).
+pub mod waveform;
 
 pub use api::*;
 pub use auth::{AuthApi, AuthState, CodeKind, CodeRequest, QrToken, SignInResult};

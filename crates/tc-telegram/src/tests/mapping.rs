@@ -232,9 +232,12 @@ fn media_photos_documents_and_stickers() {
     );
     let (m, s) = media_from_tl(&doc_media(sticker, false));
     assert!(m.is_none());
+    let s = s.unwrap();
+    let file = s.file.clone().expect("los stickers de la red se pueden descargar");
+    assert_eq!((file.kind, file.id), (FileKind::Document, 900));
     assert_eq!(
         s,
-        Some(Sticker { id: StickerId(900), set_id: StickerSetId(314), emoji: "😺".into(), width: 512, height: 500, format: StickerFormat::Webp })
+        Sticker { id: StickerId(900), set_id: StickerSetId(314), emoji: "😺".into(), width: 512, height: 500, format: StickerFormat::Webp, file: Some(file) }
     );
 }
 

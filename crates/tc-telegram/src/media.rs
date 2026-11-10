@@ -168,7 +168,11 @@ impl crate::Inner {
                 tl::enums::Message::Message(m) => m.media.as_ref(),
                 _ => None,
             })
-            .filter_map(|m| crate::convert::media_from_tl(m).0.and_then(|md| md.file))
+            .filter_map(|m| {
+                // Los stickers no van en `Media`: su referencia está en `Sticker.file`.
+                let (md, st) = crate::convert::media_from_tl(m);
+                md.and_then(|md| md.file).or_else(|| st.and_then(|s| s.file))
+            })
             .find(|f| f.id == old.id && f.kind == old.kind)
             .ok_or(BackendError::NotFound)
     }
@@ -210,7 +214,8 @@ impl crate::Inner {
                 Ok(b) => return Ok(b),
                 Err(DownloadError::FileReference) if attempt == 0 => {
                     tracing::debug!(id = file.id, "referencia de archivo caducada: se refresca");
-                    file = self.refresh_file(peer, msg, &file).await?;
+                    // `MsgId(0)`: sticker de un pack, sin mensaje del que sacar la referencia.
+                    file = if msg.0 == 0 { self.refresh_sticker_file(&file).await? } else { self.refresh_file(peer, msg, &file).await? };
                 }
                 Err(DownloadError::FileReference) => return Err(BackendError::NotFound),
                 Err(DownloadError::Backend(e)) => return Err(e),

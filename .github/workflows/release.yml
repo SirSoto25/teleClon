@@ -131,6 +131,8 @@ jobs:
           rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
           rustup default "$RUST_TOOLCHAIN"
       - uses: Swatinem/rust-cache@v2
+      - name: Dependencias de audio (ALSA, ADR-0007)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libasound2-dev pkg-config
       - name: Empaquetar
         run: packaging/linux/build-linux.sh
       - uses: actions/upload-artifact@v7

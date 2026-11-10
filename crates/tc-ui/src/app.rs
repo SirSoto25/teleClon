@@ -27,6 +27,10 @@ use crate::media::{self, ImageKey, ImageRequest, Images};
 use crate::stickers::{self, Art, Nav, Picker};
 use crate::style::Brasa;
 
+mod net_stickers;
+mod reacts;
+pub use reacts::{apply_mine, reaction_error_text};
+
 pub type Backend = Arc<dyn ChatBackend>;
 pub type Auth = Arc<dyn AuthApi>;
 
@@ -158,7 +162,11 @@ pub const COMPOSER_ID: &str = "composer";
 pub const CONV_SCROLL_ID: &str = "conversation";
 pub const LIST_SCROLL_ID: &str = "chat-list";
 
-pub const REACTIONS: [&str; 6] = ["👍", "❤️", "😂", "🎉", "🙏", "🔥"];
+/// Reacciones por defecto (el conjunto gratuito de la red). Lo que se ofrece en cada chat sale de
+/// `App::reaction_choices` (ver `app/reacts.rs`).
+pub const REACTIONS: [&str; 6] = DEFAULT_REACTIONS;
+/// Cuántas reacciones caben en la barra del selector.
+pub const MAX_REACTION_CHOICES: usize = 12;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 pub enum Folder {
@@ -276,6 +284,12 @@ pub enum Msg {
     Hover(Option<MsgId>),
     ToggleReactions(MsgId),
     React(MsgId, Option<String>),
+    /// Reacciones que admite un chat (`MessagesApi::available_reactions`).
+    ReactionsLoaded(PeerRef, BackendResult<Vec<String>>),
+    /// Respuesta de la red a una reacción ya aplicada en pantalla (`prev` para deshacerla).
+    Reacted { peer: PeerRef, id: MsgId, prev: Vec<ReactionCount>, result: BackendResult<()> },
+    /// Recientes y favoritos de stickers del servidor.
+    NetStickers { recent: BackendResult<Vec<Sticker>>, faved: BackendResult<Vec<Sticker>> },
     ReplyTo(MsgId),
     StartEdit(MsgId),
     CancelCompose,
@@ -300,6 +314,8 @@ pub enum Msg {
     ImageLoaded(ImageKey, Option<media::Decoded>),
     /// Abrir el visor de la foto de un mensaje.
     OpenPhoto { peer: PeerRef, msg: MsgId },
+    /// Notas de voz y audios (ver `audio.rs`).
+    Audio(crate::audio::AudioMsg),
 }
 
 pub struct App {
@@ -346,6 +362,10 @@ pub struct App {
     pub compose: Compose,
     pub hover: Option<MsgId>,
     pub reactions_for: Option<MsgId>,
+    /// Reacciones que se ofrecen por chat (`None` = pidiéndose).
+    pub reaction_choices: HashMap<PeerRef, Option<Vec<String>>>,
+    /// Recientes y favoritos de stickers de la cuenta, y si el pack propio es solo local.
+    pub sticker_lists: stickers::NetLists,
     pub overlay: Option<Overlay>,
     pub toasts: Vec<Toast>,
     next_toast: u64,
@@ -356,6 +376,8 @@ pub struct App {
     pub images: Images,
     /// Progreso de las descargas largas (id de archivo → hechos, total).
     pub downloads: HashMap<i64, (u64, u64)>,
+    /// Reproductor de notas de voz y audios, y sus descargas.
+    pub audio: crate::audio::AudioState,
     pub dots: u8,
     demo: std::collections::VecDeque<(Duration, DemoStep)>,
     demo_start: Option<Instant>,
@@ -391,6 +413,8 @@ pub fn error_text(e: &BackendError) -> String {
         BackendError::Crypto(_) => "Fallo de cifrado en el chat secreto.".into(),
         BackendError::Storage(_) => "No se pudo guardar en el disco.".into(),
         BackendError::Internal => "Algo ha fallado. Inténtalo otra vez.".into(),
+        BackendError::PremiumRequired => "Eso necesita una cuenta de Telegram Premium.".into(),
+        BackendError::ReactionUnavailable => "Esa reacción no está disponible en este chat.".into(),
     }
 }
 
@@ -438,6 +462,8 @@ impl App {
             compose: Compose::Normal,
             hover: None,
             reactions_for: None,
+            reaction_choices: HashMap::new(),
+            sticker_lists: stickers::NetLists::default(),
             overlay: None,
             toasts: Vec::new(),
             next_toast: 0,
@@ -446,6 +472,7 @@ impl App {
             bg_cache: canvas::Cache::new(),
             images: Images::default(),
             downloads: HashMap::new(),
+            audio: crate::audio::AudioState::default(),
             dots: 0,
             demo: flags.demo.into_iter().collect(),
             demo_start: None,
@@ -495,6 +522,7 @@ impl App {
             self.call(|b| async move { b.contacts().await }, Msg::Contacts),
             self.call(|b| async move { b.secret_chats().await }, Msg::Secrets),
             self.call(|b| async move { b.installed_sticker_sets().await }, Msg::StickerSets),
+            self.load_net_stickers(),
         ])
     }
 
@@ -554,6 +582,9 @@ impl App {
         if !self.typing.is_empty() || !self.toasts.is_empty() {
             subs.push(iced::time::every(Duration::from_millis(400)).map(Msg::Tick));
         }
+        if self.audio.needs_tick() {
+            subs.push(iced::time::every(Duration::from_millis(100)).map(|_| Msg::Audio(crate::audio::AudioMsg::Tick)));
+        }
         Subscription::batch(subs)
     }
 
@@ -601,12 +632,12 @@ impl App {
     }
 
     pub fn picker_tabs(&self) -> Vec<stickers::Tab> {
-        stickers::tabs(&self.sticker_sets, &self.recents)
+        stickers::tabs_with(&self.sticker_sets, &self.recents, &self.sticker_lists)
     }
 
     pub fn picker_tab_stickers(&self) -> Vec<&Sticker> {
         match self.picker_tabs().get(self.picker.tab) {
-            Some(t) => stickers::tab_stickers(*t, &self.sticker_sets, &self.recents),
+            Some(t) => stickers::tab_stickers_with(*t, &self.sticker_sets, &self.recents, &self.sticker_lists),
             None => Vec::new(),
         }
     }
@@ -808,6 +839,11 @@ impl App {
         RandomId(nanos ^ (i64::from(self.local_seq) << 48) ^ 0x5bd1_e995)
     }
 
+    /// Backend de chat ya conectado (para módulos hermanos como `audio.rs`).
+    pub(crate) fn chat_backend(&self) -> Option<Backend> {
+        self.backend.clone()
+    }
+
     // ------------------------------------------------------------ fotos
 
     /// Avatar cargado de un chat (o `None`: se dibuja el generado).
@@ -828,7 +864,7 @@ impl App {
     pub fn media_request(peer: PeerRef, m: &Message, variant: MediaVariant) -> Option<ImageRequest> {
         let md = m.media.as_ref()?;
         let file = md.file.as_ref()?;
-        let visual = matches!(md.kind, MediaKind::Photo | MediaKind::Video | MediaKind::Gif);
+        let visual = matches!(md.kind, MediaKind::Photo | MediaKind::Video | MediaKind::Gif | MediaKind::VideoNote);
         if !visual || conv::is_local(m) || !file.has_image(variant) {
             return None;
         }
@@ -856,6 +892,8 @@ impl App {
                 }
             }
         }
+        // Stickers de la conversación y del selector antes que los avatares de la lista.
+        out.extend(self.sticker_requests());
         let list = self.visible_dialogs();
         let (first, last) = crate::view::sidebar::visible_rows(self.list_from_top, self.list_viewport, list.len());
         for d in &list[first..last] {
@@ -895,7 +933,7 @@ impl App {
 
     pub fn update(&mut self, msg: Msg) -> Task<Msg> {
         // Los mensajes de cada frame, reloj, ratón y tecleo no cambian lo que hay que cargar.
-        let pump = !matches!(msg, Msg::Frame(_) | Msg::Tick(_) | Msg::Hover(_) | Msg::Edit(_) | Msg::DemoTick(_));
+        let pump = !matches!(msg, Msg::Frame(_) | Msg::Tick(_) | Msg::Hover(_) | Msg::Edit(_) | Msg::DemoTick(_) | Msg::Audio(crate::audio::AudioMsg::Tick));
         let task = self.update_inner(msg);
         if pump { Task::batch([task, self.pump_images()]) } else { task }
     }
@@ -914,11 +952,10 @@ impl App {
             }
             Msg::RetryConnect => self.boot(),
             Msg::Login(m) => self.on_login(m),
-            Msg::StickerSets(Ok(sets)) => {
-                self.sticker_sets = sets;
-                Task::none()
-            }
-            Msg::StickerSets(Err(_)) => Task::none(),
+            Msg::StickerSets(r) => self.on_sticker_sets(r),
+            Msg::NetStickers { recent, faved } => self.on_net_stickers(recent, faved),
+            Msg::ReactionsLoaded(peer, r) => self.on_reactions_loaded(peer, r),
+            Msg::Reacted { peer, id, prev, result } => self.on_reacted(peer, id, prev, result),
             Msg::TogglePicker => {
                 if self.picker.open {
                     self.picker.close();
@@ -1155,13 +1192,12 @@ impl App {
             Msg::ToggleReactions(id) => {
                 self.reactions_for = if self.reactions_for == Some(id) { None } else { Some(id) };
                 self.hover = Some(id);
-                Task::none()
+                match self.conv.as_ref().map(|c| c.peer) {
+                    Some(peer) => self.load_reactions(peer),
+                    None => Task::none(),
+                }
             }
-            Msg::React(id, emoji) => {
-                self.reactions_for = None;
-                let Some(peer) = self.conv.as_ref().map(|c| c.peer) else { return Task::none() };
-                self.call(move |b| async move { b.send_reaction(peer, id, emoji).await }, Msg::Op)
-            }
+            Msg::React(id, emoji) => self.react(id, emoji),
             Msg::ReplyTo(id) => {
                 self.compose = Compose::Reply(id);
                 operation::focus(Id::new(COMPOSER_ID))
@@ -1304,6 +1340,7 @@ impl App {
                 self.open_overlay_anim();
                 Task::none()
             }
+            Msg::Audio(m) => self.on_audio(m),
         }
     }
 
@@ -1356,7 +1393,8 @@ impl App {
             PeerRef::Group(_) => None,
         };
         let want = self.want_user(user);
-        Task::batch([save, load, want, Self::scroll_bottom()])
+        let reactions = self.load_reactions(peer);
+        Task::batch([save, load, want, reactions, Self::scroll_bottom()])
     }
 
     fn on_history(&mut self, peer: PeerRef, older: bool, result: BackendResult<Vec<Message>>) -> Task<Msg> {
@@ -1602,7 +1640,8 @@ impl App {
         if self.write_block(peer).is_some() || matches!(self.compose, Compose::Edit(_)) {
             return Task::none();
         }
-        let Some(sticker) = stickers::find(&self.sticker_sets, id).cloned() else { return Task::none() };
+        let Some(sticker) = self.find_sticker(id).cloned() else { return Task::none() };
+        let to_send = sticker.clone();
         self.recents.record(id);
         self.picker.close();
         let reply_to = match self.compose {
@@ -1644,10 +1683,7 @@ impl App {
         if reply_to.is_some() {
             self.compose = Compose::Normal;
         }
-        let send = self.call(
-            move |b| async move { b.send_sticker(peer, id, reply_to, random_id).await },
-            move |result| Msg::Sent { peer, random_id, result },
-        );
+        let send = self.sticker_send_task(peer, to_send, reply_to, random_id);
         Task::batch([send, Self::scroll_bottom(), operation::focus(Id::new(COMPOSER_ID))])
     }
 
@@ -1657,12 +1693,9 @@ impl App {
             return Task::none();
         };
         m.state = SendState::Pending;
-        if let Some(st) = m.sticker.as_ref().map(|s| s.id) {
+        if let Some(st) = m.sticker.clone() {
             let (peer, reply_to) = (m.peer, m.reply_to);
-            return self.call(
-                move |b| async move { b.send_sticker(peer, st, reply_to, rid).await },
-                move |result| Msg::Sent { peer, random_id: rid, result },
-            );
+            return self.sticker_send_task(peer, st, reply_to, rid);
         }
         let (peer, out) = (m.peer, OutgoingText { text: m.text.clone(), entities: vec![], reply_to: m.reply_to, random_id: rid });
         self.call(

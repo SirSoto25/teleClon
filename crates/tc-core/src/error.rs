@@ -23,4 +23,11 @@ pub enum BackendError {
     Storage(String),
     #[error("error interno")]
     Internal,
+    /// La red exige una cuenta Premium para esto (p. ej. reacciones premium o etiquetas en
+    /// «Mensajes guardados»: `PREMIUM_ACCOUNT_REQUIRED`).
+    #[error("requiere cuenta Premium")]
+    PremiumRequired,
+    /// Esa reacción no existe o no está permitida en ese chat (`REACTION_INVALID`).
+    #[error("reacción no disponible")]
+    ReactionUnavailable,
 }

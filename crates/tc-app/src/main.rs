@@ -10,6 +10,7 @@
 //! `parlo/<cuenta>` del llavero y base `<datos>/accounts/<cuenta>/cache.sqlite3`),
 //! `TC_SESSION_FILE` (respaldo en claro 0600 de la sesión cuando no hay llavero, y origen de la
 //! migración única al llavero), `TC_THEME`, `TC_REDUCED_MOTION`,
+//! `TC_WINDOW_SIZE=<ancho>x<alto>` (tamaño inicial de la ventana),
 //! `TC_MOCK_LATENCY_MS`, `TC_MOCK_SCRIPT_SECS`, `TC_MOCK_LOGIN` (mock sin sesión: pantalla de
 //! login), `TC_MOCK_QR_SECS`, `TC_DEMO_SHOTS=<dir>` (guion de capturas).
 #![forbid(unsafe_code)]
@@ -213,11 +214,25 @@ fn main() -> iced::Result {
 /// Icono PROVISIONAL de la ventana (tools/packaging/make_icons.py; ADR-0006).
 const WINDOW_ICON: &[u8] = include_bytes!("../../../packaging/icons/parlo-256.png");
 
+/// Tamaño inicial de la ventana; `TC_WINDOW_SIZE=<ancho>x<alto>` lo cambia (capturas a varios tamaños).
+fn window_size() -> iced::Size {
+    std::env::var("TC_WINDOW_SIZE")
+        .ok()
+        .and_then(|v| {
+            let (w, h) = v.trim().split_once(['x', 'X'])?;
+            Some(iced::Size::new(w.trim().parse::<f32>().ok()?.max(360.0), h.trim().parse::<f32>().ok()?.max(360.0)))
+        })
+        .unwrap_or(iced::Size::new(1240.0, 800.0))
+}
+
 fn window_settings() -> iced::window::Settings {
     iced::window::Settings {
-        size: iced::Size::new(1240.0, 800.0),
+        size: window_size(),
         icon: iced::window::icon::from_file_data(WINDOW_ICON, Some(image::ImageFormat::Png)).ok(),
-        // Wayland/X11: el id coincide con packaging/linux/parlo.desktop para que el escritorio asocie icono y nombre.
+        // X11 usa `icon` (_NET_WM_ICON). Wayland no tiene icono por ventana (winit 0.30 lo ignora): el
+        // compositor busca `<application_id>.desktop`, así que este id coincide con
+        // packaging/linux/parlo.desktop (Icon=parlo). Sin ese .desktop instalado (p. ej. con `cargo run`)
+        // KDE muestra su icono genérico «W»: packaging/linux/install-user.sh lo instala en ~/.local.
         #[cfg(target_os = "linux")]
         platform_specific: iced::window::settings::PlatformSpecific { application_id: "parlo".into(), ..Default::default() },
         ..Default::default()

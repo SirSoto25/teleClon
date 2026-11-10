@@ -46,6 +46,8 @@ pub enum ImageKey {
     Thumb { peer: PeerRef, msg: MsgId, file: i64 },
     /// Foto completa para el visor.
     Full { peer: PeerRef, msg: MsgId, file: i64 },
+    /// Sticker de la red (por documento; `full` = el archivo, si no su miniatura). Ver `sticker_img.rs`.
+    Sticker { file: i64, full: bool },
 }
 
 /// Qué cargar para una clave.
@@ -53,6 +55,7 @@ pub enum ImageKey {
 pub enum ImageRequest {
     Avatar { peer: PeerRef, photo: ProfilePhoto },
     Media { peer: PeerRef, msg: MsgId, file: FileRef, variant: MediaVariant, aspect: Option<f32> },
+    Sticker { peer: PeerRef, msg: MsgId, file: FileRef, format: tc_core::StickerFormat, variant: MediaVariant },
 }
 
 impl ImageRequest {
@@ -61,6 +64,7 @@ impl ImageRequest {
             Self::Avatar { peer, photo } => ImageKey::Avatar { peer: *peer, photo: photo.id },
             Self::Media { peer, msg, file, variant: MediaVariant::Thumb, .. } => ImageKey::Thumb { peer: *peer, msg: *msg, file: file.id },
             Self::Media { peer, msg, file, variant: MediaVariant::Full, .. } => ImageKey::Full { peer: *peer, msg: *msg, file: file.id },
+            Self::Sticker { file, variant, .. } => ImageKey::Sticker { file: file.id, full: *variant == MediaVariant::Full },
         }
     }
 }
@@ -285,6 +289,11 @@ pub async fn load(backend: Backend, req: ImageRequest) -> Option<Decoded> {
                 MediaVariant::Thumb => off_thread(move || decode_cover(&bytes, aspect, BUBBLE_PX)).await.flatten(),
                 MediaVariant::Full => off_thread(move || decode_fit(&bytes, VIEWER_PX)).await.flatten(),
             }
+        }
+        ImageRequest::Sticker { peer, msg, file, format, variant } => {
+            let id = file.id;
+            let bytes = backend.download_media(peer, msg, file, variant).await.ok()?;
+            off_thread(move || crate::sticker_img::decode(&bytes, format, variant, id)).await.flatten()
         }
     }
 }

@@ -79,9 +79,79 @@ pub fn user_status(status: UserStatus, now: Timestamp, tz: &TimeZone) -> String 
     }
 }
 
-/// Plegado para búsqueda local: minúsculas y sin diacríticos del español/catalán/euskera.
+/// Letra «de estilo» Unicode → letra normal: alfanuméricos matemáticos (U+1D400–U+1D7FF:
+/// 𝒞𝓇𝒾𝓈𝓉𝒾𝓃𝒶, 𝐁𝐨𝐥𝐝, 𝕯…), los símbolos tipo letra que rellenan sus huecos (ℬ, ℯ, ℝ…) y las formas
+/// de ancho completo (Ａ, １). Es el subconjunto de NFKC que se usa para «decorar» nombres; ninguna
+/// fuente de UI lo cubre y el respaldo de fuentes los pinta con otra tipografía a saltos.
+/// `None` si el carácter no es de esos.
+fn plain_char(c: char) -> Option<char> {
+    let cp = c as u32;
+    let from = |base: u32| char::from_u32(base);
+    match cp {
+        // 13 alfabetos latinos de 52 letras (A–Z, a–z); los huecos no asignados nunca llegan.
+        0x1D400..=0x1D6A3 => {
+            let i = (cp - 0x1D400) % 52;
+            from(if i < 26 { 'A' as u32 + i } else { 'a' as u32 + i - 26 })
+        }
+        0x1D6A4 => Some('i'),
+        0x1D6A5 => Some('j'),
+        // 5 alfabetos griegos de 58: 25 mayúsculas (ϴ en el hueco 17), ∇, 25 minúsculas, ∂ y 6 variantes.
+        0x1D6A8..=0x1D7C9 => {
+            let i = (cp - 0x1D6A8) % 58;
+            match i {
+                17 => Some('ϴ'),
+                0..=24 => from(0x391 + i),
+                25 => Some('∇'),
+                26..=50 => from(0x3B1 + i - 26),
+                51 => Some('∂'),
+                _ => ['ϵ', 'ϑ', 'ϰ', 'ϕ', 'ϱ', 'ϖ'].get((i - 52) as usize).copied(),
+            }
+        }
+        0x1D7CA => Some('Ϝ'),
+        0x1D7CB => Some('ϝ'),
+        // 5 juegos de cifras.
+        0x1D7CE..=0x1D7FF => from('0' as u32 + (cp - 0x1D7CE) % 10),
+        // Ancho completo (！ … ～).
+        0xFF01..=0xFF5E => from(cp - 0xFF01 + 0x21),
+        _ => match c {
+            'ℂ' => Some('C'),
+            'ℊ' => Some('g'),
+            'ℋ' | 'ℌ' | 'ℍ' => Some('H'),
+            'ℎ' => Some('h'),
+            'ℐ' | 'ℑ' => Some('I'),
+            'ℒ' => Some('L'),
+            'ℕ' => Some('N'),
+            'ℙ' => Some('P'),
+            'ℚ' => Some('Q'),
+            'ℛ' | 'ℜ' | 'ℝ' => Some('R'),
+            'ℤ' | 'ℨ' => Some('Z'),
+            'ℬ' => Some('B'),
+            'ℭ' => Some('C'),
+            'ℯ' => Some('e'),
+            'ℰ' => Some('E'),
+            'ℱ' => Some('F'),
+            'ℳ' => Some('M'),
+            'ℴ' => Some('o'),
+            _ => None,
+        },
+    }
+}
+
+/// Nombres y vistas previas en la tipografía de la UI: cambia las letras «de estilo» por las
+/// normales (ver [`plain_char`]). Solo para nombres, vistas previas y citas; el cuerpo del mensaje
+/// se pinta tal cual.
+pub fn plain_letters(s: &str) -> std::borrow::Cow<'_, str> {
+    if s.chars().all(|c| plain_char(c).is_none()) {
+        return std::borrow::Cow::Borrowed(s);
+    }
+    std::borrow::Cow::Owned(s.chars().map(|c| plain_char(c).unwrap_or(c)).collect())
+}
+
+/// Plegado para búsqueda local: minúsculas y sin diacríticos del español/catalán/euskera (y sin
+/// letras «de estilo», para que «cris» encuentre a 𝒞𝓇𝒾𝓈𝓉𝒾𝓃𝒶).
 pub fn fold(s: &str) -> String {
     s.chars()
+        .map(|c| plain_char(c).unwrap_or(c))
         .flat_map(char::to_lowercase)
         .map(|c| match c {
             'á' | 'à' | 'â' | 'ä' => 'a',
@@ -110,6 +180,8 @@ pub fn preview(m: &Message) -> String {
         MediaKind::Gif => "GIF",
         MediaKind::Voice => "Nota de voz",
         MediaKind::File => "Archivo",
+        MediaKind::Audio => "Audio",
+        MediaKind::VideoNote => "Videomensaje",
     });
     match (m.sticker.as_ref(), media) {
         (Some(s), _) => format!("{} Sticker", s.emoji),
@@ -132,6 +204,7 @@ pub fn ellipsize(s: &str, max: usize) -> String {
 
 /// Iniciales para el avatar sin foto («Lucía Barrientos» → «LB»).
 pub fn initials(name: &str) -> String {
+    let name = plain_letters(name);
     let mut it = name.split_whitespace().filter(|w| w.chars().next().is_some_and(char::is_alphanumeric));
     let a = it.next().and_then(|w| w.chars().next());
     let b = it.next().and_then(|w| w.chars().next());
@@ -185,6 +258,16 @@ mod tests {
         assert!(matches("Joaquín", &fold("joaquin")));
         assert!(!matches("Mateo", "zz"));
         assert!(matches("lo que sea", ""));
+    }
+
+    #[test]
+    fn letras_de_estilo_a_normales() {
+        assert_eq!(plain_letters("𝒞𝓇𝒾𝓈𝓉𝒾𝓃𝒶"), "Cristina");
+        assert_eq!(plain_letters("𝐁𝐨𝐥𝐝 𝕯𝖆𝖗𝖎𝖔 ℬℯ𝓁𝓁𝒶 Ａｎａ １２"), "Bold Dario Bella Ana 12");
+        assert_eq!(plain_letters("𝛂𝛃 𝟗"), "αβ 9");
+        assert!(matches!(plain_letters("Lucía 👍 ½"), std::borrow::Cow::Borrowed("Lucía 👍 ½")));
+        assert_eq!(initials("𝒞𝓇𝒾𝓈𝓉𝒾𝓃𝒶 Iglesias"), "CI");
+        assert!(matches("𝒞𝓇𝒾𝓈𝓉𝒾𝓃𝒶", &fold("cris")));
     }
 
     #[test]

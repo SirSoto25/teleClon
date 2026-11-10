@@ -137,7 +137,7 @@ async fn history_roundtrips_media_stickers_reactions_and_entities() {
         v.into_iter()
             .map(|mut m| {
                 if let Some(md) = m.media.as_mut().filter(|md| clash.contains(&md.id)) {
-                    *md = Media { id: md.id, kind: md.kind, file_name: None, size_bytes: 0, width: 0, height: 0, duration_secs: None, local_path: None, file: None };
+                    *md = Media { id: md.id, kind: md.kind, file_name: None, size_bytes: 0, width: 0, height: 0, duration_secs: None, local_path: None, file: None, audio: None };
                 }
                 m
             })

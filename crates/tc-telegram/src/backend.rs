@@ -611,6 +611,11 @@ impl MessagesApi for GrammersBackend {
         Ok(())
     }
 
+    /// Ver `reactions.rs`.
+    async fn available_reactions(&self, peer: PeerRef) -> BackendResult<Vec<String>> {
+        self.inner.available_reactions(peer).await
+    }
+
     async fn mark_read(&self, peer: PeerRef, max_id: MsgId) -> BackendResult<()> {
         if let PeerRef::Secret(id) = peer {
             return self.inner.secret_mark_read(id, max_id).await;
@@ -648,51 +653,21 @@ impl MessagesApi for GrammersBackend {
 
 #[async_trait]
 impl StickersApi for GrammersBackend {
+    /// Ver `stickers.rs` (packs con caché por `hash`, tope `MAX_SETS`, un pack roto no tumba la lista).
     async fn installed_sticker_sets(&self) -> BackendResult<Vec<StickerSet>> {
-        let all = match self.inner.rpc(&tl::functions::messages::GetAllStickers { hash: 0 }).await? {
-            tl::enums::messages::AllStickers::Stickers(s) => s.sets,
-            tl::enums::messages::AllStickers::NotModified => vec![],
-        };
-        let mut out = Vec::new();
-        // Tope para no provocar FLOOD_WAIT con cuentas con muchos packs.
-        for s in all.into_iter().take(30) {
-            let tl::enums::StickerSet::Set(s) = s;
-            let req = tl::functions::messages::GetStickerSet {
-                stickerset: tl::types::InputStickerSetId { id: s.id, access_hash: s.access_hash }.into(),
-                hash: 0,
-            };
-            let docs = match self.inner.rpc(&req).await? {
-                tl::enums::messages::StickerSet::Set(full) => full.documents,
-                tl::enums::messages::StickerSet::NotModified => vec![],
-            };
-            let mut stickers = Vec::new();
-            {
-                let mut c = self.inner.cache();
-                for d in docs {
-                    let tl::enums::Document::Document(d) = d else { continue };
-                    if let Some(mut st) = crate::convert::sticker_from_document(&d) {
-                        st.set_id = StickerSetId(s.id);
-                        c.stickers.insert(d.id, tl::types::InputDocument { id: d.id, access_hash: d.access_hash, file_reference: d.file_reference.clone() });
-                        stickers.push(st);
-                    }
-                }
-            }
-            out.push(StickerSet { id: StickerSetId(s.id), short_name: s.short_name, title: s.title, stickers });
-        }
-        Ok(out)
+        self.inner.installed_sticker_sets().await
     }
 
     async fn send_sticker(&self, peer: PeerRef, sticker: StickerId, reply_to: Option<MsgId>, random_id: RandomId) -> BackendResult<Message> {
-        let doc = self.inner.cache().stickers.get(&sticker.0).cloned().ok_or(BackendError::NotFound)?;
-        let media = tl::types::InputMediaDocument {
-            spoiler: false,
-            id: doc.into(),
-            video_cover: None,
-            video_timestamp: None,
-            ttl_seconds: None,
-            query: None,
-        };
-        self.inner.send_media_item(peer, media.into(), String::new(), reply_to, random_id).await
+        self.inner.send_sticker(peer, sticker, reply_to, random_id).await
+    }
+
+    async fn recent_stickers(&self) -> BackendResult<Vec<Sticker>> {
+        self.inner.recent_stickers().await
+    }
+
+    async fn faved_stickers(&self) -> BackendResult<Vec<Sticker>> {
+        self.inner.faved_stickers().await
     }
 }
 

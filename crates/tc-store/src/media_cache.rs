@@ -322,6 +322,9 @@ impl<B: ChatBackend> MessagesApi for MediaCacheLayer<B> {
     async fn send_reaction(&self, peer: PeerRef, id: MsgId, emoji: Option<String>) -> BackendResult<()> {
         self.inner.send_reaction(peer, id, emoji).await
     }
+    async fn available_reactions(&self, peer: PeerRef) -> BackendResult<Vec<String>> {
+        self.inner.available_reactions(peer).await
+    }
     async fn mark_read(&self, peer: PeerRef, max_id: MsgId) -> BackendResult<()> {
         self.inner.mark_read(peer, max_id).await
     }
@@ -352,6 +355,12 @@ impl<B: ChatBackend> StickersApi for MediaCacheLayer<B> {
     }
     async fn send_sticker(&self, peer: PeerRef, sticker: StickerId, reply_to: Option<MsgId>, random_id: RandomId) -> BackendResult<Message> {
         self.inner.send_sticker(peer, sticker, reply_to, random_id).await
+    }
+    async fn recent_stickers(&self) -> BackendResult<Vec<Sticker>> {
+        self.inner.recent_stickers().await
+    }
+    async fn faved_stickers(&self) -> BackendResult<Vec<Sticker>> {
+        self.inner.faved_stickers().await
     }
 }
 

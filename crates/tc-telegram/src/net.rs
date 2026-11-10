@@ -112,6 +112,10 @@ pub fn map_error(e: &InvocationError) -> BackendError {
             401 => BackendError::Unauthorized,
             404 => BackendError::NotFound,
             500 | -500 => BackendError::Internal,
+            // Puede llegar como 403 o 400 según el método (p. ej. `messages.sendReaction`).
+            _ if r.name == "PREMIUM_ACCOUNT_REQUIRED" => BackendError::PremiumRequired,
+            _ if r.name == "REACTION_INVALID" || r.name == "REACTION_EMPTY" => BackendError::ReactionUnavailable,
+            _ if r.name.starts_with("FILE_REFERENCE_") => BackendError::InvalidInput("file_reference"),
             403 => BackendError::Forbidden(r.name.clone()),
             _ => match r.name.as_str() {
                 "PEER_ID_INVALID" | "MESSAGE_ID_INVALID" | "MSG_ID_INVALID" | "CHANNEL_INVALID" | "CHAT_ID_INVALID"
@@ -122,7 +126,6 @@ pub fn map_error(e: &InvocationError) -> BackendError {
                 "PHONE_CODE_EXPIRED" => BackendError::InvalidInput("code_expired"),
                 "PASSWORD_HASH_INVALID" => BackendError::InvalidInput("password"),
                 "RANDOM_ID_DUPLICATE" => BackendError::InvalidInput("random_id"),
-                "REACTION_INVALID" | "REACTION_EMPTY" => BackendError::InvalidInput("reaction"),
                 "FILE_PARTS_INVALID" | "FILE_PART_INVALID" | "PHOTO_INVALID_DIMENSIONS" | "MEDIA_EMPTY" => {
                     BackendError::InvalidInput("media")
                 }
@@ -242,6 +245,11 @@ mod tests {
         assert_eq!(map_error(&rpc(400, "PEER_ID_INVALID", None)), BackendError::NotFound);
         assert_eq!(map_error(&rpc(401, "AUTH_KEY_UNREGISTERED", None)), BackendError::Unauthorized);
         assert_eq!(map_error(&rpc(403, "CHAT_WRITE_FORBIDDEN", None)), BackendError::Forbidden("CHAT_WRITE_FORBIDDEN".into()));
+        // Lo que devolvió la red real al reaccionar en «Mensajes guardados» sin Premium.
+        assert_eq!(map_error(&rpc(403, "PREMIUM_ACCOUNT_REQUIRED", None)), BackendError::PremiumRequired);
+        assert_eq!(map_error(&rpc(400, "PREMIUM_ACCOUNT_REQUIRED", None)), BackendError::PremiumRequired);
+        assert_eq!(map_error(&rpc(400, "REACTION_INVALID", None)), BackendError::ReactionUnavailable);
+        assert_eq!(map_error(&rpc(400, "FILE_REFERENCE_EXPIRED", None)), BackendError::InvalidInput("file_reference"));
         assert_eq!(map_error(&InvocationError::Dropped("x")), BackendError::Network);
         assert_eq!(map_error(&InvocationError::Io(std::io::Error::other("x"))), BackendError::Network);
     }

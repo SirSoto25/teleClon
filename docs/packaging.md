@@ -17,6 +17,10 @@ Requisito común: Rust 1.99.1 (`rustup toolchain install 1.99.1`). La feature `l
 (rlottie, C++) **no** se activa en los paquetes: los stickers animados usan el respaldo estático.
 
 ### Linux
+El audio (notas de voz) sale por ALSA vía cpal: para compilar hacen falta las cabeceras
+(`libasound2-dev` + `pkg-config` en Debian/Ubuntu, `alsa-lib` en Arch, `alsa-lib-devel` en Fedora) y,
+para ejecutar, `libasound.so.2` (presente en cualquier escritorio; PipeWire/PulseAudio la atienden por
+su capa ALSA). Windows y macOS no necesitan nada (WASAPI / CoreAudio). Ver ADR-0007.
 ```sh
 cargo build --release -p tc-app          # target/release/parlo
 packaging/linux/build-linux.sh            # dist/Parlo-<v>-linux-x86_64.tar.gz

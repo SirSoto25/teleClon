@@ -11,7 +11,7 @@ use tc_theme::tokens::{layout, radius, space, text as ts};
 use crate::app::{App, Folder, LIST_SCROLL_ID, LoadState, Msg, SEARCH_ID};
 use crate::icon::{Icon, icon, icon_fill};
 use crate::style::{self, c, with_weight};
-use crate::widgets::{avatar_photo, badge, hfill, hgap, t, t1, vgap};
+use crate::widgets::{avatar_photo, badge, brand_mark, hgap, t, t1, vgap};
 
 const ROW_H: f32 = layout::CHAT_ITEM_HEIGHT_COMFORTABLE;
 
@@ -28,12 +28,7 @@ fn folder_icon(f: Folder) -> Icon {
 /// Raíl de 72 px: marca, carpetas con contador y conmutadores de tema y movimiento.
 pub fn rail(app: &App) -> Element<'_, Msg> {
     let b = app.brasa;
-    let mark = container(t1("tc", with_weight(ts::TITLE, 700), c(b.p.on_accent)))
-        .width(Length::Fixed(40.0))
-        .height(Length::Fixed(40.0))
-        .align_x(Horizontal::Center)
-        .align_y(Vertical::Center)
-        .style(style::rounded_fill(c(b.p.accent), style::avatar_radius(40.0)));
+    let mark = brand_mark(40.0, b);
 
     let mut col = column![vgap(space::S3), mark, vgap(space::S3)].align_x(Alignment::Center).width(Length::Fixed(layout::RAIL_WIDTH));
     for f in Folder::ALL {
@@ -89,8 +84,8 @@ fn with_border_right<'a>(inner: Element<'a, Msg>, app: &App) -> Element<'a, Msg>
     container(inner).padding(Padding { right: 1.0, ..Padding::ZERO }).height(Length::Fill).style(style::border_fill(app.brasa)).into()
 }
 
-/// Lista de chats con buscador.
-pub fn list(app: &App, width: Length) -> Element<'_, Msg> {
+/// Lista de chats con buscador, de `width` px (sin el borde derecho).
+pub fn list(app: &App, width: f32) -> Element<'_, Msg> {
     let b = app.brasa;
     let mut field = row![icon(Icon::Search, layout::ICON_SM, c(b.p.text_placeholder))]
         .spacing(space::S2)
@@ -129,9 +124,9 @@ pub fn list(app: &App, width: Length) -> Element<'_, Msg> {
         )
         .padding(space::S4)
         .into(),
-        LoadState::Ready => rows(app),
+        LoadState::Ready => rows(app, width),
     };
-    let col = column![header, body].width(width).height(Length::Fill);
+    let col = column![header, body].width(Length::Fixed(width)).height(Length::Fill);
     with_border_right(container(col).style(style::surface(b)).height(Length::Fill).into(), app)
 }
 
@@ -163,7 +158,7 @@ pub fn visible_rows(from_top: f32, viewport: f32, len: usize) -> (usize, usize) 
     (first, (first + count).min(len))
 }
 
-fn rows(app: &App) -> Element<'_, Msg> {
+fn rows(app: &App, list_w: f32) -> Element<'_, Msg> {
     let b = app.brasa;
     let list = app.visible_dialogs();
     if list.is_empty() {
@@ -177,7 +172,7 @@ fn rows(app: &App) -> Element<'_, Msg> {
     let (first, last) = visible_rows(app.list_from_top, app.list_viewport, list.len());
     let mut col = column![Space::new().height(Length::Fixed(first as f32 * ROW_H))];
     for d in &list[first..last] {
-        col = col.push(chat_row(app, d));
+        col = col.push(chat_row(app, d, list_w));
     }
     col = col.push(Space::new().height(Length::Fixed((list.len() - last) as f32 * ROW_H)));
     scrollable(col)
@@ -189,11 +184,23 @@ fn rows(app: &App) -> Element<'_, Msg> {
         .into()
 }
 
-/// Caracteres que caben en la vista previa (la lista no tiene elipsis nativa en iced 0.14).
-const PREVIEW_CHARS: usize = 34;
-const NAME_CHARS: usize = 26;
+/// Columna derecha de la fila (hora arriba; badges o chincheta abajo): ancho fijo para que nombre y
+/// vista previa terminen en la misma x en todas las filas. Medido con Atkinson: «07/10/25» 50 px,
+/// «@» + «99+» 57 px.
+const RIGHT_W: f32 = 60.0;
+/// Alto de cada una de las dos líneas de la fila (= interlínea de `ui-strong` y alto del badge):
+/// fijo para que la línea de base no baile según haya badge o no.
+const LINE_H: f32 = 20.0;
 
-fn chat_row<'a>(app: &'a App, d: &'a Dialog) -> Element<'a, Msg> {
+/// Ancho de la columna de textos de una fila para una lista de `list_w` px.
+pub fn row_text_width(list_w: f32) -> f32 {
+    // barra 3 · relleno 12 · avatar 44 · 12 · [textos] · 8 · derecha · relleno 12
+    (list_w - 3.0 - 2.0 * space::S3 - layout::AVATAR_LG - space::S3 - space::S2 - RIGHT_W).max(40.0)
+}
+
+fn chat_row<'a>(app: &'a App, d: &'a Dialog, list_w: f32) -> Element<'a, Msg> {
+    use crate::format::{plain_letters, preview};
+    use crate::measure::{ellipsize_to, text_width};
     let b = app.brasa;
     let selected = app.conv.as_ref().is_some_and(|cv| cv.peer == d.peer);
     let row_bg = c(if selected { b.p.surface_selected } else { b.p.surface });
@@ -202,23 +209,47 @@ fn chat_row<'a>(app: &'a App, d: &'a Dialog) -> Element<'a, Msg> {
         _ => false,
     };
     let av = avatar_photo(&d.title, App::peer_seed(d.peer), layout::AVATAR_LG, online.then_some(row_bg), app.avatar_handle(d.peer, d.photo), b);
+    let text_w = row_text_width(list_w);
+    let gap = space::S1;
 
-    // Línea 1: [escudo] nombre · hora
+    // Línea 1: [escudo|megáfono] nombre [silenciado]
     let unread = d.unread_count > 0;
     let name_style = if unread { with_weight(ts::UI_STRONG, 700) } else { ts::UI_STRONG };
-    let mut line1 = row![].spacing(space::S1).align_y(Alignment::Center);
+    let mut line1 = row![].spacing(gap).align_y(Alignment::Center);
+    let mut name_w = text_w;
     if matches!(d.peer, PeerRef::Secret(_)) {
         line1 = line1.push(icon(Icon::Shield, layout::ICON_SM, c(b.p.success)));
+        name_w -= layout::ICON_SM + gap;
     }
     if app.group_kind(d.peer) == Some(GroupKind::Channel) {
         line1 = line1.push(icon(Icon::Megaphone, layout::ICON_SM, c(b.p.text_muted)));
+        name_w -= layout::ICON_SM + gap;
     }
-    line1 = line1.push(t1(crate::format::ellipsize(&d.title, NAME_CHARS), name_style, c(b.p.text)));
+    if d.muted {
+        name_w -= 14.0 + gap;
+    }
+    line1 = line1.push(t1(ellipsize_to(&plain_letters(&d.title), name_style, name_w), name_style, c(b.p.text)));
     if d.muted {
         line1 = line1.push(icon(Icon::Muted, 14.0, c(b.p.text_muted)));
     }
-    line1 = line1.push(hfill());
-    if let Some(m) = &d.last_message {
+
+    // Línea 2: vista previa (o «escribiendo…», o borrador)
+    let typing = app.typing.contains_key(&d.peer);
+    let mut line2 = row![].spacing(gap).align_y(Alignment::Center);
+    let prefixed = |line2: iced::widget::Row<'a, Msg>, prefix: String, color: iced::Color, rest: &str| {
+        let pw = text_width(&prefix, ts::META);
+        let rest = ellipsize_to(&plain_letters(rest), ts::META, (text_w - pw - gap).max(0.0));
+        line2.push(t1(prefix, ts::META, color)).push(t1(rest, ts::META, c(b.p.text_muted)))
+    };
+    if typing {
+        let dots = if app.anim.pref.is_reduced() { "…".to_string() } else { ".".repeat(app.dots as usize + 1) };
+        line2 = line2.push(t1(format!("escribiendo{dots}"), ts::META, c(b.p.accent_text)));
+    } else if let Some(dr) = &d.draft {
+        line2 = prefixed(line2, "Borrador:".into(), c(b.p.danger), dr.text.lines().next().unwrap_or_default());
+    } else if let Some(m) = &d.last_message {
+        // Estado del último mensaje propio delante de la vista previa (no en la columna derecha,
+        // que así solo guarda la hora y se mantiene estrecha).
+        let mut avail = text_w;
         if m.outgoing {
             let read = m.id <= d.read_outbox_max_id;
             let (ic, col) = match m.state {
@@ -227,51 +258,44 @@ fn chat_row<'a>(app: &'a App, d: &'a Dialog) -> Element<'a, Msg> {
                 SendState::Sent if read => (Icon::Checks, b.p.accent_text),
                 SendState::Sent => (Icon::Check, b.p.text_muted),
             };
-            line1 = line1.push(icon(ic, layout::ICON_SM, c(col)));
+            line2 = line2.push(icon(ic, layout::ICON_SM, c(col)));
+            avail -= layout::ICON_SM + gap;
         }
-        line1 = line1.push(t1(crate::format::list_time(m.date, crate::app::now(), &app.tz), ts::CAPTION, c(b.p.text_muted)));
+        let who = match m.sender {
+            Some(s) if !m.outgoing && app.is_group_chat(d.peer) => app.users.get(&s).map(|u| plain_letters(&u.first_name).into_owned()).unwrap_or_default(),
+            _ => String::new(),
+        };
+        if who.is_empty() {
+            line2 = line2.push(t1(ellipsize_to(&plain_letters(&preview(m)), ts::META, avail), ts::META, c(b.p.text_muted)));
+        } else {
+            line2 = prefixed(line2, format!("{who}:"), c(b.p.text), &preview(m));
+        }
+    } else if matches!(d.peer, PeerRef::Secret(_)) {
+        line2 = line2.push(t1(ellipsize_to("Chat secreto listo. Los mensajes no salen de este dispositivo.", ts::META, text_w), ts::META, c(b.p.text_muted)));
     }
 
-    // Línea 2: vista previa · badge / chincheta
-    let typing = app.typing.contains_key(&d.peer);
-    let mut line2 = row![].spacing(space::S1).align_y(Alignment::Center);
-    if typing {
-        let dots = if app.anim.pref.is_reduced() { "…".to_string() } else { ".".repeat(app.dots as usize + 1) };
-        line2 = line2.push(t1(format!("escribiendo{dots}"), ts::META, c(b.p.accent_text)));
-    } else if let Some(dr) = &d.draft {
-        line2 = line2
-            .push(t1("Borrador:", ts::META, c(b.p.danger)))
-            .push(t1(crate::format::ellipsize(&dr.text, PREVIEW_CHARS - 10), ts::META, c(b.p.text_muted)));
-    } else if let Some(m) = &d.last_message {
-        let mut budget = PREVIEW_CHARS;
-        if !m.outgoing
-            && app.is_group_chat(d.peer)
-            && let Some(s) = m.sender
-        {
-            {
-                let who = app.users.get(&s).map_or_else(String::new, |u| u.first_name.clone());
-                if !who.is_empty() {
-                    budget = budget.saturating_sub(who.chars().count() + 2);
-                    line2 = line2.push(t1(format!("{who}:"), ts::META, c(b.p.text)));
-                }
-            }
-        }
-        line2 = line2.push(t1(crate::format::ellipsize(&crate::format::preview(m), budget), ts::META, c(b.p.text_muted)));
-    } else if matches!(d.peer, PeerRef::Secret(_)) {
-        line2 = line2.push(t1("Chat secreto listo. Los mensajes no salen de este dispositivo.", ts::META, c(b.p.text_muted)));
+    // Columna derecha: hora · [@] badge | chincheta, alineados a la derecha.
+    let mut top = row![].spacing(gap).align_y(Alignment::Center);
+    if let Some(m) = &d.last_message {
+        top = top.push(t1(crate::format::list_time(m.date, crate::app::now(), &app.tz), ts::CAPTION, c(b.p.text_muted)));
     }
-    line2 = line2.push(hfill());
+    let mut bottom = row![].spacing(gap).align_y(Alignment::Center);
     if d.unread_mentions > 0 {
-        line2 = line2.push(badge_at(b));
+        bottom = bottom.push(badge_at(b));
     }
     if unread {
-        line2 = line2.push(badge(d.unread_count, d.muted, b));
+        bottom = bottom.push(badge(d.unread_count, d.muted, b));
     } else if d.pinned_order.is_some() {
-        line2 = line2.push(icon(Icon::Pin, layout::ICON_SM, c(b.p.text_muted)));
+        bottom = bottom.push(icon(Icon::Pin, layout::ICON_SM, c(b.p.text_muted)));
     }
+    let cell = |r: iced::widget::Row<'a, Msg>| container(r).width(Length::Fill).height(Length::Fixed(LINE_H)).align_x(Horizontal::Right).align_y(Vertical::Center);
+    let right = column![cell(top), cell(bottom)].spacing(space::S0_5).width(Length::Fixed(RIGHT_W));
 
-    let texts = column![line1, line2].spacing(space::S0_5).width(Length::Fill).clip(true);
-    let content = row![av, texts].spacing(space::S3).align_y(Alignment::Center).padding(Padding::from([space::S2, space::S3]));
+    let line = |r: iced::widget::Row<'a, Msg>| container(r).width(Length::Fill).height(Length::Fixed(LINE_H)).align_y(Vertical::Center).clip(true);
+    let texts = column![line(line1), line(line2)].spacing(space::S0_5).width(Length::Fill);
+    let content = row![av, hgap(space::S3), texts, hgap(space::S2), right]
+        .align_y(Alignment::Center)
+        .padding(Padding::from([space::S2, space::S3]));
     let bar = container(Space::new().width(Length::Fixed(3.0)).height(Length::Fill))
         .style(style::fill(if selected { c(b.p.accent) } else { style::TRANSPARENT }));
     let inner = row![bar, content].height(Length::Fixed(ROW_H));

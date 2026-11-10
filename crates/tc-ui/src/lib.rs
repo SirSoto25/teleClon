@@ -11,12 +11,14 @@
 
 pub mod anim;
 pub mod app;
+pub mod audio;
 pub mod conv;
 pub mod format;
 pub mod icon;
 pub mod login;
 pub mod measure;
 pub mod media;
+pub mod sticker_img;
 pub mod stickers;
 pub mod style;
 pub mod view;
@@ -31,3 +33,7 @@ mod tests;
 mod tests_m2;
 #[cfg(test)]
 mod tests_media;
+#[cfg(test)]
+mod tests_audio;
+#[cfg(test)]
+mod tests_reactions;

@@ -36,7 +36,8 @@ const PEOPLE: &[(&str, &str, &str)] = &[
     ("Tadeo", "Lorenzana", "tadeo_l"),
     ("Sofía", "Arrieta", "sofia_a"),
     ("Casimiro", "Bueno", "casi_bueno"),
-    ("Marisol", "Iglesias", "marisol_i"),
+    // Nombre con letras «de estilo» Unicode, como los que llegan de la red real (prueba del respaldo de fuentes).
+    ("𝒞𝓇𝒾𝓈𝓉𝒾𝓃𝒶", "Iglesias", "cris_iglesias"),
     ("Octavio", "Pereda", "octavio_p"),
     ("Yaiza", "Cabrera", "yaiza_c"),
     ("Bruno", "Salcedo", "bruno_s"),
@@ -342,6 +343,7 @@ fn gen_history(
                 duration_secs: None,
                 local_path: None,
                 file: Some(crate::images::file_ref(MediaKind::Photo, id, size_bytes)),
+                audio: None,
             });
             if rng.chance(50) {
                 m.text = rng.pick(PHRASES).to_string();
@@ -362,7 +364,20 @@ fn gen_history(
                 duration_secs: None,
                 local_path: None,
                 file: Some(crate::images::file_ref(MediaKind::File, id, size_bytes)),
+                audio: None,
             });
+            // La mitad son notas de voz (sin tiradas extra: el resto de datos no cambia).
+            if i % 2 == 0
+                && let Some(md) = m.media.as_mut()
+            {
+                let secs = 3 + (size_bytes % 40) as u32;
+                md.kind = MediaKind::Voice;
+                md.file_name = None;
+                md.duration_secs = Some(secs);
+                md.size_bytes = crate::audio::wav_len(secs);
+                md.file = Some(crate::images::file_ref(MediaKind::Voice, id, md.size_bytes));
+                md.audio = Some(AudioInfo { voice: true, waveform: crate::audio::waveform(id), mime: Some("audio/wav".into()), ..Default::default() });
+            }
         } else {
             m.text = rng.pick(PHRASES).to_string();
             if m.text.contains("enlace") {

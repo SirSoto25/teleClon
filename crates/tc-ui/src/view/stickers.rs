@@ -15,7 +15,8 @@ use crate::style::{self, c};
 use crate::widgets::{hfill, icon_button, t, t1};
 
 /// Sticker de `size` px. Los animados se mueven con el reloj de la app salvo con movimiento
-/// reducido (primer fotograma). Sin dibujo propio, el emoji hace de respaldo.
+/// reducido (primer fotograma). Los de la red se dibujan con su imagen descargada (ver
+/// `sticker_img.rs`); sin dibujo ni imagen, el emoji hace de respaldo.
 pub fn art<'a>(app: &'a App, s: &'a Sticker, size: f32, seed: usize, fallback: Color) -> Element<'a, Msg> {
     match (app.art.handle(s), stickers::art_index(s)) {
         (Some(h), Some(idx)) => {
@@ -27,10 +28,13 @@ pub fn art<'a>(app: &'a App, s: &'a Sticker, size: f32, seed: usize, fallback: C
                 .rotation(Rotation::Floating(Radians(rot)))
                 .into()
         }
-        _ => {
-            let fs = (size * 0.66).round();
-            container(t1(s.emoji.as_str(), TextStyle { size: fs, line: (fs * 1.15).round(), ..ts::EMOJI_ONLY }, fallback)).center(Length::Fixed(size)).into()
-        }
+        _ => match app.sticker_image(s, size) {
+            Some(h) => image(h).width(Length::Fixed(size)).height(Length::Fixed(size)).content_fit(iced::ContentFit::Contain).into(),
+            None => {
+                let fs = (size * 0.66).round();
+                container(t1(s.emoji.as_str(), TextStyle { size: fs, line: (fs * 1.15).round(), ..ts::EMOJI_ONLY }, fallback)).center(Length::Fixed(size)).into()
+            }
+        },
     }
 }
 
@@ -43,6 +47,7 @@ pub fn picker(app: &App) -> Element<'_, Msg> {
         let active = i == app.picker.tab;
         let content: Element<'_, Msg> = match tab {
             Tab::Recent => icon(Icon::Timer, 24.0, c(if active { b.p.accent_text } else { b.p.text_muted })),
+            Tab::Faved => t1("★", TextStyle { size: 20.0, line: 24.0, ..ts::UI }, c(if active { b.p.accent_text } else { b.p.text_muted })).into(),
             Tab::Set(k) => match app.sticker_sets.get(*k).and_then(|s| s.stickers.first()) {
                 // Los packs animados llevan una marca de «reproducir» (no solo el movimiento).
                 Some(first) if stickers::is_animated(first) => stack![
@@ -64,6 +69,7 @@ pub fn picker(app: &App) -> Element<'_, Msg> {
     }
     let tab_title = match tabs.get(app.picker.tab) {
         Some(Tab::Recent) => "Recientes".to_string(),
+        Some(Tab::Faved) => "Favoritos".to_string(),
         Some(Tab::Set(k)) => app.sticker_sets.get(*k).map(|s| s.title.clone()).unwrap_or_default(),
         None => String::new(),
     };

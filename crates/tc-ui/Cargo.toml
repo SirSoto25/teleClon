@@ -11,6 +11,8 @@ publish.workspace = true
 tc-core.workspace = true
 tc-theme.workspace = true
 tc-stickers.workspace = true
+# Notas de voz y audios: decodificado y reproductor en su propio hilo (ADR-0007).
+tc-audio.workspace = true
 # `canvas`: fondo de curvas de nivel y celdas de la huella de clave (aditivo sobre las features del workspace).
 iced = { workspace = true, features = ["canvas"] }
 futures.workspace = true
@@ -23,3 +25,11 @@ tracing.workspace = true
 [dev-dependencies]
 tc-mock.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
+
+[features]
+default = []
+# TGS con rlottie (pasa a `tc-stickers/lottie`). Desactivada por defecto: rlottie-sys compila el C++
+# de rlottie (cmake, clang, g++), probado solo en Linux y no en el CI de Windows/macOS. Sin ella, los
+# TGS se dibujan con su miniatura WebP estática; con ella, su primer fotograma (animación pendiente).
+# Uso: `cargo build -p tc-app --features tc-ui/lottie`.
+lottie = ["tc-stickers/lottie"]

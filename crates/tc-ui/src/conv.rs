@@ -30,11 +30,15 @@ pub const REPLY_MIN_W: f32 = 220.0;
 pub const MEDIA_GAP: f32 = space::S1_5;
 pub const MEDIA_MAX_W: f32 = 320.0;
 pub const META_H: f32 = 16.0;
+/// Elevación de la hora en línea para alinear su línea de base con la del texto del mensaje.
+pub const META_BASELINE: f32 = 2.0;
 pub const META_GAP: f32 = space::S0_5;
 pub const META_PILL_H: f32 = 20.0;
 pub const REACT_GAP: f32 = space::S1;
 pub const REACT_H: f32 = 28.0;
-pub const STICKER: f32 = 128.0;
+/// Caja del sticker en la burbuja (los de la red miden 512 px; se dibujan a ~200 px como en los
+/// clientes oficiales, conservando su proporción).
+pub const STICKER: f32 = 200.0;
 pub const DATE_H: f32 = 40.0;
 pub const MARK_H: f32 = 32.0;
 pub const EDGE_H: f32 = 48.0;
@@ -204,6 +208,10 @@ pub fn layout_message(m: &Message, input: &LayoutInput<'_>, meas: &impl Measurer
         content_w = content_w.max(REPLY_MIN_W.min(inner_max));
     }
     let media = m.media.as_ref().map(|md| {
+        // Notas de voz, audios y vídeos redondos tienen su propio tamaño.
+        if let Some(sz) = crate::audio::layout_size(md, inner_max) {
+            return sz;
+        }
         let w = MEDIA_MAX_W.min(inner_max);
         let ratio = if md.width > 0 { md.height as f32 / md.width as f32 } else { 0.75 };
         Size::new(w, (w * ratio).clamp(120.0, 360.0).round())

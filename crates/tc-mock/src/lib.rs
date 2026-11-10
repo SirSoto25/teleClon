@@ -6,6 +6,7 @@
 //! cifrado real de `tc-secret` (la huella visual es ilustrativa, no deriva de una clave).
 #![forbid(unsafe_code)]
 
+mod audio;
 mod data;
 mod images;
 mod rng;
@@ -633,6 +634,7 @@ impl MediaApi for MockBackend {
                     duration_secs: None,
                     local_path: Some(item.path.clone()),
                     file: None,
+                    audio: (item.kind == MediaKind::Voice).then(|| AudioInfo { voice: true, ..Default::default() }),
                 });
                 if let Some(md) = m.media.as_mut() {
                     md.file = Some(images::file_ref(md.kind, md.id, md.size_bytes));
@@ -667,12 +669,17 @@ impl MediaApi for MockBackend {
     /// documentos devuelven bytes de relleno en `Full` y no tienen vista previa.
     async fn download_media(&self, peer: PeerRef, msg: MsgId, file: FileRef, variant: MediaVariant) -> BackendResult<Vec<u8>> {
         self.inner.gate().await?;
-        let (w, h) = {
+        let (w, h, voice) = {
             let st = self.inner.lock();
             let m = st.messages.get(&peer).and_then(|l| l.iter().find(|m| m.id == msg)).ok_or(BackendError::NotFound)?;
             let md = m.media.as_ref().filter(|md| md.file.as_ref().is_some_and(|f| f.id == file.id)).ok_or(BackendError::NotFound)?;
-            (md.width, md.height)
+            let voice = (md.kind == MediaKind::Voice && md.local_path.is_none()).then(|| md.duration_secs.unwrap_or(5));
+            (md.width, md.height, voice)
         };
+        // Notas de voz generadas: un WAV de su duración (las enviadas desde disco no tienen bytes).
+        if let (Some(secs), MediaVariant::Full) = (voice, variant) {
+            return Ok(off_thread(move || audio::voice_wav(file.id, secs)).await);
+        }
         match (file.kind, variant) {
             (FileKind::Photo, v) => {
                 let (w, h) = images::variant_dims(w, h, v);

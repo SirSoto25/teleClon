@@ -27,8 +27,10 @@ mod ids;
 mod media;
 mod net;
 mod peers;
+mod reactions;
 mod secret;
 pub mod session;
+mod stickers;
 
 #[cfg(test)]
 mod tests;
@@ -102,6 +104,10 @@ pub(crate) struct Inner {
     pub(crate) downloads: tokio::sync::Semaphore,
     /// Generación de la autorización copiada a cada DC ajeno (ver `media.rs`).
     pub(crate) dc_auth: tokio::sync::Mutex<std::collections::HashMap<i32, u64>>,
+    /// Packs, recientes y favoritos de stickers ya bajados (ver `stickers.rs`).
+    pub(crate) stickers: Mutex<stickers::StickerCatalog>,
+    /// Catálogo de reacciones y lo que admite cada chat (ver `reactions.rs`).
+    pub(crate) reactions: Mutex<reactions::ReactionCatalog>,
 }
 
 impl Inner {
@@ -262,6 +268,8 @@ impl GrammersBackend {
             secret: secret::SecretRuntime::new(Arc::new(MemorySecretStateStore::default())),
             downloads: tokio::sync::Semaphore::new(media::MAX_DOWNLOADS),
             dc_auth: tokio::sync::Mutex::new(std::collections::HashMap::new()),
+            stickers: Mutex::new(stickers::StickerCatalog::default()),
+            reactions: Mutex::new(reactions::ReactionCatalog::default()),
         });
         let tasks = vec![
             tokio::spawn(startup(Arc::clone(&inner))),

@@ -13,6 +13,7 @@
 //! descargados (`MediaCache`, LRU en disco con índice SQLite; `MediaCacheLayer` la añade a cualquier backend).
 #![forbid(unsafe_code)]
 
+mod audio;
 mod cached;
 mod convert;
 mod db;
@@ -77,7 +78,7 @@ mod tests {
     fn migrates_from_scratch_in_memory() {
         let s = Store::open_in_memory().unwrap();
         assert_eq!(s.schema_version().unwrap(), SCHEMA_VERSION);
-        assert_eq!(SCHEMA_VERSION, 4);
+        assert_eq!(SCHEMA_VERSION, 5);
         let n: i64 = s.conn.query_row("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('dialogs','messages','messages_fts','secret_messages','sticker_sets','meta','secret_chat_states','peer_photos','media_refs','file_cache')", [], |r| r.get(0)).unwrap();
         assert_eq!(n, 10);
         let fk: i64 = s.conn.pragma_query_value(None, "foreign_keys", |r| r.get(0)).unwrap();

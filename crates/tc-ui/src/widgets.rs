@@ -83,20 +83,39 @@ pub fn avatar_photo<'a>(name: &str, seed: i64, size: f32, online_ring: Option<Co
                     ..Default::default()
                 }
             });
-            let side = size + 2.0;
+            // El punto va dentro del cuadrado (en la esquina redondeada, que queda libre): el
+            // avatar mide lo mismo con y sin él y los textos de la fila no se desplazan.
             stack![
                 square,
                 container(dot)
-                    .width(Length::Fixed(side))
-                    .height(Length::Fixed(side))
+                    .width(Length::Fixed(size))
+                    .height(Length::Fixed(size))
                     .align_x(Horizontal::Right)
                     .align_y(Vertical::Bottom)
             ]
-            .width(Length::Fixed(side))
-            .height(Length::Fixed(side))
+            .width(Length::Fixed(size))
+            .height(Length::Fixed(size))
             .into()
         }
     }
+}
+
+/// Marca PROVISIONAL de Parlo (§8.1): monograma «P» geométrico (assets/brand/parlo-monogram.svg,
+/// trazo uniforme de 1/10 del lado) en `on-accent` sobre el cuadrado redondeado `accent` de los
+/// avatares (radio 0.32 × lado). Se sustituye cuando exista el logo del brief (docs/brand §5).
+pub fn brand_mark<'a>(size: f32, b: Brasa) -> Element<'a, Msg> {
+    static MONOGRAM: std::sync::LazyLock<iced::widget::svg::Handle> =
+        std::sync::LazyLock::new(|| iced::widget::svg::Handle::from_memory(include_bytes!("../../../assets/brand/parlo-monogram.svg")));
+    let ink = style::c(b.p.on_accent);
+    let glyph = iced::widget::svg(MONOGRAM.clone())
+        .width(Length::Fixed(size))
+        .height(Length::Fixed(size))
+        .style(move |_, _| iced::widget::svg::Style { color: Some(ink) });
+    container(glyph)
+        .width(Length::Fixed(size))
+        .height(Length::Fixed(size))
+        .style(style::rounded_fill(style::c(b.p.accent), avatar_radius(size)))
+        .into()
 }
 
 /// Badge de no leídos (pill, mín. 20 px, «99+» por encima de 99).

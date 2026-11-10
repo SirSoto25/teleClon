@@ -60,6 +60,8 @@ icons! {
     Image => "image",
     File => "file",
     Sticker => "sticker",
+    Download => "download-simple",
+    Mic => "microphone",
 }
 
 /// Handles creados una vez (el id del handle es un hash de los bytes; evitamos rehacerlo cada frame).

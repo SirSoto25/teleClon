@@ -197,13 +197,14 @@ pub fn sticker_from_document(d: &tl::types::Document) -> Option<Sticker> {
         "video/webm" => StickerFormat::Webm,
         _ => StickerFormat::Webp,
     };
-    Some(Sticker { id: StickerId(d.id), set_id: StickerSetId(set_id), emoji, width: w, height: h, format })
+    Some(Sticker { id: StickerId(d.id), set_id: StickerSetId(set_id), emoji, width: w, height: h, format, file: Some(document_file_ref(d)) })
 }
 
 pub fn media_from_document(d: &tl::types::Document, voice_flag: bool, video_flag: bool) -> Media {
     let mut kind = MediaKind::File;
     let (mut w, mut h, mut dur) = (0u32, 0u32, None);
     let mut file_name = None;
+    let mut audio: Option<AudioInfo> = None;
     for a in &d.attributes {
         match a {
             tl::enums::DocumentAttribute::Filename(f) => file_name = Some(f.file_name.clone()),
@@ -211,15 +212,29 @@ pub fn media_from_document(d: &tl::types::Document, voice_flag: bool, video_flag
             tl::enums::DocumentAttribute::Video(v) => {
                 (w, h) = (v.w.max(0) as u32, v.h.max(0) as u32);
                 dur = Some(v.duration.max(0.0).round() as u32);
-                if kind == MediaKind::File {
+                if v.round_message {
+                    kind = MediaKind::VideoNote;
+                } else if kind == MediaKind::File {
                     kind = MediaKind::Video;
                 }
             }
             tl::enums::DocumentAttribute::Audio(a) => {
-                dur = Some(a.duration.max(0) as u32);
+                // Un vídeo con pista de audio también lo trae: el vídeo manda.
+                if dur.is_none() {
+                    dur = Some(a.duration.max(0) as u32);
+                }
                 if a.voice {
                     kind = MediaKind::Voice;
+                } else if kind == MediaKind::File {
+                    kind = MediaKind::Audio;
                 }
+                audio = Some(AudioInfo {
+                    voice: a.voice,
+                    title: a.title.clone().filter(|t| !t.trim().is_empty()),
+                    performer: a.performer.clone().filter(|t| !t.trim().is_empty()),
+                    waveform: a.waveform.as_deref().map(tc_core::waveform::decode).unwrap_or_default(),
+                    mime: None,
+                });
             }
             tl::enums::DocumentAttribute::Animated => kind = MediaKind::Gif,
             _ => {}
@@ -229,6 +244,20 @@ pub fn media_from_document(d: &tl::types::Document, voice_flag: bool, video_flag
         kind = MediaKind::Voice;
     } else if video_flag && kind == MediaKind::File {
         kind = MediaKind::Video;
+    }
+    // Audio sin atributo (p. ej. un .mp3 enviado como documento con su MIME): se reproduce igual.
+    if kind == MediaKind::File && audio.is_none() && d.mime_type.starts_with("audio/") {
+        kind = MediaKind::Audio;
+        audio = Some(AudioInfo::default());
+    }
+    if kind == MediaKind::Voice {
+        audio.get_or_insert_with(AudioInfo::default).voice = true;
+    }
+    if !matches!(kind, MediaKind::Voice | MediaKind::Audio) {
+        audio = None;
+    }
+    if let Some(a) = audio.as_mut() {
+        a.mime = Some(d.mime_type.clone()).filter(|m| !m.is_empty());
     }
     Media {
         id: d.id,
@@ -240,6 +269,7 @@ pub fn media_from_document(d: &tl::types::Document, voice_flag: bool, video_flag
         duration_secs: dur,
         local_path: None,
         file: Some(document_file_ref(d)),
+        audio,
     }
 }
 
@@ -260,6 +290,7 @@ pub fn media_from_tl(m: &tl::enums::MessageMedia) -> (Option<Media>, Option<Stic
                         duration_secs: None,
                         local_path: None,
                         file: Some(photo_file_ref(ph)),
+                        audio: None,
                     }),
                     None,
                 )

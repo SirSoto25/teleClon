@@ -282,6 +282,7 @@ pub fn sample_set() -> StickerSet {
                 width: NATIVE_SIZE,
                 height: NATIVE_SIZE,
                 format: StickerFormat::Webp,
+                file: None,
             })
             .collect(),
     }

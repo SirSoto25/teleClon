@@ -4,7 +4,7 @@
 > lo lee antes y lo actualiza en el mismo cambio. Si una pantalla contradice este documento, gana el documento
 > o se abre un ADR nuevo. Tokens máquina-legibles: [tokens.json](tokens.json). Decisión: [ADR 0002](../adr/0002-direccion-visual.md).
 
-Versión 1.0.0 · 2026-11-06 · skills aplicadas: `replica-skill:replica-design` (roles, escala, componentes, contraste),
+Versión 1.0.2 · 2026-11-09 · skills aplicadas: `replica-skill:replica-design` (roles, escala, componentes, contraste),
 `anthropic-skills:theme-factory` (tema con nombre propio y pareja tipográfica), ideas de Hallmark, Interface Design,
 Emil Kowalski y Bencium (ver [research/design-skills.md](../research/design-skills.md)).
 
@@ -166,6 +166,12 @@ render sea idéntico en cualquier distro; se usan instancias estáticas (Regular
 | `emoji-only` | 40 / 46 | — | Mensaje compuesto solo de 1–3 emojis |
 | `code` | 13 / 20 | 400 (mono) | Código |
 
+**Letras «de estilo» Unicode** (alfanuméricos matemáticos U+1D400–U+1D7FF como «𝒞𝓇𝒾𝓈𝓉𝒾𝓃𝒶», los símbolos tipo
+letra que rellenan sus huecos —ℬ, ℯ, ℝ…— y el ancho completo Ａ１): ninguna fuente de UI las cubre y el respaldo
+las pinta con otra familia a saltos. En **nombres, vistas previas, citas de respuesta e iniciales** se pliegan a la
+letra normal (`format::plain_letters`, subconjunto de NFKC; «Cristina» en Atkinson). El **cuerpo del mensaje** se
+pinta tal cual (es contenido del usuario). La búsqueda local pliega igual («cris» encuentra a 𝒞𝓇𝒾𝓈𝓉𝒾𝓃𝒶).
+
 Escala de usuario persistida: 0.875 – 1.25 en pasos de 0.125 (por defecto 1.0). Longitud de línea de mensaje ≤ 72 caracteres
 gracias a `bubble_max_width` 560.
 
@@ -239,7 +245,14 @@ frames de ventana solo mientras haya animaciones activas (CPU en reposo = 0).
 ## 7. Disposición
 
 - Tres zonas: **raíl de carpetas** 72 px · **lista de chats** 340 px (redimensionable 280–440, persistido) · **conversación**
-  fluida (columna de mensajes centrada, máx. 820 px) · **panel de info** opcional 360 px.
+  fluida · **panel de info** opcional 360 px.
+- **Columna de conversación** (`in_column`): ancho = ancho del panel − 2 × 16, con máximo `chat_column_max` 820, centrada.
+  La comparten **todos** los elementos de la conversación: contenido de la cabecera (avatar al borde izquierdo de la
+  columna, acciones al derecho), mensajes (la burbuja ajena o el avatar de grupo empiezan en el borde izquierdo; la
+  propia acaba en el derecho), separadores, botón «ir al final», aviso EXPERIMENTAL, selector de stickers y compositor.
+  Los **fondos** (superficie de cabecera y compositor, patrón) sí ocupan todo el panel. Así, en ventana ancha todo
+  queda en una sola columna alineada y en estrecha todo está a 16 px del borde. (Antes la cabecera iba a todo el
+  ancho y la columna centrada, y se veía descentrado.)
 - Puntos de corte: < 720 px una sola columna con navegación; 720–1179 lista + chat; ≥ 1180 se permite el panel de info fijo.
 - Cabecera 56 px. Compositor mínimo 52 px, crece hasta 10 líneas y luego hace scroll.
 - Burbuja: máx. 560 px o 72 % del ancho de la columna, lo menor.
@@ -260,6 +273,9 @@ Formato: variantes · medidas · estados · tokens · accesibilidad/teclado. Tod
 Foco visible en **todos** los interactivos: anillo 2 px `focus-ring`, separación 2 px (dentro de filas, anillo interior).
 
 ### 8.1 Barra lateral (raíl de carpetas)
+- **Marca** (arriba, PROVISIONAL hasta el logo del brief de `docs/brand`): `brand_mark` = monograma «P» geométrico
+  propio (`assets/brand/parlo-monogram.svg`, trazo uniforme de 1/10 del lado, contraforma redonda) en `on-accent`
+  sobre cuadrado redondeado `accent` 40 px con el radio de avatar (0.32 × lado). Sin texto ni fuente: es un SVG.
 - **Contenido**: menú principal arriba, carpetas (Todos, No leídos, Personales, Grupos, Canales, personalizadas) como
   icono 24 + etiqueta `caption`, ajustes abajo.
 - **Medidas**: 72 px de ancho, celda 64 px de alto, fondo `surface`, borde derecho `border`.
@@ -272,6 +288,14 @@ Foco visible en **todos** los interactivos: anillo 2 px `focus-ring`, separació
 ### 8.2 Lista de chats
 - **Fila**: avatar (cuadrado redondeado) · nombre `ui-strong` · vista previa `meta` `text-muted` (1 línea, elipsis) ·
   hora `caption` `text-muted` · badge / iconos de estado a la derecha. 68 px cómoda, 52 px compacta.
+- **Rejilla de la fila** (igual en todas las filas, para que nada «baile»): barra 3 · relleno 12 · avatar 44 · 12 ·
+  textos (resto) · 8 · **columna derecha fija de 60 px** (cabe «07/10/25», 50 px, y «@ 99+», 57 px) · relleno 12. Dos líneas de
+  **20 px fijos** separadas 2: línea 1 = nombre | hora; línea 2 = vista previa | badges o chincheta; todo centrado
+  verticalmente en su línea (línea de base común aunque haya o no badge). Nombre y vista previa se recortan con «…»
+  **midiendo el ancho real** (`measure::ellipsize_to`, con caché), no por número de caracteres. El estado del último
+  mensaje propio (check, doble check, reloj, alerta) va **delante de la vista previa**, no junto a la hora. El punto
+  «en línea» se dibuja dentro del cuadrado del avatar (en la esquina redondeada), de modo que el avatar mide 44 con
+  y sin él.
 - **Cabecera de lista**: campo de búsqueda (`surface-sunken`, radio `sm`, icono lupa, `Ctrl+K` lo enfoca).
 - **Estados de fila**:
   - default: fondo `surface`.
@@ -298,7 +322,8 @@ Foco visible en **todos** los interactivos: anillo 2 px `focus-ring`, separació
 ### 8.3 Cabecera de conversación
 - **Contenido**: avatar 36 · nombre `title` · estado `meta` (en línea `accent-text`, «visto hace…» `text-muted`,
   «escribiendo…», n.º de miembros) · acciones icono 20: buscar, información, menú.
-- **Medidas**: 56 px, fondo `surface`, borde inferior `border`, botones icono 36×36 radio `sm`.
+- **Medidas**: 56 px, fondo `surface` a todo el ancho, borde inferior `border`, botones icono 36×36 radio `sm`;
+  el contenido va en la columna de conversación (§7).
 - **Estados**: normal; hover/press de acciones (`surface-hover`, capa `pressed`); **modo selección** (sustituye contenido por
   «N seleccionados» + reenviar / copiar / eliminar, transición de opacidad 120 ms); **modo búsqueda** (campo en línea con
   contador «3 de 12» y flechas); **conexión degradada** («Conectando…» o «Actualizando…» en `warning` en lugar del estado,
@@ -312,7 +337,12 @@ Foco visible en **todos** los interactivos: anillo 2 px `focus-ring`, separació
 - **Geometría**: radio 18; la esquina del lado del remitente baja a 6 en las uniones de un grupo
   (primera: abajo; intermedias: arriba y abajo; última: arriba). Agrupación: mismo remitente y < 5 min.
   Separación 2 px dentro del grupo, 12 px entre grupos. Relleno 12×8; la hora y los checks flotan abajo a la
-  derecha dentro de la última línea si cabe, si no en línea propia.
+  derecha dentro de la última línea si cabe (elevados 2 px, `meta_baseline`, para compartir línea de base con el
+  texto `body`), si no en línea propia.
+- **Grupos**: columna de avatar de 28 + 8 en el borde izquierdo de la columna; el avatar (28, radio 0.32) solo en la
+  última burbuja del grupo y con su borde inferior alineado con el de la burbuja (no con las reacciones); las demás
+  dejan el hueco. El nombre del remitente va **dentro** de la primera burbuja (`meta` 600 en `name-n`), y las
+  reacciones se sangran también 36 px.
 - **Contenido**: texto con enlaces (`accent-text` en ajena, `on-bubble-out` subrayado en propia), `code` en chip
   `xs` con fondo `pressed`, bloque de código `surface-sunken` radio `md`; cita de respuesta = bloque con barra
   izquierda 3 px `name-n` + nombre + 1 línea, radio `sm`; media con radio `md` interior y pie de foto; reenviado =
@@ -464,4 +494,5 @@ del portal XDG), densidad (cómoda | compacta), escala de texto, fondo del chat 
 | Fecha | Versión | Cambio |
 | --- | --- | --- |
 | 2026-11-06 | 1.0.0 | Creación: dirección Brasa, paletas OKLCH, escalas, muelles, componentes. |
+| 2026-11-09 | 1.0.2 | Alineación tras la prueba real: columna de conversación compartida por cabecera, mensajes, «ir al final», aviso y compositor (§7); rejilla fija de la fila de lista con columna derecha de 60 px, líneas de 20 px, elipsis por ancho medido y check delante de la vista previa (§8.2); hora en línea a la línea de base del texto y reglas de avatar de grupo (§8.4); marca provisional «P» (§8.1); plegado de letras «de estilo» Unicode en nombres y vistas previas (§3). Sin cambios de tokens de color. |
 | 2026-11-06 | 1.0.1 | Implementación M1 en `tc-ui` (sin cambiar tokens). Adaptaciones por iced 0.14: la entrada de chat (opacidad 0 → 1) se pinta como capa `bg` que se desvanece; hover de filas/botones sin animar; sin anillo de foco en botones (iced no da foco de teclado a botones) ni en el buscador; vista previa de la lista recortada por caracteres (no hay elipsis); el «menú contextual» de mensaje es una barra de acciones al pasar el ratón + selector de 6 reacciones (clic derecho). Capturas en `screens/`. |

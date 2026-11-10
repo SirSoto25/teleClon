@@ -47,6 +47,13 @@ pub trait MessagesApi: Send + Sync {
     ) -> BackendResult<()>;
     /// `None` quita mi reacción.
     async fn send_reaction(&self, peer: PeerRef, id: MsgId, emoji: Option<String>) -> BackendResult<()>;
+    /// Reacciones que esta cuenta puede poner en `peer`, en el orden en que se ofrecen (las más
+    /// usadas primero). Vacío: en ese chat no se puede reaccionar (p. ej. «Mensajes guardados» sin
+    /// Premium, o un grupo con las reacciones desactivadas). Solo emoji, nunca premium sin Premium.
+    async fn available_reactions(&self, peer: PeerRef) -> BackendResult<Vec<String>> {
+        let _ = peer;
+        Ok(crate::model::DEFAULT_REACTIONS.iter().map(|e| (*e).to_string()).collect())
+    }
     async fn mark_read(&self, peer: PeerRef, max_id: MsgId) -> BackendResult<()>;
     async fn set_typing(&self, peer: PeerRef, typing: bool) -> BackendResult<()>;
 }
@@ -60,7 +67,8 @@ pub trait MediaApi: Send + Sync {
     async fn download_profile_photo(&self, peer: PeerRef, photo: ProfilePhoto, size: PhotoSize) -> BackendResult<Vec<u8>>;
     /// Bytes de un medio del mensaje `msg` de `peer` (la vista previa o el archivo completo). `msg`
     /// permite al backend refrescar una `file_reference` caducada. Los archivos grandes pueden emitir
-    /// `BackendEvent::Download` con el progreso.
+    /// `BackendEvent::Download` con el progreso. Para los stickers de un pack (sin mensaje) se pasa
+    /// `msg = MsgId(0)`: la referencia se refresca volviendo a pedir el pack.
     async fn download_media(&self, peer: PeerRef, msg: MsgId, file: FileRef, variant: MediaVariant) -> BackendResult<Vec<u8>>;
 }
 
@@ -74,6 +82,14 @@ pub trait StickersApi: Send + Sync {
         reply_to: Option<MsgId>,
         random_id: RandomId,
     ) -> BackendResult<Message>;
+    /// Stickers usados hace poco en la cuenta (más reciente primero). Por defecto, ninguno.
+    async fn recent_stickers(&self) -> BackendResult<Vec<Sticker>> {
+        Ok(Vec::new())
+    }
+    /// Stickers favoritos de la cuenta. Por defecto, ninguno.
+    async fn faved_stickers(&self) -> BackendResult<Vec<Sticker>> {
+        Ok(Vec::new())
+    }
 }
 
 #[async_trait]

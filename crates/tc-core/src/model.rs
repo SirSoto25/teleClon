@@ -77,8 +77,25 @@ pub enum MediaKind {
     Photo,
     Video,
     Gif,
+    /// Nota de voz (OGG/Opus con forma de onda).
     Voice,
     File,
+    /// Audio que no es nota de voz (música, podcasts): título/intérprete en `Media::audio`.
+    Audio,
+    /// Mensaje de vídeo redondo.
+    VideoNote,
+}
+
+/// Datos de un audio (notas de voz y música) para dibujarlo y reproducirlo.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct AudioInfo {
+    pub voice: bool,
+    pub title: Option<String>,
+    pub performer: Option<String>,
+    /// Forma de onda ya decodificada: un valor 0..=31 por barra (vacía si el archivo no la trae).
+    pub waveform: Vec<u8>,
+    /// Tipo MIME del archivo (pista para el decodificador), p. ej. `audio/ogg`.
+    pub mime: Option<String>,
 }
 
 /// Foto de perfil de un usuario, grupo o canal. `id` cambia cuando cambia la foto, así que
@@ -153,6 +170,8 @@ pub struct Media {
     pub local_path: Option<String>,
     /// Referencia para descargarlo (`None`: no descargable, p. ej. un envío local aún sin confirmar).
     pub file: Option<FileRef>,
+    /// Notas de voz y audios: forma de onda, título, intérprete y MIME. `None` en el resto.
+    pub audio: Option<AudioInfo>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -170,6 +189,10 @@ pub struct Sticker {
     pub width: u32,
     pub height: u32,
     pub format: StickerFormat,
+    /// Documento del sticker para descargarlo con `MediaApi::download_media` (`Full` = el archivo:
+    /// WebP, TGS o WebM; `Thumb` = su miniatura WebP estática, si la tiene). `None` en los stickers
+    /// propios dibujados por código (pack de Parlo).
+    pub file: Option<FileRef>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -179,6 +202,10 @@ pub struct StickerSet {
     pub title: String,
     pub stickers: Vec<Sticker>,
 }
+
+/// Reacciones que se ofrecen cuando el backend no sabe más: el principio del conjunto gratuito de
+/// Telegram (sin `U+FE0F` en el corazón: la red usa «❤» a secas y rechaza «❤️»).
+pub const DEFAULT_REACTIONS: [&str; 6] = ["👍", "❤", "🔥", "🥰", "👏", "😁"];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReactionCount {

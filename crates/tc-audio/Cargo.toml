@@ -1,0 +1,16 @@
+[package]
+name = "tc-audio"
+description = "Audio de Parlo: decodificado (OGG/Opus, MP3, M4A/AAC, FLAC, WAV, Vorbis), forma de onda de Telegram y reproductor en su propio hilo (ADR-0007)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+tc-core.workspace = true
+rodio.workspace = true
+symphonia.workspace = true
+opus-decoder.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

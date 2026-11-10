@@ -1,5 +1,6 @@
 //! Vista raíz: disposición responsiva (raíl + lista + conversación), diálogos y toasts.
 
+pub mod audio;
 pub mod conversation;
 pub mod login;
 pub mod sidebar;
@@ -34,12 +35,12 @@ impl App {
                 if self.conv.is_some() {
                     conversation::view(self, true)
                 } else {
-                    row![sidebar::rail(self), sidebar::list(self, Length::Fill)].into()
+                    row![sidebar::rail(self), sidebar::list(self, (size.width - layout::RAIL_WIDTH - 2.0).max(200.0))].into()
                 }
             } else {
                 row![
                     sidebar::rail(self),
-                    sidebar::list(self, Length::Fixed(layout::LIST_WIDTH_DEFAULT)),
+                    sidebar::list(self, layout::LIST_WIDTH_DEFAULT),
                     conversation::view(self, false)
                 ]
                 .into()

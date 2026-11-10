@@ -9,7 +9,7 @@ use tc_core::{GroupKind, Message, PeerRef, SecretChatState, SendState};
 use tc_theme::tokens::{layout, radius, space, text as ts};
 use tc_theme::{TextStyle, tokens};
 
-use crate::app::{AnimKey, App, COMPOSER_ID, CONV_SCROLL_ID, Compose, Msg, REACTIONS};
+use crate::app::{AnimKey, App, COMPOSER_ID, CONV_SCROLL_ID, Compose, Msg};
 use crate::stickers::Nav;
 use crate::conv::{self, Body, Conversation, Item, LayoutInput, MsgKey, MsgLayout};
 use crate::format;
@@ -38,6 +38,15 @@ pub fn view(app: &App, narrow: bool) -> Element<'_, Msg> {
     col.push(composer(app, cv)).height(Length::Fill).width(Length::Fill).into()
 }
 
+/// Columna de la conversación (§7): ancho máximo `CHAT_COLUMN_MAX` centrado, con margen lateral
+/// `SIDE_PAD`. Cabecera, mensajes, compositor, selector de stickers y avisos comparten estos
+/// bordes, así que en ventana ancha todo queda en una misma columna y en estrecha a 16 px del borde.
+pub fn in_column<'a>(content: impl Into<Element<'a, Msg>>) -> container::Container<'a, Msg> {
+    container(container(content).width(Length::Fill).max_width(layout::CHAT_COLUMN_MAX))
+        .padding(Padding::from([0.0, conv::SIDE_PAD]))
+        .center_x(Length::Fill)
+}
+
 /// Etiqueta «EXPERIMENTAL» de los chats secretos (texto, no solo color).
 pub fn experimental_pill<'a>(b: Brasa) -> Element<'a, Msg> {
     container(t1("EXPERIMENTAL", with_weight(ts::CAPTION, 700), c(b.p.warning))).padding([1, 8]).style(style::experimental_pill(b)).into()
@@ -49,7 +58,7 @@ fn experimental_banner(app: &App) -> Element<'_, Msg> {
     let text = "Experimental: el cifrado de extremo a extremo de Parlo todavía no ha pasado una auditoría de seguridad. No lo uses para nada sensible.";
     let r = row![icon(Icon::Warning, layout::ICON_SM, c(b.p.warning)), t(text, ts::CAPTION, c(b.p.text))].spacing(space::S2).align_y(Alignment::Center);
     column![
-        container(r).padding(Padding::from([space::S1_5, space::S4])).width(Length::Fill).style(style::warning_banner(b)),
+        in_column(r).padding(Padding::from([space::S1_5, conv::SIDE_PAD])).style(style::warning_banner(b)),
         hairline(b)
     ]
     .into()
@@ -89,7 +98,7 @@ fn header<'a>(app: &'a App, cv: &'a Conversation, narrow: bool) -> Element<'a, M
     if matches!(peer, PeerRef::Secret(_)) {
         name = name.push(icon_fill(Icon::Shield, layout::ICON_SM, c(b.p.success)));
     }
-    name = name.push(t1(format::ellipsize(title, 48), ts::TITLE, c(b.p.text)));
+    name = name.push(t1(format::ellipsize(&format::plain_letters(title), 48), ts::TITLE, c(b.p.text)));
     if matches!(peer, PeerRef::Secret(_)) {
         name = name.push(experimental_pill(b));
     }
@@ -123,9 +132,8 @@ fn header<'a>(app: &'a App, cv: &'a Conversation, narrow: bool) -> Element<'a, M
     let muted = d.is_some_and(|d| d.muted);
     actions = actions.push(icon_button(if muted { Icon::Muted } else { Icon::Bell }, layout::ICON_MD, c(b.p.text), Some(Msg::ToggleMute), b));
 
-    let bar = container(row![left, hfill(), actions].align_y(Alignment::Center))
+    let bar = in_column(row![left, hfill(), actions].align_y(Alignment::Center))
         .height(Length::Fixed(layout::HEADER_HEIGHT))
-        .padding(Padding::from([0.0, space::S4]))
         .align_y(Vertical::Center)
         .style(style::surface(b));
     column![bar, hairline(b)].into()
@@ -229,12 +237,11 @@ fn jump_button<'a>(app: &App, n: u32) -> Element<'a, Msg> {
     } else {
         circle.into()
     };
-    container(el)
-        .width(Length::Fill)
+    // Abajo a la derecha de la columna de mensajes (encima del botón enviar).
+    in_column(container(el).width(Length::Fill).align_x(Horizontal::Right))
         .height(Length::Fill)
-        .align_x(Horizontal::Right)
         .align_y(Vertical::Bottom)
-        .padding(space::S4)
+        .padding(Padding::from([space::S4, conv::SIDE_PAD]))
         .into()
 }
 
@@ -270,7 +277,7 @@ fn build_items(app: &App, cv: &Conversation, col_w: f32) -> (Vec<Item>, Vec<MsgL
         let show_name = group && !m.outgoing && !gp;
         let sig = conv::signature(m, show_name);
         let l = cache.get_or(m, sig, || {
-            let name = m.sender.map(|s| app.user_name(s)).unwrap_or_default();
+            let name = m.sender.map(|s| format::plain_letters(&app.user_name(s)).into_owned()).unwrap_or_default();
             let fwd = m.forwarded_from.as_ref().map(|f| format!("Reenviado de {f}"));
             let meta = meta_label(app, m);
             let input = LayoutInput { show_name, name: &name, forwarded: fwd.as_deref(), meta: &meta, bubble_max: bmax, day: days[i] };
@@ -451,20 +458,30 @@ fn extras<'a>(app: &'a App, m: &'a Message, show: bool) -> Element<'a, Msg> {
     }
     let blocked = app.conv.as_ref().and_then(|c| app.write_block(c.peer)).is_some();
     let bar: Element<'_, Msg> = if app.reactions_for == Some(m.id) {
-        let mut r = row![].spacing(space::S0_5);
-        for e in REACTIONS {
-            let mine = m.reactions.iter().any(|x| x.mine && x.emoji == e);
-            r = r.push(
-                button(container(t1(e, TextStyle { size: 18.0, line: 22.0, ..ts::UI }, c(b.p.text))).center(Length::Fixed(28.0)))
-                    .padding(2)
-                    .style(style::ghost(b, radius::SM))
-                    .on_press(Msg::React(m.id, if mine { None } else { Some(e.to_string()) })),
-            );
+        // Solo las que admite este chat (ver `app/reacts.rs`); mientras se piden, «…».
+        let mut r = row![].spacing(space::S0_5).align_y(Alignment::Center);
+        match app.reaction_choices(m.peer) {
+            None => r = r.push(container(t1("…", ts::UI, c(b.p.text_muted))).center(Length::Fixed(28.0))),
+            Some([]) => r = r.push(container(t1("No se puede reaccionar aquí", ts::CAPTION, c(b.p.text_muted))).padding([4, 8])),
+            Some(list) => {
+                for e in list.iter().take(crate::app::MAX_REACTION_CHOICES) {
+                    let mine = m.reactions.iter().any(|x| x.mine && x.emoji == *e);
+                    r = r.push(
+                        button(container(t1(e.as_str(), TextStyle { size: 18.0, line: 22.0, ..ts::UI }, c(b.p.text))).center(Length::Fixed(28.0)))
+                            .padding(2)
+                            .style(style::ghost(b, radius::SM))
+                            .on_press(Msg::React(m.id, if mine { None } else { Some(e.clone()) })),
+                    );
+                }
+            }
         }
         r.into()
     } else {
         let ib = |i: Icon, msg: Msg| icon_button(i, 16.0, c(b.p.text_muted), Some(msg), b);
-        let mut r = row![ib(Icon::Smiley, Msg::ToggleReactions(m.id))].spacing(0);
+        let mut r = row![].spacing(0);
+        if app.can_react(m.peer) {
+            r = r.push(ib(Icon::Smiley, Msg::ToggleReactions(m.id)));
+        }
         if !blocked {
             r = r.push(ib(Icon::Reply, Msg::ReplyTo(m.id)));
         }
@@ -530,7 +547,8 @@ fn bubble<'a>(app: &'a App, cv: &'a Conversation, m: &'a Message, l: &MsgLayout,
 
     let mut col = column![].spacing(0);
     if l.show_name {
-        let name = m.sender.map(|s| app.user_name(s)).unwrap_or_default();
+        // Mismo texto que se midió en `build_items`.
+        let name = m.sender.map(|s| format::plain_letters(&app.user_name(s)).into_owned()).unwrap_or_default();
         let nc = fade(b.name_color(m.sender.map_or(0, |s| s.0)), opacity);
         col = col.push(container(t1(name, with_weight(ts::META, 600), nc)).height(Length::Fixed(conv::NAME_H)));
     }
@@ -546,11 +564,15 @@ fn bubble<'a>(app: &'a App, cv: &'a Conversation, m: &'a Message, l: &MsgLayout,
             ),
             None => ("Mensaje".to_string(), "No está cargado en esta vista".to_string(), 0),
         };
-        let chars = ((l.content_w - 16.0) / 6.8).max(8.0) as usize;
+        let quote_w = (l.content_w - 3.0 - space::S2 - space::S2).max(40.0);
+        let (who, what) = (
+            crate::measure::ellipsize_to(&format::plain_letters(&who), with_weight(ts::CAPTION, 600), quote_w),
+            crate::measure::ellipsize_to(&format::plain_letters(&what), ts::META, quote_w),
+        );
         let nc = fade(b.name_color(seed), opacity);
         let bar = container(Space::new().width(Length::Fixed(3.0)).height(Length::Fill)).style(style::rounded_fill(nc, style::r(2.0)));
         let quote = container(
-            row![bar, column![t1(format::ellipsize(&who, chars), with_weight(ts::CAPTION, 600), nc), t1(format::ellipsize(&what, chars), ts::META, fg)]]
+            row![bar, column![t1(who, with_weight(ts::CAPTION, 600), nc), t1(what, ts::META, fg)]]
                 .spacing(space::S2)
                 .height(Length::Fill),
         )
@@ -581,7 +603,10 @@ fn bubble<'a>(app: &'a App, cv: &'a Conversation, m: &'a Message, l: &MsgLayout,
         };
         let body = container(body).width(Length::Fixed(l.text.width + 1.0)).height(Length::Fixed(l.text.height));
         if l.meta_inline {
-            col = col.push(row![body, hfill(), meta_row(app, m, meta_c)].align_y(Alignment::End).width(Length::Fixed(l.content_w + 1.0)));
+            // La hora (caption 12/16) sube META_BASELINE px para compartir línea de base con el
+            // texto (body 15/22) en lugar de quedar por debajo.
+            let meta = container(meta_row(app, m, meta_c)).padding(Padding { bottom: conv::META_BASELINE, ..Padding::ZERO });
+            col = col.push(row![body, hfill(), meta].align_y(Alignment::End).width(Length::Fixed(l.content_w + 1.0)));
         } else {
             col = col.push(body);
         }
@@ -605,7 +630,12 @@ fn bubble<'a>(app: &'a App, cv: &'a Conversation, m: &'a Message, l: &MsgLayout,
 /// Las fotos abren el visor al pulsarlas.
 fn media_box<'a>(app: &'a App, peer: PeerRef, m: &'a Message, md: &'a tc_core::Media, sz: iced::Size, opacity: f32, meta_c: Color) -> Element<'a, Msg> {
     use tc_core::MediaKind;
+    if crate::audio::is_audio(md) {
+        return super::audio::bubble(app, peer, m, md, sz, opacity);
+    }
     let b = app.brasa;
+    // Los vídeos redondos se recortan en círculo.
+    let rad = if md.kind == MediaKind::VideoNote { sz.width / 2.0 } else { radius::MD };
     let handle = md.file.as_ref().and_then(|f| app.images.handle(&ImageKey::Thumb { peer, msg: m.id, file: f.id }));
     let el: Element<'a, Msg> = match handle {
         Some(h) => {
@@ -613,9 +643,9 @@ fn media_box<'a>(app: &'a App, peer: PeerRef, m: &'a Message, md: &'a tc_core::M
                 .width(Length::Fixed(sz.width))
                 .height(Length::Fixed(sz.height))
                 .content_fit(ContentFit::Cover)
-                .border_radius(style::r(radius::MD))
+                .border_radius(style::r(rad))
                 .opacity(opacity);
-            if matches!(md.kind, MediaKind::Video | MediaKind::Gif) {
+            if matches!(md.kind, MediaKind::Video | MediaKind::Gif | MediaKind::VideoNote) {
                 let play = container(icon_fill(Icon::Play, 22.0, c(b.p.on_accent)))
                     .center(Length::Fixed(44.0))
                     .style(style::rounded_fill(Color { a: 0.55, ..Color::BLACK }, style::r(radius::PILL)));
@@ -627,14 +657,14 @@ fn media_box<'a>(app: &'a App, peer: PeerRef, m: &'a Message, md: &'a tc_core::M
         None => {
             let ic = match md.kind {
                 MediaKind::Photo => Icon::Image,
-                MediaKind::Video | MediaKind::Gif => Icon::Play,
+                MediaKind::Video | MediaKind::Gif | MediaKind::VideoNote => Icon::Play,
                 _ => Icon::File,
             };
-            let label = md.file_name.clone().unwrap_or_else(|| format!("{} × {}", md.width, md.height));
+            let label = md.file_name.clone().unwrap_or_else(|| if md.width > 0 { format!("{} × {}", md.width, md.height) } else { format::preview(m) });
             container(column![icon(ic, 32.0, meta_c), t1(label, ts::CAPTION, meta_c)].spacing(space::S1).align_x(Alignment::Center))
                 .center_x(Length::Fixed(sz.width))
                 .center_y(Length::Fixed(sz.height))
-                .style(style::rounded_fill(fade(c(b.p.surface_hover), opacity), style::r(radius::MD)))
+                .style(style::rounded_fill(fade(c(b.p.surface_hover), opacity), style::r(rad)))
                 .into()
         }
     };
@@ -755,12 +785,12 @@ fn compose_strip<'a>(app: &'a App, cv: &'a Conversation) -> Option<Element<'a, M
     let (ic, title, id) = match app.compose {
         Compose::Normal => return None,
         Compose::Reply(id) => {
-            let who = cv.find(id).and_then(|m| m.sender).map(|s| app.user_name(s)).unwrap_or_else(|| "mensaje".into());
+            let who = cv.find(id).and_then(|m| m.sender).map(|s| format::plain_letters(&app.user_name(s)).into_owned()).unwrap_or_else(|| "mensaje".into());
             (Icon::Reply, format!("Respondiendo a {who}"), id)
         }
         Compose::Edit(id) => (Icon::Edit, "Editando el mensaje".to_string(), id),
     };
-    let what = cv.find(id).map(format::preview).unwrap_or_default();
+    let what = cv.find(id).map(|m| format::plain_letters(&format::preview(m)).into_owned()).unwrap_or_default();
     let bar = container(Space::new().width(Length::Fixed(3.0)).height(Length::Fixed(36.0))).style(style::rounded_fill(c(b.p.accent), style::r(2.0)));
     Some(
         row![

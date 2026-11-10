@@ -2,8 +2,10 @@
 //! sticker), la variante animada (movimiento procedural sobre el mismo dibujo), recientes con
 //! `tc_stickers::Recents` y el estado del selector (pestañas, cursor de teclado).
 //!
-//! Los stickers que llegan de la red (sin bytes en el modelo de `tc-core`) se muestran con su
-//! emoji como respaldo.
+//! Los stickers de la red (`Sticker.file`) se descargan por `MediaApi` y se dibujan como imagen
+//! (ver `sticker_img.rs`): WebP estático entero, TGS con su miniatura WebP (o el primer fotograma
+//! con la feature `lottie`) y WebM con su miniatura. Mientras cargan, o sin archivo, el emoji hace de
+//! respaldo. El pack propio de Parlo sigue como pack local adicional cuando la cuenta no lo tiene.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -39,8 +41,34 @@ pub fn art_index(s: &Sticker) -> Option<usize> {
     None
 }
 
+/// ¿Se anima en pantalla? Solo el pack propio (movimiento procedural); los TGS/WebM de la red se
+/// dibujan estáticos por ahora (ver `sticker_img.rs`).
 pub fn is_animated(s: &Sticker) -> bool {
+    is_animated_format(s) && art_index(s).is_some()
+}
+
+/// ¿El formato es animado (TGS o WebM)?
+pub fn is_animated_format(s: &Sticker) -> bool {
     matches!(s.format, StickerFormat::Lottie | StickerFormat::Webm)
+}
+
+/// Stickers de la cuenta que no son packs: recientes y favoritos del servidor.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct NetLists {
+    pub recent: Vec<Sticker>,
+    pub faved: Vec<Sticker>,
+    /// El pack propio se añadió en la UI porque la cuenta no lo tiene: sus stickers no existen en
+    /// la red y se envían como archivo WebP.
+    pub local_pack: bool,
+}
+
+/// Añade el pack propio al final si la cuenta no lo trae (backend real). Devuelve si lo añadió.
+pub fn with_local_pack(sets: &mut Vec<StickerSet>) -> bool {
+    if sets.iter().any(|s| s.id == pack::SET_ID) {
+        return false;
+    }
+    sets.push(pack::sample_set());
+    true
 }
 
 /// Transformación del instante `phase` (0..1) del ciclo del sticker animado `index`:
@@ -97,6 +125,8 @@ impl Art {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tab {
     Recent,
+    /// Favoritos de la cuenta.
+    Faved,
     Set(usize),
 }
 
@@ -123,11 +153,19 @@ pub struct Picker {
     pub cursor: Option<usize>,
 }
 
-/// Pestañas visibles: «Recientes» (si hay) y un set por pestaña.
+/// Pestañas visibles: «Recientes» (si hay), «Favoritos» (si hay) y un set por pestaña.
 pub fn tabs(sets: &[StickerSet], recents: &Recents) -> Vec<Tab> {
-    let mut v = Vec::with_capacity(sets.len() + 1);
-    if !recents.ids().is_empty() {
+    tabs_with(sets, recents, &NetLists::default())
+}
+
+/// Como `tabs`, contando también los recientes y favoritos del servidor.
+pub fn tabs_with(sets: &[StickerSet], recents: &Recents, net: &NetLists) -> Vec<Tab> {
+    let mut v = Vec::with_capacity(sets.len() + 2);
+    if !recents.ids().is_empty() || !net.recent.is_empty() {
         v.push(Tab::Recent);
+    }
+    if !net.faved.is_empty() {
+        v.push(Tab::Faved);
     }
     v.extend((0..sets.len()).map(Tab::Set));
     v
@@ -137,11 +175,39 @@ pub fn find(sets: &[StickerSet], id: StickerId) -> Option<&Sticker> {
     sets.iter().flat_map(|s| s.stickers.iter()).find(|s| s.id == id)
 }
 
+/// Busca en los packs y, si no está, en los recientes y favoritos del servidor.
+pub fn find_any<'a>(sets: &'a [StickerSet], net: &'a NetLists, id: StickerId) -> Option<&'a Sticker> {
+    find(sets, id).or_else(|| net.recent.iter().chain(&net.faved).find(|s| s.id == id))
+}
+
 /// Stickers de una pestaña, en orden.
 pub fn tab_stickers<'a>(tab: Tab, sets: &'a [StickerSet], recents: &Recents) -> Vec<&'a Sticker> {
     match tab {
         Tab::Recent => recents.ids().iter().filter_map(|id| find(sets, *id)).collect(),
+        Tab::Faved => Vec::new(),
         Tab::Set(i) => sets.get(i).map(|s| s.stickers.iter().collect()).unwrap_or_default(),
+    }
+}
+
+/// Recientes de esta app primero, luego los del servidor (sin repetir; como mucho `RECENT_MAX`).
+pub const RECENT_MAX: usize = 40;
+
+/// Como `tab_stickers`, con recientes y favoritos del servidor.
+pub fn tab_stickers_with<'a>(tab: Tab, sets: &'a [StickerSet], recents: &Recents, net: &'a NetLists) -> Vec<&'a Sticker> {
+    match tab {
+        Tab::Recent => {
+            let mut seen = std::collections::HashSet::new();
+            recents
+                .ids()
+                .iter()
+                .filter_map(|id| find_any(sets, net, *id))
+                .chain(net.recent.iter())
+                .filter(|s| seen.insert(s.id))
+                .take(RECENT_MAX)
+                .collect()
+        }
+        Tab::Faved => net.faved.iter().collect(),
+        Tab::Set(_) => tab_stickers(tab, sets, recents),
     }
 }
 
@@ -270,6 +336,30 @@ mod tests {
         let ids: Vec<_> = tab_stickers(Tab::Recent, &sets, &r).iter().map(|s| s.id).collect();
         assert_eq!(ids, vec![pack::sticker_id(2), pack::sticker_id(4)]);
         assert_eq!(tab_stickers(Tab::Set(0), &sets, &r).len(), pack::count());
+    }
+
+    fn net_sticker(id: i64) -> Sticker {
+        Sticker { id: StickerId(id), set_id: StickerSetId(77), emoji: "😺".into(), width: 512, height: 512, format: StickerFormat::Lottie, file: None }
+    }
+
+    #[test]
+    fn recientes_y_favoritos_del_servidor() {
+        let mut sets = vec![StickerSet { id: StickerSetId(77), short_name: "red".into(), title: "Red".into(), stickers: vec![net_sticker(1), net_sticker(2)] }];
+        assert!(with_local_pack(&mut sets), "la cuenta real no trae el pack propio");
+        assert!(!with_local_pack(&mut sets), "no se duplica");
+        assert_eq!(sets.len(), 2);
+        let net = NetLists { recent: vec![net_sticker(2), net_sticker(9)], faved: vec![net_sticker(1)], local_pack: true };
+        let mut r = Recents::new(30);
+        r.record(pack::sticker_id(3));
+        r.record(StickerId(2));
+        assert_eq!(tabs_with(&sets, &r, &net), vec![Tab::Recent, Tab::Faved, Tab::Set(0), Tab::Set(1)]);
+        let ids: Vec<_> = tab_stickers_with(Tab::Recent, &sets, &r, &net).iter().map(|s| s.id).collect();
+        assert_eq!(ids, vec![StickerId(2), pack::sticker_id(3), StickerId(9)], "locales primero, sin repetir");
+        assert_eq!(tab_stickers_with(Tab::Faved, &sets, &r, &net).len(), 1);
+        assert_eq!(find_any(&sets, &net, StickerId(9)).map(|s| s.id), Some(StickerId(9)));
+        // Los TGS de la red no usan la animación procedural del pack propio.
+        assert!(is_animated_format(&net_sticker(1)) && !is_animated(&net_sticker(1)));
+        assert_eq!(tabs_with(&sets, &Recents::new(30), &NetLists::default()), vec![Tab::Set(0), Tab::Set(1)]);
     }
 
     #[test]

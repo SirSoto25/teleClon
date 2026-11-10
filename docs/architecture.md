@@ -55,11 +55,12 @@ Sobre `grammers-session`: su feature por defecto `sqlite-storage` arrastra `libs
 | `tc-theme` | lib | tokens de `docs/design/tokens.json` como datos (sin iced) | — |
 | `tc-secret` | lib | chats secretos MTProto 2.0, sans-IO (sin red ni disco), EXPERIMENTAL | RustCrypto |
 | `tc-stickers` | lib | decodificar WebP/TGS a RGBA; caché de fotogramas | `image`, `flate2`, `rlottie`? |
-| `tc-ui` | lib | app iced: estado, mensajes, pantallas, widgets, estilos | `tc-core`, `tc-theme`, `tc-stickers`, `iced` |
+| `tc-ui` | lib | app iced: estado, mensajes, pantallas, widgets, estilos | `tc-core`, `tc-theme`, `tc-stickers`, `tc-audio`, `iced` |
+| `tc-audio` | lib | notas de voz y audios: decodificado (Opus en Rust puro, symphonia) y reproductor en su hilo (rodio/cpal), ADR-0007 | `tc-core`, `opus-decoder`, `symphonia`, `rodio` |
 | `tc-app` | bin | config, elección de backend, arranque | todos |
 | `tc-telegram` | lib (M2.1, creado; sin probar contra la red) | `GrammersBackend: ChatBackend + AuthApi`; chats secretos pendientes (M2.7, `tc-secret`) | `grammers-*`, `tc-core` |
 
-Reglas: `tc-ui` solo conoce `tc-core` (nunca `tc-store`, `tc-mock` ni grammers). `tc-core` no hace E/S. `tc-secret` no hace E/S. Un único binario.
+Reglas: `tc-ui` solo conoce `tc-core` (y `tc-audio`, que no sabe de red; nunca `tc-store`, `tc-mock` ni grammers). `tc-core` no hace E/S. `tc-secret` no hace E/S. Un único binario.
 
 ## 3. Dominio y trait `ChatBackend` (tc-core)
 

@@ -104,12 +104,37 @@ fn encode_sticker(s: &core::Sticker) -> String {
         core::StickerFormat::Lottie => "lottie",
         core::StickerFormat::Webm => "webm",
     };
-    json!({"id": s.id.0, "set": s.set_id.0, "emoji": s.emoji, "w": s.width, "h": s.height, "fmt": fmt}).to_string()
+    let mut v = json!({"id": s.id.0, "set": s.set_id.0, "emoji": s.emoji, "w": s.width, "h": s.height, "fmt": fmt});
+    // Referencia de descarga del documento (los stickers no van en `media`/`media_refs`).
+    if let Some(f) = &s.file {
+        let hex: String = f.file_reference.iter().map(|b| format!("{b:02x}")).collect();
+        v["file"] = json!({"id": f.id, "ah": f.access_hash, "fr": hex, "dc": f.dc_id, "size": f.size_bytes, "thumb": f.thumb});
+    }
+    v.to_string()
+}
+
+fn decode_sticker_file(v: &Value) -> Option<core::FileRef> {
+    let hex = v.get("fr")?.as_str()?;
+    let file_reference = (0..hex.len())
+        .step_by(2)
+        .map(|i| hex.get(i..i + 2).and_then(|h| u8::from_str_radix(h, 16).ok()))
+        .collect::<Option<Vec<u8>>>()?;
+    Some(core::FileRef {
+        kind: core::FileKind::Document,
+        id: v.get("id")?.as_i64()?,
+        access_hash: v.get("ah")?.as_i64()?,
+        file_reference,
+        dc_id: i32::try_from(v.get("dc")?.as_i64()?).ok()?,
+        size_bytes: v.get("size")?.as_u64()?,
+        thumb: v.get("thumb").and_then(Value::as_str).map(str::to_owned),
+        full: None,
+    })
 }
 
 fn decode_sticker(s: &str) -> Option<core::Sticker> {
     let v: Value = serde_json::from_str(s).ok()?;
     Some(core::Sticker {
+        file: v.get("file").and_then(decode_sticker_file),
         id: StickerId(v.get("id")?.as_i64()?),
         set_id: StickerSetId(v.get("set")?.as_i64()?),
         emoji: v.get("emoji")?.as_str()?.to_owned(),
@@ -131,6 +156,9 @@ fn media_kind_str(k: core::MediaKind) -> &'static str {
         core::MediaKind::Gif => "gif",
         core::MediaKind::Voice => "voice",
         core::MediaKind::File => "document",
+        core::MediaKind::Audio => "audio",
+        // `media.kind` no admite otro valor: `media_extra.round` lo distingue (migración 0005).
+        core::MediaKind::VideoNote => "video",
     }
 }
 
@@ -140,6 +168,7 @@ fn media_kind_parse(s: &str) -> core::MediaKind {
         "video" => core::MediaKind::Video,
         "gif" => core::MediaKind::Gif,
         "voice" => core::MediaKind::Voice,
+        "audio" => core::MediaKind::Audio,
         _ => core::MediaKind::File,
     }
 }
@@ -351,6 +380,7 @@ pub(crate) fn persist_message(store: &Store, m: &core::Message, fallback_rid: Op
             Some(f) => store.upsert_media_ref(&file_ref_row(md.id, f))?,
             None => store.delete_media_ref(md.id)?,
         }
+        store.save_media_extra(md)?;
     }
     let msg_id = i64::from(m.id.0);
     let row = db::MessageRow {
@@ -399,9 +429,13 @@ pub(crate) fn load_message(store: &Store, peer: PeerRef, row: &db::MessageRow) -
     let media = match row.media_id {
         Some(id) => {
             let file = store.get_media_ref(id)?.map(file_ref_from);
-            store.get_media(id)?.map(|m| core::Media {
+            let extra = store.get_media_extra(id)?;
+            store.get_media(id)?.map(|m| {
+            let mut kind = media_kind_parse(&m.kind);
+            let audio = crate::audio::apply_media_extra(&mut kind, extra);
+            core::Media {
             id: m.id,
-            kind: media_kind_parse(&m.kind),
+            kind,
             file_name: m.file_name,
             size_bytes: u64::try_from(m.size.unwrap_or(0)).unwrap_or(0),
             width: u32::try_from(m.width.unwrap_or(0)).unwrap_or(0),
@@ -409,6 +443,8 @@ pub(crate) fn load_message(store: &Store, peer: PeerRef, row: &db::MessageRow) -
             duration_secs: m.duration_ms.and_then(|ms| u32::try_from(ms / 1000).ok()),
             local_path: m.local_path,
             file,
+            audio,
+        }
         })
         }
         None => None,
@@ -613,4 +649,36 @@ pub(crate) fn load_group(store: &Store, row: db::GroupRow) -> Result<core::Group
         member_count: row.participants_count.and_then(|n| u32::try_from(n).ok()).unwrap_or(0),
         photo,
     })
+}
+
+#[cfg(test)]
+mod sticker_json_tests {
+    use super::*;
+
+    #[test]
+    fn sticker_file_reference_survives_the_cache() {
+        let file = core::FileRef {
+            kind: core::FileKind::Document,
+            id: 900,
+            access_hash: -7,
+            file_reference: vec![0, 1, 0xab, 0xff],
+            dc_id: 4,
+            size_bytes: 20_000,
+            thumb: Some("m".into()),
+            full: None,
+        };
+        let s = core::Sticker {
+            id: StickerId(900),
+            set_id: StickerSetId(314),
+            emoji: "😺".into(),
+            width: 512,
+            height: 512,
+            format: core::StickerFormat::Lottie,
+            file: Some(file),
+        };
+        assert_eq!(decode_sticker(&encode_sticker(&s)), Some(s.clone()));
+        // Filas antiguas, sin referencia: el sticker sigue leyéndose.
+        let old = core::Sticker { file: None, ..s };
+        assert_eq!(decode_sticker(&encode_sticker(&old)), Some(old));
+    }
 }
