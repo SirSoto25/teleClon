@@ -284,3 +284,16 @@
   - tc-ui: decodificar el MP4 del mock, GIF grande ajustado al presupuesto, filas visibles, MP4 del panel que avanza con el reloj, GIF MP4 enviado que se anima en su burbuja y se para sin foco. Captura sin ventana (`tests_panel_shots`, ignorada): la rejilla del panel sale con los MP4 decodificados, sin insignia.
 - Verificación: `cargo build --workspace`, `cargo test --workspace`, `cargo +1.99.1 clippy --workspace --all-targets -- -D warnings` limpios en Linux. `cargo check` de tc-video y tc-ui (`--all-targets`) para `x86_64-pc-windows-msvc` y `aarch64-apple-darwin` con compilador C ficticio: OK (la parte Rust). CI sin cambios: g++ ya se instala en Linux; MSVC y clang de Xcode vienen en los runners.
 - NO verificado: GIFs reales de Telegram en pantalla (perfiles y tamaños que usa Telegram, MP4 sin `avcC` o fragmentados), la compilación real del C++ de OpenH264 en el CI de Windows/macOS y en el empaquetado universal de macOS, rendimiento con muchos GIF a la vista. Pendiente decidir licencias (texto BSD-2 en los paquetes; patentes H.264 al compilar desde fuentes, ver ADR-0010 y docs/packaging.md). Sin commit.
+
+## 2026-11-14 — Paridad de funciones (agente DIFF, Sonnet)
+- `replica/features.csv`: columna `clone` revisada contra el código y docs/ (audio, reacciones, stickers reales y animados, emojis, GIFs MP4, menús de chats/mensajes, foros, abrir en el primer no leído, chats secretos); notas con la evidencia (crate/archivo/prueba). Marcas en notes: `[sin real]` (hecho pero nunca probado contra Telegram) e `[incompleto]`. Se añadieron 3 filas (foros, abrir en primer no leído, menús de chats).
+- `parity.py`: 45,0/100; must-haves 16 de 54; no distribuible. Informe en `replica/diff-report.md`.
+- Diff de pantallas no hecho: no hay captura del original (no se usa). Solo paridad de funciones.
+- No se tocó código, test-plan.md ni bugs.md. Sin commit.
+
+## 2026-11-14 — QA replica-test
+- `replica/test-plan.md`: casos F01-F18 con ID Fxx-H/E/N/R y estado (test existente, nuevo, manual, real, pendiente).
+- `cargo test --workspace`: 411 pasan, 0 fallan, 2 ignorados (llavero real: pasa con `--ignored`; capturas del panel: pasan con `TC_PANEL_SHOTS`, 8 PNG en `replica/evidence/`).
+- Nuevos tests en `crates/tc-ui/src/tests_qa.rs` (9 pasan + 1 ignorado que reproduce B-01). Única modificación fuera de tests: `mod tests_qa` bajo `#[cfg(test)]` en `crates/tc-ui/src/lib.rs`.
+- Clippy `-D warnings` (1.99.1) limpio.
+- `replica/bugs.md`: B-01 (S3, sin límite de 4096 y aviso «vacío»); 7 puntos por comprobar. NO verificado: nada contra Telegram real. Sin commit.

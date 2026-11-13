@@ -55,3 +55,5 @@ mod tests_reading;
 mod tests_forum;
 #[cfg(test)]
 mod tests_sticker_anim;
+#[cfg(test)]
+mod tests_qa;

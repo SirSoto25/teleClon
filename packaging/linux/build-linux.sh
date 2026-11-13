@@ -30,6 +30,7 @@ for d in assets/fonts/*/; do
 done
 install -m 0644 assets/icons/NOTICE.md "$STAGE/share/doc/parlo/licenses/ICONS-NOTICE.md"
 install -m 0644 assets/icons/LICENSE-MIT.txt "$STAGE/share/doc/parlo/licenses/ICONS-LICENSE-MIT.txt"
+install -m 0644 assets/licenses/OpenH264-BSD-2-Clause.txt "$STAGE/share/doc/parlo/licenses/OpenH264-BSD-2-Clause.txt"
 
 tar -C "$ROOT/dist/staging" -czf "$ROOT/dist/$NAME.tar.gz" "$NAME"
 echo "tar.gz: $ROOT/dist/$NAME.tar.gz"

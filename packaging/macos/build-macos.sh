@@ -61,6 +61,7 @@ for d in "$ROOT"/assets/fonts/*/; do
   cp "$d/OFL.txt" "$APP/Contents/Resources/licenses/OFL-$(basename "$d").txt"
 done
 cp "$ROOT/assets/icons/NOTICE.md" "$APP/Contents/Resources/licenses/ICONS-NOTICE.md"
+cp "$ROOT/assets/licenses/OpenH264-BSD-2-Clause.txt" "$APP/Contents/Resources/licenses/OpenH264-BSD-2-Clause.txt"
 cp "$ROOT/assets/icons/LICENSE-MIT.txt" "$APP/Contents/Resources/licenses/ICONS-LICENSE-MIT.txt"
 
 # --- Firma ----------------------------------------------------------------------------------

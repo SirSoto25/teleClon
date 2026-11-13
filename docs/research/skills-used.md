@@ -46,3 +46,13 @@ No se invocó ninguna skill `superpowers:*` hasta ahora. Las skills de terceros 
 | --- | --- | --- | --- | --- |
 | 2026-11-06 | `replica-skill:replica-brand` | agente DOCS | Candidatos de nombre, criterios, chequeos para el usuario, voz y tono, brief de logo y `tools/brand/sweep.py`; sin consultas externas (disponibilidad NO verificada) | usada |
 | 2026-11-06 | `replica-skill:replica-test` | agente DOCS | Plan de pruebas generado desde los flujos de recon.md; no se escribieron tests Playwright (app nativa) ni se ejecutó nada | usada (solo plan) |
+
+## 2026-11-14 — agente DIFF (Sonnet)
+| Fecha | Skill | Quién | Para qué | Estado |
+| --- | --- | --- | --- | --- |
+| 2026-11-14 | `replica-skill:replica-diff` | agente DIFF | Rellenar `clone` de replica/features.csv con evidencia del código y docs/ y calcular la paridad ponderada con `parity.py` (45,0/100). El diff de pantallas (`imgdiff.py`) NO se usó: no hay captura del original | usada (solo paridad de funciones) |
+
+## 2026-11-14 — agente QA (Sonnet)
+| Fecha | Skill | Quién | Para qué | Estado |
+| --- | --- | --- | --- | --- |
+| 2026-11-14 | `replica-skill:replica-test` | agente QA | `replica/test-plan.md` (casos Fxx-H/E/N con estado AUTO/NUEVO/MANUAL/REAL), `replica/bugs.md`, 9 tests nuevos en tc-ui y capturas headless; adaptado a app nativa (sin Playwright) | usada |

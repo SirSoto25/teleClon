@@ -413,6 +413,9 @@ pub struct App {
     on_screenshot: Option<SaveShot>,
 }
 
+/// Máximo de caracteres de un mensaje de texto en Telegram.
+pub const MAX_MESSAGE_CHARS: usize = 4096;
+
 /// Instante actual en segundos Unix.
 pub fn now() -> Timestamp {
     Timestamp(SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64))
@@ -438,7 +441,7 @@ pub fn error_text(e: &BackendError) -> String {
             let mut c = r.chars();
             c.next().map_or_else(String::new, |f| f.to_uppercase().collect::<String>() + c.as_str())
         }
-        BackendError::InvalidInput(_) => "No se puede enviar un mensaje vacío.".into(),
+        BackendError::InvalidInput(_) => "Telegram no acepta ese contenido.".into(),
         BackendError::Crypto(_) => "Fallo de cifrado en el chat secreto.".into(),
         BackendError::Storage(_) => "No se pudo guardar en el disco.".into(),
         BackendError::Internal => "Algo ha fallado. Inténtalo otra vez.".into(),
@@ -1689,6 +1692,11 @@ impl App {
         let text = self.composer.text().trim().to_string();
         let Some(peer) = self.conv.as_ref().map(|c| c.peer) else { return Task::none() };
         if text.is_empty() || self.write_block(peer).is_some() {
+            return Task::none();
+        }
+        if text.chars().count() > MAX_MESSAGE_CHARS {
+            // Telegram lo rechazaría: se avisa y se conserva el texto para recortarlo.
+            self.toast(format!("El mensaje es demasiado largo: el máximo es {MAX_MESSAGE_CHARS} caracteres."), true);
             return Task::none();
         }
         let now = Instant::now();

@@ -1,73 +1,73 @@
 feature,area,priority,original,clone,notes
-Iniciar sesión con número de teléfono,auth,must,yes,no,S02 S04; código por SMS/app
-Verificación de código con reenvío y cambio de número,auth,must,yes,no,S04
-Contraseña 2FA en la nube,auth,should,yes,no,S05
-Iniciar sesión con código QR,auth,must,yes,no,S03; token se refresca
-Registro de cuenta nueva (nombre y foto),auth,must,yes,no,S06
-Cerrar sesión,auth,must,yes,no,
-Persistencia de sesión entre arranques,auth,must,yes,no,
+Iniciar sesión con número de teléfono,auth,must,yes,yes,"VERIFICADO REAL (prueba 2026-11-09); tc-ui/login.rs, tc-telegram/auth.rs, tests/flows.rs"
+Verificación de código con reenvío y cambio de número,auth,must,yes,partial,[sin real] código verificado en real; reenvío (AuthApi::resend_code) y cambio de número solo con transporte falso: tc-telegram tests/flows.rs
+Contraseña 2FA en la nube,auth,should,yes,partial,"[sin real] paso Password en tc-ui/login.rs, check_password en tc-telegram/auth.rs; solo transporte falso"
+Iniciar sesión con código QR,auth,must,yes,partial,[sin real] qr_login_start + QR en tc-ui/login.rs (widget qr_code); refresco de token solo con transporte falso
+Registro de cuenta nueva (nombre y foto),auth,must,yes,no,tc-ui/login.rs Step::SignUp: 'este cliente no registra cuentas'
+Cerrar sesión,auth,must,yes,partial,AuthApi::log_out en tc-core/tc-telegram/tc-mock con prueba; no hay botón en la UI (tc-ui sin llamada a log_out)
+Persistencia de sesión entre arranques,auth,must,yes,yes,"VERIFICADO REAL (sesión recuperada al reabrir, 2026-11-09); tc-app/stores.rs VaultSessionStore (llavero + respaldo 0600)"
 Lista de chats ordenada por actividad,chats,must,yes,yes,S08; M1.1 tc-ui contra MockBackend; se reordena con mensajes en vivo
 Fila de chat con último mensaje hora y no leídos,chats,must,yes,yes,M1.1; vista previa recortada por número de caracteres (iced 0.14 sin elipsis nativa)
-Chats fijados,chats,should,yes,partial,M1.1: fijados arriba + conmutador en cabecera; falta reordenar arrastrando
-Silenciar chat,chats,must,yes,partial,también S28; M1.1: conmutador en cabecera y badge gris; falta «silenciar hasta» y S28
-Archivar chats,chats,could,yes,no,
+Chats fijados,chats,should,yes,partial,"[incompleto][sin real] menú fijar/desfijar con tope PINNED_DIALOGS_TOO_MUCH (tc-ui app/chat_actions.rs, tc-telegram dialog_actions.rs); falta reordenar arrastrando"
+Silenciar chat,chats,must,yes,partial,[incompleto][sin real] mute_until 1 h/8 h/2 días/siempre en menú (tc-telegram tests/dialog_actions.rs); falta plazo libre y pantalla S28
+Archivar chats,chats,could,yes,partial,[sin real] archivar/desarchivar + fila «Archivados» (tc-ui chat_actions.rs load_archived; tc-mock dialog_actions.rs); no probado contra Telegram
 Indicador escribiendo en lista y cabecera,chats,should,yes,yes,M1.1; puntos animados salvo movimiento reducido
 Borradores por chat,chats,should,yes,yes,M1.3: se guarda al cambiar de chat y se borra al enviar
 Carpetas de chats (crear editar ordenar),folders,must,yes,no,S09 S10
-Carpetas con filtros por tipo (grupos canales no leídos…),folders,should,yes,partial,M1.1: 5 filtros fijos en el raíl (Todos/Sin leer/Personas/Grupos/Canales); sin carpetas propias
-Contactos: lista y búsqueda,contacts,should,yes,no,S37
+Carpetas con filtros por tipo (grupos canales no leídos…),folders,should,yes,partial,5 filtros fijos en el raíl; tc-store folders.rs sin UI de carpetas propias
+Contactos: lista y búsqueda,contacts,should,yes,partial,[incompleto] ChatBackend::contacts() cargado (tc-ui Msg::Contacts) y usado en el panel de chats secretos; sin pantalla S37 ni búsqueda
 Crear chat privado nuevo,chats,must,yes,no,S36
 Crear grupo básico,groups,should,yes,no,S36
 Conversación: historial con paginación y scroll virtual,conversation,must,yes,yes,"S11; M1.2: páginas de 60, alturas medidas con Paragraph, solo filas visibles; probado con BIG_CHAT 5000 (tests) y 241 cargados en demo"
-Separadores de fecha y salto a no leídos,conversation,must,yes,partial,M1.2: separadores y marca «Sin leer desde aquí»; falta saltar automáticamente a la marca
+Separadores de fecha y salto a no leídos,conversation,must,yes,partial,"[sin real] salto automático a «Sin leer desde aquí» (tc-ui reading.rs, tests_reading.rs; ADR/log 2026-11-10); add_offset del servidor y capturas NO verificadas"
 Botón saltar al final con contador,conversation,should,yes,yes,M1.2
 Estados de mensaje (enviando enviado leído error),conversation,must,yes,yes,M1.3; leído según read_outbox_max_id
 Reintento de mensaje fallido,conversation,should,yes,yes,M1.3: mismo random_id
-Marcar como leído y sincronizar lectura,conversation,must,yes,yes,M1.2 contra el mock
+Marcar como leído y sincronizar lectura,conversation,must,yes,partial,[sin real] lectura progresiva con mark_read tras 350 ms (reading.rs); el mock lo prueba; still_unread_count real sin verificar
 Actualización en tiempo real de mensajes entrantes,realtime,must,yes,yes,F16; M1.3: suscripción a events() del mock; compensa el scroll si se lee más arriba
-Reconexión y recuperación de huecos (difference),realtime,must,yes,no,parte difícil
+Reconexión y recuperación de huecos (difference),realtime,must,yes,partial,[sin real] UpdatesConfiguration{catch_up:true} (getDifference vía grammers) en tc-telegram/lib.rs y reconexión/FloodWait; sin prueba de huecos reales ni de corte de red
 Cabecera de chat con estado en línea/miembros,conversation,must,yes,yes,S12; M1.2
 Mensaje de texto,message types,must,yes,yes,M1.2
-Formato de texto (negrita cursiva código spoiler enlace),message types,should,yes,partial,"entidades; M1.2: negrita, cursiva, código, tachado, subrayado y color de enlace al pintar; sin spoiler ni enlaces clicables"
-Detección de enlaces y menciones,message types,should,yes,no,
+Formato de texto (negrita cursiva código spoiler enlace),message types,should,yes,partial,"entidades pintadas en tc-ui/conv.rs: negrita, cursiva, código, tachado, subrayado, enlace en color; EntityKind::Spoiler sin tratar, enlaces no clicables"
+Detección de enlaces y menciones,message types,should,yes,partial,[incompleto] entidades Mention/Url/Hashtag del servidor se colorean (conv.rs); sin detección propia ni clic
 Vista previa de enlaces,message types,could,yes,no,
-Fotos,message types,must,yes,partial,"S19; M1.2: marcador con dimensiones, sin imagen real"
-Vídeos,message types,must,yes,no,
-Archivos/documentos,message types,must,yes,no,
-Notas de voz,message types,should,yes,no,grabación de audio
-Audio/música (reproductor),message types,could,yes,no,
-Stickers (enviar y recibir; WebP estático),message types,must,yes,partial,S38 S39; F17; ALCANCE AMPLIADO por el usuario 2026-11-06. Packs se obtienen de la red; no se empaquetan stickers de Telegram; M1.2: se muestran como emoji grande sin burbuja; sin WebP ni selector
-Emoji,message types,must,yes,no,selector propio
-GIFs,message types,could,yes,no,
+Fotos,message types,must,yes,partial,"[sin real] descarga y miniatura/vista completa reales, visor con zoom/navegación (tc-ui media.rs, tc-telegram media.rs, tests_media.rs); sin envío de fotos desde la UI"
+Vídeos,message types,must,yes,partial,[incompleto] solo miniatura con icono de reproducir y visor de miniatura; sin reproducción ni envío
+Archivos/documentos,message types,must,yes,no,mapeados como MediaKind::File; sin descarga a disco ni envío desde la UI
+Notas de voz,message types,should,yes,partial,"[incompleto][sin real] recibir y reproducir con forma de onda (tc-audio, tc-ui audio.rs, tests_audio.rs, ADR-0007); sin grabar; sin sonido real probado"
+Audio/música (reproductor),message types,could,yes,partial,"[sin real] reproductor con título/intérprete, velocidad, salto (tc-audio Player, ADR-0007); sin altavoces probados en ningún SO"
+Stickers (enviar y recibir; WebP estático),message types,must,yes,partial,"[sin real] packs reales por getAllStickers/getStickerSet, envío con InputMediaDocument, selector con Recientes/Favoritos/packs (tc-telegram stickers.rs, tc-ui stickers.rs/sticker_img.rs, tests/stickers_reactions.rs); tras la prueba real que falló no se reprobó"
+Emoji,message types,must,yes,yes,"selector propio: catálogo completo del crate emojis, búsqueda en español, tonos de piel, recientes (tc-ui emoji.rs, view/emoji_panel.rs, tests_panel.rs, ADR-0009); limitación: emojis monocromos en texto mezclado"
+GIFs,message types,could,yes,partial,"[sin real] panel con guardados/búsqueda @gif/envío, GIF y MP4 H.264 animados (tc-video openh264, tc-telegram gifs.rs, tests/gifs.rs, tc-ui gifs.rs, ADR-0010); bot @gif y sendInlineBotResult sin probar"
 Álbumes de varias fotos (grouped),message types,should,yes,no,
 Ubicación,message types,could,yes,no,
-Mensajes de servicio (se unió salió fijó),message types,should,yes,no,
+Mensajes de servicio (se unió salió fijó),message types,should,yes,partial,[incompleto] solo textos de crear/editar tema (tc-telegram forum.rs); sin unirse/salir/fijó
 Encuestas,message types,could,yes,no,
 Compositor multilinea con Enter/Shift+Enter,composer,must,yes,yes,S13; M1.3 (key_binding de text_editor); no probado con teclado real ni IME
 Atajos de formato en compositor,composer,should,yes,no,
 Botón enviar/voz según contenido,composer,should,yes,no,
 Responder a mensaje (cita),message actions,must,yes,yes,F05; M1.3
-Reenviar mensajes con atribución,message actions,must,yes,no,F06
+Reenviar mensajes con atribución,message actions,must,yes,partial,"[sin real] forward_messages + selector de destino en el menú (tc-ui chat_actions.rs, tc-mock tests)"
 Reenviar ocultando remitente,message actions,could,yes,no,
 Editar mensaje propio con marca editado,message actions,must,yes,yes,F07; M1.3; ↑ en compositor vacío edita el último
 Borrar para mí y para todos,message actions,must,yes,yes,F08; M1.3: diálogo con casilla «también para…»
 Copiar texto del mensaje,message actions,must,yes,yes,M1.3
-Fijar mensaje,message actions,should,yes,no,
-Selección múltiple y acciones en lote,message actions,should,yes,no,S18
-Menú contextual de mensaje,message actions,must,yes,partial,S14; M1.3: barra de acciones al pasar el ratón; clic derecho abre reacciones; no es un menú contextual completo
-Reacciones con emoji (poner y quitar),reactions,must,yes,yes,S15; M1.3: 6 reacciones + chips
+Fijar mensaje,message actions,should,yes,partial,[incompleto][sin real] pin_message en menú (tc-telegram dialog_actions.rs); fijados solo conocidos si se fijaron en la sesión; sin barra de fijado
+Selección múltiple y acciones en lote,message actions,should,yes,partial,"[sin real] «Seleccionar varios» con barra reenviar/borrar (tc-ui chat_actions.rs, tests_chat_actions.rs)"
+Menú contextual de mensaje,message actions,must,yes,yes,"clic derecho/⋯: reacciones, responder, copiar, reenviar, editar (48 h), fijar, seleccionar, borrar (tc-ui view/context_menu.rs, tests_chat_actions.rs)"
+Reacciones con emoji (poner y quitar),reactions,must,yes,partial,"[sin real] reacciones permitidas por chat (getAvailableReactions ∩ ChatFull), sin Premium, optimista con reversión (tc-telegram reactions.rs, tc-ui app/reacts.rs, tests_reactions.rs); el arreglo tras PREMIUM_ACCOUNT_REQUIRED no se reprobó"
 Reacciones personalizadas premium,reactions,could,yes,skip,Premium fuera del alcance
-Búsqueda global (chats contactos mensajes),search,must,yes,no,S22
+Búsqueda global (chats contactos mensajes),search,must,yes,partial,[incompleto] solo filtra la lista de chats por nombre (tc-ui Msg::SearchChanged); FTS5 en tc-store/messages.rs sin UI; sin búsqueda en servidor
 Búsqueda dentro de un chat,search,must,yes,no,S23
 Filtros de búsqueda por tipo de medio,search,should,yes,no,
 Búsqueda por fecha,search,could,yes,no,
-Info de usuario/perfil,profile,must,yes,no,S24
-Info de grupo/canal con miembros,profile,should,yes,no,S25
+Info de usuario/perfil,profile,must,yes,partial,"[incompleto][sin real] «Información» del menú con about/usuario/teléfono/bloqueado (ChatInfo, getFullUser); sin pantalla S24 completa"
+Info de grupo/canal con miembros,profile,should,yes,partial,[incompleto][sin real] ChatInfo con descripción y número de miembros; sin lista de miembros
 Medios compartidos del chat,profile,should,yes,no,
-Bloquear usuario,profile,should,yes,no,
+Bloquear usuario,profile,should,yes,partial,"[sin real] contacts.block/unblock con deshacer (tc-telegram dialog_actions.rs, tests/dialog_actions.rs)"
 Editar perfil propio (nombre foto bio usuario),settings,must,yes,no,S27
 Ajustes de notificaciones por tipo de chat,settings,must,yes,no,S28
-Notificaciones por chat (silenciar hasta),notifications,must,yes,no,
+Notificaciones por chat (silenciar hasta),notifications,must,yes,partial,[incompleto][sin real] silenciar con plazo (mute_until); sin ajustes por tipo ni S28
 Notificaciones de escritorio del SO,notifications,must,yes,no,S34; libnotify/portal
 Vista previa en notificación on/off,notifications,should,yes,no,
 Icono de bandeja con contador,notifications,should,yes,no,S35
@@ -75,7 +75,7 @@ Responder desde la notificación,notifications,could,yes,no,
 Sonido de notificación,notifications,should,yes,no,sonidos propios
 Ajustes de privacidad básicos (visto por última vez),settings,could,yes,no,S29
 Sesiones activas y cierre remoto,settings,should,yes,no,S33
-Tema claro/oscuro,settings,must,yes,partial,S30; conmutador en el raíl; no se persiste ni sigue al portal XDG
+Tema claro/oscuro,settings,must,yes,partial,conmutador en el raíl (tc-ui app.rs ThemeKind); no se persiste ni sigue al portal XDG
 Tamaño de texto y fondo de chat,settings,should,yes,no,
 Idioma de la interfaz,settings,should,yes,no,S32
 Ajustes de descarga automática y caché,settings,could,yes,no,S31
@@ -85,12 +85,12 @@ Pegar imagen desde portapapeles,attachments,should,yes,no,
 Diálogo de envío con pie de foto y comprimir/archivo,attachments,must,yes,no,S21
 Progreso de subida y descarga con cancelar,attachments,must,yes,no,
 Subida por partes reanudable,attachments,should,yes,no,parte difícil
-Visor de medios con zoom y navegación,attachments,must,yes,no,S19
+Visor de medios con zoom y navegación,attachments,must,yes,partial,"[sin real] Overlay::Photo con ←/→, rueda/doble clic 100 %, Esc/X/clic fuera (tc-ui view/, tests_media.rs); solo fotos, sin zoom con desplazamiento ni vídeo"
 Descargar/guardar archivo,attachments,must,yes,no,
-Miniaturas y caché de medios,attachments,must,yes,no,
+Miniaturas y caché de medios,attachments,must,yes,partial,"[sin real] caché LRU en memoria (tc-ui media.rs, 96 MiB) y de disco (tc-store media_cache.rs, MediaCacheLayer); sin stripped_thumb como placeholder"
 Atajos de teclado básicos,ux,should,yes,no,
-Soporte Wayland/X11 y portal de archivos,platform,must,yes,no,Linux
-Chats secretos (E2E): crear chat y claves DH,security,must,yes,no,S24 S11; F18; ALCANCE AMPLIADO 2026-11-06. MTProto 2.0 E2E; ligado al dispositivo; grammers no lo trae: implementación propia según core.telegram.org/api/end-to-end
+Soporte Wayland/X11 y portal de archivos,platform,must,yes,partial,ejecutada en Wayland (wgpu) y X11/XWayland (tiny-skia) según el log; sin portal de archivos (no hay selector de archivos)
+Chats secretos (E2E): crear chat y claves DH,security,must,yes,partial,"[sin real] EXPERIMENTAL: DH validado y creación de chat (tc-secret dh.rs/key.rs, tc-telegram secret.rs, tc-ui panel secreto); solo entre instancias propias, sin cuenta secundaria para probar real (log 2026-11-09)"
 Llamadas de voz y vídeo,calls,could,yes,skip,fuera del slice; WebRTC/red
 Historias,social,could,yes,skip,fuera del slice
 Bots y Mini Apps,platform,could,yes,skip,fuera del slice
@@ -98,14 +98,17 @@ Pagos y Stars,payments,could,yes,skip,regulado/fuera
 Telegram Premium,premium,could,yes,skip,producto de pago propietario
 Red global de usuarios y servidores,network,could,yes,skip,no clonable
 Marca: stickers/animaciones/sonidos oficiales EMPAQUETADOS,brand,could,yes,skip,No se redistribuyen assets de Telegram; sí se muestran packs descargados de la red y se crea un pack propio original
-Selector de stickers y packs recientes/favoritos,message types,must,yes,no,S38; F17; usuario 2026-11-06
-Instalar/quitar packs de stickers,message types,should,yes,no,S39; F17; usuario 2026-11-06
-Stickers animados (Lottie/TGS),message types,should,yes,no,S38 S11; F17; render con crate lottie/rlottie; fallback estático
-Stickers de vídeo (WebM),message types,could,yes,no,S38 S11; F17; requiere decodificador de vídeo
-Pack de stickers propio (original),brand,should,yes,no,S38 S39; F17; para mock y marca propia
-Chat secreto: mensajes de texto cifrados E2E,security,must,yes,no,S11; F18; usuario 2026-11-06
-Chat secreto: temporizador de autodestrucción,security,must,yes,partial,S41; F18; usuario 2026-11-06; solo se muestra el TTL (cabecera e icono en la meta); sin selector ni borrado
+Selector de stickers y packs recientes/favoritos,message types,must,yes,partial,"[sin real] pestañas Recientes/Favoritos/packs con hash (tc-telegram stickers.rs, tc-ui view/stickers.rs, tc-stickers recents.rs); sin búsqueda de stickers"
+Instalar/quitar packs de stickers,message types,should,yes,no,solo lectura de packs instalados; sin instalar/quitar (log 2026-11-09: pendiente)
+Stickers animados (Lottie/TGS),message types,should,yes,partial,"[sin real] TGS animado con rlottie solo en Linux, reloj único, política de foco/movimiento (tc-stickers anim.rs, tc-ui sticker_anim.rs, ADR-0008); Windows/macOS sin rlottie; TGS reales sin ver"
+Stickers de vídeo (WebM),message types,could,yes,no,WebM solo con miniatura estática; sin decodificador VP9 con alfa (ADR-0008)
+Pack de stickers propio (original),brand,should,yes,yes,tc-stickers pack.rs: 12 stickers procedurales; se añade como pack local (tc-ui stickers.rs)
+Chat secreto: mensajes de texto cifrados E2E,security,must,yes,partial,"[sin real] EXPERIMENTAL: MTProto 2.0 E2E propio (tc-secret: 40 pruebas, vectores independientes; tc-telegram secret.rs); probado solo entre instancias propias, sin interoperabilidad con Telegram real ni auditoría"
+Chat secreto: temporizador de autodestrucción,security,must,yes,partial,"[incompleto][sin real] selector TTL_OPTIONS y Msg::SetTtl en tc-ui, TTL en tc-secret ttl.rs; el borrado al vencer no está verificado de extremo a extremo"
 Chat secreto: medios y archivos cifrados,security,should,yes,no,S11; F18; usuario 2026-11-06
-Chat secreto: huella de clave (verificación visual),security,must,yes,partial,S40; F18; usuario 2026-11-06; M1.3 UI: diálogo con rejilla 4×4 y 4 grupos de 5 cifras; la huella del mock es ilustrativa
-Chat secreto: sin sincronización multi-dispositivo ni reenvío,security,must,yes,no,S11; F18; por diseño del protocolo
+Chat secreto: huella de clave (verificación visual),security,must,yes,partial,"[sin real] diálogo 4×4 con secret_key_visual (tc-secret visual.rs, tests/tl_visual_ttl.rs); no comparada con un cliente oficial"
+Chat secreto: sin sincronización multi-dispositivo ni reenvío,security,must,yes,partial,"por diseño: ligado al dispositivo (tc-secret snapshot cifrado en reposo, tc-app stores.rs); el bloqueo de reenvío en la UI no está comprobado"
 Chat secreto: aviso de captura de pantalla,security,could,yes,no,S11; F18; en Linux no es fiable detectarlo; se muestra solo el aviso recibido
+Foros: grupos con temas,groups,should,yes,partial,"[sin real] lista de temas, abrir en primer no leído, crear/fijar/cerrar (tc-core forum.rs, tc-telegram forum.rs + tests/forum.rs, tc-ui app/forum.rs + tests_forum.rs); getReplies del General sin verificar"
+Abrir chat en el primer mensaje sin leer,conversation,should,yes,partial,"[sin real] Anchor::Around(read_inbox_max_id) + lectura progresiva (tc-ui reading.rs, tests_reading.rs)"
+"Menús contextuales de chats (leído/no leído, vaciar, borrar, salir)",chats,should,yes,partial,"[sin real] tc-ui app/chat_actions.rs, tc-telegram dialog_actions.rs, tests/dialog_actions.rs"

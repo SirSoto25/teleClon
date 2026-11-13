@@ -63,6 +63,7 @@ try {
     }
     Copy-Item (Join-Path $Root 'assets\icons\NOTICE.md') (Join-Path $Stage 'licenses\ICONS-NOTICE.md')
     Copy-Item (Join-Path $Root 'assets\icons\LICENSE-MIT.txt') (Join-Path $Stage 'licenses\ICONS-LICENSE-MIT.txt')
+    Copy-Item (Join-Path $Root 'assets\licenses\OpenH264-BSD-2-Clause.txt') (Join-Path $Stage 'licenses\OpenH264-BSD-2-Clause.txt')
 
     # --- Zip portable ------------------------------------------------------------------------
     $Zip = Join-Path $Dist "Parlo-$Version-windows-x86_64-portable.zip"

@@ -216,9 +216,9 @@
     "semantic_hash": ""
   },
   "crates/tc-ui/src/lib.rs": {
-    "mtime": 1794590982.2453785,
-    "seen": 1794591077.8156471,
-    "ast_hash": "8812e222b49d98504ba2514171ed8755",
+    "mtime": 1794613781.3265395,
+    "seen": 1794613873.8275661,
+    "ast_hash": "e818b0d908733536bc2e36c9229d2d73",
     "semantic_hash": ""
   },
   "crates/tc-ui/src/measure.rs": {
@@ -312,9 +312,9 @@
     "semantic_hash": ""
   },
   "docs/agents/registry.md": {
-    "mtime": 1794000528.7616844,
-    "seen": 1794000537.006239,
-    "ast_hash": "3de25c65c09958492dea88e7ebb999f8",
+    "mtime": 1794613869.1579123,
+    "seen": 1794613873.8286188,
+    "ast_hash": "d287abfc2954a75e508a641c51942962",
     "semantic_hash": ""
   },
   "docs/architecture.md": {
@@ -330,9 +330,9 @@
     "semantic_hash": ""
   },
   "docs/logs/log.md": {
-    "mtime": 1794604579.9121087,
-    "seen": 1794604584.8984616,
-    "ast_hash": "13987778f972921e1d64545e49aa2850",
+    "mtime": 1794613869.159443,
+    "seen": 1794613873.82867,
+    "ast_hash": "e2735339ac353f6b223f34ac9cbd83d9",
     "semantic_hash": ""
   },
   "docs/research/design-skills.md": {
@@ -348,9 +348,9 @@
     "semantic_hash": ""
   },
   "docs/research/skills-used.md": {
-    "mtime": 1794005135.2976947,
-    "seen": 1794005813.4399629,
-    "ast_hash": "eca4c3979105ac483a51b4b124774a1d",
+    "mtime": 1794613869.1579123,
+    "seen": 1794613873.8287165,
+    "ast_hash": "0f1594b0f038ff34d3e72e2165d83fb6",
     "semantic_hash": ""
   },
   "replica/recon.md": {
@@ -756,9 +756,9 @@
     "semantic_hash": ""
   },
   "docs/brand/brand.md": {
-    "mtime": 1794068011.3527558,
-    "seen": 1794241052.9767625,
-    "ast_hash": "b6f30e5bc7c05b7229e1d1af9e0331eb",
+    "mtime": 1794613829.1842537,
+    "seen": 1794613873.8286343,
+    "ast_hash": "c10ce3d776772b620a0b726d8a7801b8",
     "semantic_hash": ""
   },
   "docs/brand/sweep-report.md": {
@@ -1407,6 +1407,78 @@
     "mtime": 1794603941.8816028,
     "seen": 1794604584.8987212,
     "ast_hash": "62bdbd0dcd828d489283ef80a93d9fe2",
+    "semantic_hash": ""
+  },
+  "crates/tc-ui/src/tests_qa.rs": {
+    "mtime": 1794613781.3144662,
+    "seen": 1794613873.8278441,
+    "ast_hash": "860ab9236e5b9de4d9bae6521facc39d",
+    "semantic_hash": ""
+  },
+  "replica/bugs.md": {
+    "mtime": 1794613869.1569123,
+    "seen": 1794613873.8287332,
+    "ast_hash": "363400c796414a781dbc0f59c1174876",
+    "semantic_hash": ""
+  },
+  "replica/diff-report.md": {
+    "mtime": 1794613819.3150911,
+    "seen": 1794613873.8287346,
+    "ast_hash": "5b05dba7799803976a14e2d8a94b19a9",
+    "semantic_hash": ""
+  },
+  "replica/test-plan.md": {
+    "mtime": 1794613869.1559122,
+    "seen": 1794613873.828751,
+    "ast_hash": "fadb637303eefbf79e5d643a2787e4c9",
+    "semantic_hash": ""
+  },
+  "replica/evidence/conversacion-gifs-wgpu.png": {
+    "mtime": 1794613799.4647646,
+    "seen": 1794613873.8288596,
+    "ast_hash": "d7078b980da42251dfe81791ebea9360",
+    "semantic_hash": ""
+  },
+  "replica/evidence/panel-emojis-banderas-wgpu.png": {
+    "mtime": 1794613797.7827368,
+    "seen": 1794613873.8288608,
+    "ast_hash": "8352b644f99ace57140ac1cfc6f84afa",
+    "semantic_hash": ""
+  },
+  "replica/evidence/panel-emojis-busqueda-mano-tono-wgpu.png": {
+    "mtime": 1794613797.4167309,
+    "seen": 1794613873.828862,
+    "ast_hash": "3935b89fa4b4dba620c8fa68cfcce206",
+    "semantic_hash": ""
+  },
+  "replica/evidence/panel-emojis-recientes-tono-wgpu.png": {
+    "mtime": 1794613797.0537248,
+    "seen": 1794613873.8288631,
+    "ast_hash": "7f3292edde31b5c9ab1b76fbffa6d787",
+    "semantic_hash": ""
+  },
+  "replica/evidence/panel-emojis-wgpu.png": {
+    "mtime": 1794613796.521716,
+    "seen": 1794613873.8288646,
+    "ast_hash": "5cf0211348003d5da37c2cc66e421d63",
+    "semantic_hash": ""
+  },
+  "replica/evidence/panel-gifs-filtro-wgpu.png": {
+    "mtime": 1794613798.4857485,
+    "seen": 1794613873.8288655,
+    "ast_hash": "776f6bd4f5e951f57c81f632d263ff89",
+    "semantic_hash": ""
+  },
+  "replica/evidence/panel-gifs-guardados-wgpu.png": {
+    "mtime": 1794613798.2457445,
+    "seen": 1794613873.8288665,
+    "ast_hash": "89c5eb24cd0090db1e75ef45b06b4a7e",
+    "semantic_hash": ""
+  },
+  "replica/evidence/panel-stickers-wgpu.png": {
+    "mtime": 1794613799.0507576,
+    "seen": 1794613873.8288674,
+    "ast_hash": "7256e88ebf8fd235372605fcbcc29612",
     "semantic_hash": ""
   }
 }
