@@ -237,3 +237,23 @@ fn errors_and_links_in_spanish() {
     assert_eq!(MuteFor::Hour.until(Timestamp(100)), Some(Timestamp(3700)));
     assert_eq!(MuteFor::Forever.until(Timestamp(100)), None);
 }
+
+#[tokio::test]
+async fn a_chat_never_appears_twice_after_reloading_the_lists() {
+    let (mut app, mock) = boot().await;
+    let backend: Backend = mock.clone();
+    let user = a_user(&app);
+    // Copia archivada obsoleta del mismo chat (p. ej. restos de la caché) y repetido en la propia lista.
+    let mut stale = app.dialogs.iter().find(|d| d.peer == user).unwrap().clone();
+    stale.archived = true;
+    app.dialogs.push(stale.clone());
+    let mut list = backend.dialogs(DialogsPage { offset: 0, limit: 500, archived: false }).await.unwrap();
+    list.push(list[0].clone());
+    let _ = app.update(Msg::DialogsLoaded(Ok(list)));
+    let count = |app: &App, p: PeerRef| app.dialogs.iter().filter(|d| d.peer == p).count();
+    assert!(app.dialogs.iter().all(|d| count(&app, d.peer) == 1), "hay chats repetidos");
+    // Y un archivado que Telegram ya no da como archivado desaparece de la carpeta.
+    app.dialogs.push(stale);
+    let _ = app.update(Msg::Chat(ChatMsg::ArchivedLoaded(Ok(vec![]))));
+    assert!(app.dialogs.iter().all(|d| !d.archived || d.peer != user));
+}

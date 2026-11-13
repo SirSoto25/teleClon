@@ -601,6 +601,8 @@ impl App {
             }
             ChatMsg::ArchivedLoaded(Ok(list)) => {
                 let groups: Vec<PeerRef> = list.iter().map(|d| d.peer).collect();
+                // Los que Telegram ya no da como archivados dejan de estar en la carpeta.
+                self.dialogs.retain(|d| !d.archived || groups.contains(&d.peer));
                 for d in list {
                     self.upsert_dialog(d);
                 }

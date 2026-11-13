@@ -831,6 +831,10 @@ impl App {
 
     fn upsert_dialog(&mut self, d: Dialog) {
         let d = self.estimate_unread(d);
+        // Diagnóstico de duplicados: mismo título con otra identidad (solo ids, nunca contenido).
+        if let Some(x) = self.dialogs.iter().find(|x| x.peer != d.peer && x.title == d.title) {
+            tracing::warn!(nuevo = ?d.peer, existente = ?x.peer, fijado = d.pinned_order.is_some(), "dos chats con el mismo título y distinto id");
+        }
         match self.dialogs.iter_mut().find(|x| x.peer == d.peer) {
             Some(x) => *x = d,
             None => self.dialogs.push(d),
@@ -1158,8 +1162,18 @@ impl App {
             }
             Msg::DialogsLoaded(Ok(list)) => {
                 // Los archivados se cargan aparte (`load_archived`): se conservan.
-                self.dialogs.retain(|d| d.archived);
-                self.dialogs.extend(list);
+                // Un chat solo puede estar en una carpeta: si la lista principal lo trae, gana sobre
+                // una copia archivada obsoleta; y se descartan repetidos dentro de la propia lista.
+                let fresh: std::collections::HashSet<PeerRef> = list.iter().map(|d| d.peer).collect();
+                self.dialogs.retain(|d| d.archived && !fresh.contains(&d.peer));
+                let mut seen = std::collections::HashSet::new();
+                self.dialogs.extend(list.into_iter().filter(|d| seen.insert(d.peer)));
+                let mut titles: std::collections::HashMap<&str, PeerRef> = std::collections::HashMap::new();
+                for d in &self.dialogs {
+                    if let Some(o) = titles.insert(d.title.as_str(), d.peer).filter(|o| *o != d.peer) {
+                        tracing::warn!(a = ?o, b = ?d.peer, fijado = d.pinned_order.is_some(), "dos chats con el mismo título y distinto id");
+                    }
+                }
                 sort_dialogs(&mut self.dialogs);
                 self.dialogs_state = LoadState::Ready;
                 let peers: Vec<PeerRef> = self.dialogs.iter().map(|d| d.peer).collect();
