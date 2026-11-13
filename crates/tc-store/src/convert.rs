@@ -266,8 +266,11 @@ pub(crate) fn persist_dialog(store: &Store, d: &core::Dialog) -> Result<i64> {
         (true, _) => i64::from(i32::MAX),
     };
     row.read_outbox_max_id = i64::from(d.read_outbox_max_id.0);
+    // Solo avanza: una fila parcial (sin el dato, 0) no borra lo ya sabido.
+    row.read_inbox_max_id = row.read_inbox_max_id.max(i64::from(d.read_inbox_max_id.0));
     row.updated_at = now();
     let ck = store.upsert_dialog(&row)?;
+    store.set_dialog_unread_mark(ck, d.unread_mark)?;
     if !secret {
         persist_photo(store, kind, id, d.photo)?;
         let draft = d.draft.as_ref().map(|dr| db::Draft { text: dr.text.clone(), entities: None, reply_to: dr.reply_to.map(|m| i64::from(m.0)), date: now() });
@@ -311,7 +314,9 @@ pub(crate) fn load_dialog(store: &Store, row: &db::DialogRow) -> Result<Option<c
         draft,
         activity: Timestamp(row.last_message_at.unwrap_or(row.updated_at)),
         read_outbox_max_id: msg_id32(row.read_outbox_max_id),
+        read_inbox_max_id: msg_id32(row.read_inbox_max_id),
         photo: load_photo(store, row.peer_kind, row.peer_id)?,
+        unread_mark: store.dialog_unread_mark(row.chat_key)?,
     }))
 }
 
@@ -509,7 +514,10 @@ pub(crate) fn history_is_servable(cached: &[core::Message], dialog: Option<&db::
             (None, _) => d.history_complete && d.top_message_id.is_none(),
             _ => false,
         },
-        _ => true,
+        // Ventana alrededor del primer no leído o hacia lo más nuevo: la caché puede tener huecos
+        // entre páginas sueltas que no sabemos detectar, así que manda la red (sin red, la caché).
+        core::Anchor::Around(_) | core::Anchor::After(_) => false,
+        core::Anchor::Before(_) => true,
     }
 }
 
@@ -632,6 +640,7 @@ pub(crate) fn persist_group(store: &Store, g: &core::Group) -> Result<()> {
         created_at: old.as_ref().and_then(|o| o.created_at),
         updated_at: now(),
     })?;
+    store.set_group_forum(g.id.0, g.is_forum)?;
     persist_photo(store, db::PeerKind::Group, g.id.0, g.photo)
 }
 
@@ -648,6 +657,7 @@ pub(crate) fn load_group(store: &Store, row: db::GroupRow) -> Result<core::Group
         username: row.username,
         member_count: row.participants_count.and_then(|n| u32::try_from(n).ok()).unwrap_or(0),
         photo,
+        is_forum: store.group_is_forum(row.id)?,
     })
 }
 

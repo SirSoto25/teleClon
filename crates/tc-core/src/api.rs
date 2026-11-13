@@ -11,6 +11,24 @@ pub trait ProfileApi: Send + Sync {
     async fn user(&self, id: UserId) -> BackendResult<User>;
     async fn group(&self, id: GroupId) -> BackendResult<Group>;
     async fn contacts(&self) -> BackendResult<Vec<User>>;
+    /// Bloquea o desbloquea a un usuario (`contacts.block` / `contacts.unblock`).
+    async fn set_blocked(&self, user: UserId, blocked: bool) -> BackendResult<()> {
+        let _ = (user, blocked);
+        Err(unsupported())
+    }
+    /// Datos de «Ver información» (`users.getFullUser`, `messages.getFullChat`, `channels.getFullChannel`).
+    async fn chat_info(&self, peer: PeerRef) -> BackendResult<ChatInfo> {
+        let _ = peer;
+        Err(unsupported())
+    }
+}
+
+/// Error de las operaciones que un backend aún no implementa (implementación por defecto de los
+/// métodos añadidos después; la UI lo explica con un texto propio).
+pub const UNSUPPORTED: &str = "NOT_SUPPORTED";
+
+pub fn unsupported() -> crate::BackendError {
+    crate::BackendError::Forbidden(UNSUPPORTED.into())
 }
 
 #[async_trait]
@@ -21,6 +39,45 @@ pub trait DialogsApi: Send + Sync {
     async fn set_archived(&self, peer: PeerRef, archived: bool) -> BackendResult<()>;
     async fn set_muted(&self, peer: PeerRef, muted: bool) -> BackendResult<()>;
     async fn save_draft(&self, peer: PeerRef, draft: Option<Draft>) -> BackendResult<()>;
+
+    // ---- Gestión de chats (menú contextual de la lista). Implementación por defecto: no soportado.
+
+    /// Silencia hasta `until` (`None` = para siempre). Reactivar es `set_muted(peer, false)`.
+    /// Por defecto, silencia para siempre.
+    async fn mute_until(&self, peer: PeerRef, until: Option<Timestamp>) -> BackendResult<()> {
+        let _ = until;
+        self.set_muted(peer, true).await
+    }
+    /// Pone o quita la marca manual de «no leído» (`messages.markDialogUnread`).
+    async fn set_unread_mark(&self, peer: PeerRef, unread: bool) -> BackendResult<()> {
+        let _ = (peer, unread);
+        Err(unsupported())
+    }
+    /// Lee todo el chat: lectura hasta el último mensaje (`messages.readHistory` /
+    /// `channels.readHistory`) y quita la marca manual de no leído.
+    async fn mark_dialog_read(&self, peer: PeerRef) -> BackendResult<()> {
+        let _ = peer;
+        Err(unsupported())
+    }
+    /// Vacía el historial sin quitar el chat (`messages.deleteHistory` con `just_clear`;
+    /// en supergrupos, `channels.deleteHistory` solo para mí). Emite `HistoryCleared`.
+    async fn clear_history(&self, peer: PeerRef) -> BackendResult<()> {
+        let _ = peer;
+        Err(unsupported())
+    }
+    /// Borra el chat de la lista. Privado: `messages.deleteHistory` (con `revoke`, también para el
+    /// otro). Grupo básico: sale y borra el historial. Canal/supergrupo: `channels.leaveChannel`.
+    /// Chat secreto: lo cierra. Emite `DialogRemoved`.
+    async fn delete_dialog(&self, peer: PeerRef, revoke: bool) -> BackendResult<()> {
+        let _ = (peer, revoke);
+        Err(unsupported())
+    }
+    /// Sale del grupo o canal (`messages.deleteChatUser` sobre mí / `channels.leaveChannel`).
+    /// Emite `DialogRemoved`.
+    async fn leave_chat(&self, peer: PeerRef) -> BackendResult<()> {
+        let _ = peer;
+        Err(unsupported())
+    }
 }
 
 #[async_trait]
@@ -56,6 +113,11 @@ pub trait MessagesApi: Send + Sync {
     }
     async fn mark_read(&self, peer: PeerRef, max_id: MsgId) -> BackendResult<()>;
     async fn set_typing(&self, peer: PeerRef, typing: bool) -> BackendResult<()>;
+    /// Fija o desfija un mensaje del chat (`messages.updatePinnedMessage`). Por defecto, no soportado.
+    async fn pin_message(&self, peer: PeerRef, id: MsgId, pinned: bool) -> BackendResult<()> {
+        let _ = (peer, id, pinned);
+        Err(unsupported())
+    }
 }
 
 #[async_trait]
@@ -90,6 +152,33 @@ pub trait StickersApi: Send + Sync {
     async fn faved_stickers(&self) -> BackendResult<Vec<Sticker>> {
         Ok(Vec::new())
     }
+
+    // --- GIFs y emojis del panel del compositor (ADR-0009, ADR-0010). Todos con valor por defecto
+    // para que los backends que no los tienen sigan compilando.
+
+    /// GIFs guardados de la cuenta (más reciente primero). Por defecto, ninguno.
+    async fn saved_gifs(&self) -> BackendResult<Vec<crate::gif::Gif>> {
+        Ok(Vec::new())
+    }
+    /// Busca GIFs (en Telegram, con el bot inline `@gif`). `offset` vacío = primera página.
+    async fn search_gifs(&self, query: String, offset: String) -> BackendResult<crate::gif::GifPage> {
+        let _ = (query, offset);
+        Ok(crate::gif::GifPage::default())
+    }
+    /// Envía un GIF (documento, o resultado del bot si viene de una búsqueda).
+    async fn send_gif(&self, peer: PeerRef, gif: crate::gif::Gif, reply_to: Option<MsgId>, random_id: RandomId) -> BackendResult<Message> {
+        let _ = (peer, gif, reply_to, random_id);
+        Err(crate::error::BackendError::NotFound)
+    }
+    /// Uso local de emojis del panel (recientes y frecuentes). Por defecto no se guarda nada.
+    async fn emoji_usage(&self) -> BackendResult<Vec<crate::gif::EmojiUse>> {
+        Ok(Vec::new())
+    }
+    /// Suma un uso de `emoji` en el instante `at`.
+    async fn record_emoji_use(&self, emoji: String, at: Timestamp) -> BackendResult<()> {
+        let _ = (emoji, at);
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -103,7 +192,7 @@ pub trait SecretChatsApi: Send + Sync {
 }
 
 pub trait ChatBackend:
-    ProfileApi + DialogsApi + MessagesApi + MediaApi + StickersApi + SecretChatsApi + Send + Sync + 'static
+    ProfileApi + DialogsApi + MessagesApi + MediaApi + StickersApi + SecretChatsApi + crate::forum::ForumApi + Send + Sync + 'static
 {
     /// Flujo de eventos en tiempo real, en orden de llegada. Cada llamada crea un
     /// suscriptor nuevo que solo ve eventos posteriores a la suscripción.

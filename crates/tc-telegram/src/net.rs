@@ -130,7 +130,10 @@ pub fn map_error(e: &InvocationError) -> BackendError {
                     BackendError::InvalidInput("media")
                 }
                 "CHAT_WRITE_FORBIDDEN" | "CHAT_ADMIN_REQUIRED" | "MESSAGE_AUTHOR_REQUIRED" | "USER_IS_BLOCKED"
-                | "YOU_BLOCKED_USER" | "CHAT_RESTRICTED" | "USER_BANNED_IN_CHANNEL" | "MESSAGE_EDIT_TIME_EXPIRED" => {
+                | "YOU_BLOCKED_USER" | "CHAT_RESTRICTED" | "USER_BANNED_IN_CHANNEL" | "MESSAGE_EDIT_TIME_EXPIRED"
+                // Gestión de chats (menú contextual): la UI los explica en español (`chat_actions.rs`).
+                | "PINNED_DIALOGS_TOO_MUCH" | "PINNED_TOO_MUCH" | "USER_NOT_PARTICIPANT" | "USER_CREATOR" | "CHANNEL_PRIVATE"
+                | "MESSAGE_DELETE_FORBIDDEN" | "PIN_RESTRICTED" | "CHAT_NOT_MODIFIED" => {
                     BackendError::Forbidden(r.name.clone())
                 }
                 _ => {

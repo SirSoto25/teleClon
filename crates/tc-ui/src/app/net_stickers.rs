@@ -60,7 +60,7 @@ impl App {
     }
 
     /// Chat «neutro» para descargar stickers del selector (no puede ser un chat secreto).
-    fn sticker_peer(&self) -> PeerRef {
+    pub(crate) fn sticker_peer(&self) -> PeerRef {
         PeerRef::User(self.me_id().unwrap_or(UserId(0)))
     }
 
@@ -77,7 +77,7 @@ impl App {
                 out.extend(sticker_img::request(peer, msg, s, false));
             }
         }
-        if self.picker.open {
+        if self.picker.open && self.panel.tab == crate::panel::PanelTab::Stickers {
             let peer = self.sticker_peer();
             for s in self.picker_tab_stickers() {
                 out.extend(sticker_img::request(peer, MsgId(0), s, true));

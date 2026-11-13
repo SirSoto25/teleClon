@@ -214,8 +214,8 @@ impl crate::Inner {
                 Ok(b) => return Ok(b),
                 Err(DownloadError::FileReference) if attempt == 0 => {
                     tracing::debug!(id = file.id, "referencia de archivo caducada: se refresca");
-                    // `MsgId(0)`: sticker de un pack, sin mensaje del que sacar la referencia.
-                    file = if msg.0 == 0 { self.refresh_sticker_file(&file).await? } else { self.refresh_file(peer, msg, &file).await? };
+                    // `MsgId(0)`: sticker de un pack o GIF guardado, sin mensaje del que sacar la referencia.
+                    file = if msg.0 == 0 { self.refresh_loose_file(&file).await? } else { self.refresh_file(peer, msg, &file).await? };
                 }
                 Err(DownloadError::FileReference) => return Err(BackendError::NotFound),
                 Err(DownloadError::Backend(e)) => return Err(e),

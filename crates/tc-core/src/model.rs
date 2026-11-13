@@ -48,6 +48,8 @@ pub struct Group {
     pub username: Option<String>,
     pub member_count: u32,
     pub photo: Option<ProfilePhoto>,
+    /// Supergrupo con temas («comunidad»): se abre en la lista de temas (ver `forum.rs`).
+    pub is_forum: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -268,8 +270,34 @@ pub struct Dialog {
     pub activity: Timestamp,
     /// Id del último mensaje saliente leído por el otro lado.
     pub read_outbox_max_id: MsgId,
+    /// Id del último mensaje entrante que yo he leído (`dialog.read_inbox_max_id`); 0 si se
+    /// desconoce. El primer no leído es el primer entrante con id mayor (la UI abre ahí).
+    pub read_inbox_max_id: MsgId,
     /// Foto del chat (la del usuario, grupo o canal; en chats secretos, la del otro usuario).
     pub photo: Option<ProfilePhoto>,
+    /// Marcado a mano como no leído (`unread_mark` de la red): se pinta como no leído aunque
+    /// `unread_count` sea 0. Se quita al leer el chat (`DialogsApi::mark_dialog_read`).
+    pub unread_mark: bool,
+}
+
+impl Dialog {
+    /// ¿Se pinta como no leído? (mensajes sin leer o marca manual).
+    pub fn looks_unread(&self) -> bool {
+        self.unread_count > 0 || self.unread_mark
+    }
+}
+
+/// Datos de «Ver información» de un chat (`ProfileApi::chat_info`). Lo que el backend no sepa va
+/// vacío; la UI completa con lo que ya tiene (título, foto, miembros).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ChatInfo {
+    /// Biografía del usuario o descripción del grupo/canal.
+    pub about: Option<String>,
+    pub username: Option<String>,
+    pub phone: Option<String>,
+    pub members: Option<u32>,
+    /// Usuario bloqueado por mí (solo chats privados).
+    pub blocked: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

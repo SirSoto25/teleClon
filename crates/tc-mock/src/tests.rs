@@ -24,7 +24,8 @@ async fn about_thirty_chats_sorted_with_pinned_first() {
     let b = mock();
     let mut all = b.dialogs(page(false)).await.unwrap();
     all.extend(b.dialogs(page(true)).await.unwrap());
-    assert_eq!(all.len(), 29);
+    // 29 de `data.rs` + el grupo con temas de `forum.rs`.
+    assert_eq!(all.len(), 30);
     let main = b.dialogs(page(false)).await.unwrap();
     let pinned = main.iter().take_while(|d| d.pinned_order.is_some()).count();
     assert_eq!(pinned, 3);
@@ -342,4 +343,22 @@ async fn simulated_qr_login_is_accepted_later() {
     assert!(tok.url.starts_with("tg://login?token="));
     assert!(matches!(ev.next().await, Some(AuthState::WaitingQr(_))));
     assert!(matches!(ev.next().await, Some(AuthState::LoggedIn(u)) if u.id == ME));
+}
+
+#[tokio::test]
+async fn grupo_con_muchos_no_leidos_y_lectura_parcial() {
+    let m = mock();
+    let d = m.dialogs(page(false)).await.unwrap().into_iter().find(|d| d.peer == UNREAD_CHAT).expect("visible en la lista");
+    assert!(d.unread_count as usize > crate::data::UNREAD_CHAT_COUNT / 2);
+    // `read_inbox_max_id` coherente con el contador: tantos entrantes por encima como no leídos.
+    let all = m.history(UNREAD_CHAT, Anchor::Latest, 10_000).await.unwrap();
+    let above: Vec<&Message> = all.iter().filter(|x| !x.outgoing && x.id > d.read_inbox_max_id).collect();
+    assert_eq!(above.len() as u32, d.unread_count);
+    // La ventana alrededor del último leído trae contexto y los primeros no leídos.
+    let w = m.history(UNREAD_CHAT, Anchor::Around(d.read_inbox_max_id), 60).await.unwrap();
+    assert!(w.iter().any(|x| x.id < d.read_inbox_max_id) && w.iter().any(|x| x.id > d.read_inbox_max_id));
+    // Leer a medias deja el resto sin leer.
+    m.mark_read(UNREAD_CHAT, above[9].id).await.unwrap();
+    let d2 = m.dialogs(page(false)).await.unwrap().into_iter().find(|d| d.peer == UNREAD_CHAT).unwrap();
+    assert_eq!((d2.unread_count, d2.read_inbox_max_id), (d.unread_count - 10, above[9].id));
 }

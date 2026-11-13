@@ -142,7 +142,7 @@ impl MediaCache {
         self.limit
     }
 
-    fn store(&self) -> MutexGuard<'_, Store> {
+    pub(crate) fn store(&self) -> MutexGuard<'_, Store> {
         self.index.lock().unwrap_or_else(|e| e.into_inner())
     }
 
@@ -281,6 +281,12 @@ impl<B: ChatBackend> ProfileApi for MediaCacheLayer<B> {
     async fn contacts(&self) -> BackendResult<Vec<User>> {
         self.inner.contacts().await
     }
+    async fn set_blocked(&self, user: UserId, blocked: bool) -> BackendResult<()> {
+        self.inner.set_blocked(user, blocked).await
+    }
+    async fn chat_info(&self, peer: PeerRef) -> BackendResult<tc_core::ChatInfo> {
+        self.inner.chat_info(peer).await
+    }
 }
 
 #[async_trait]
@@ -299,6 +305,24 @@ impl<B: ChatBackend> DialogsApi for MediaCacheLayer<B> {
     }
     async fn save_draft(&self, peer: PeerRef, draft: Option<Draft>) -> BackendResult<()> {
         self.inner.save_draft(peer, draft).await
+    }
+    async fn mute_until(&self, peer: PeerRef, until: Option<tc_core::Timestamp>) -> BackendResult<()> {
+        self.inner.mute_until(peer, until).await
+    }
+    async fn set_unread_mark(&self, peer: PeerRef, unread: bool) -> BackendResult<()> {
+        self.inner.set_unread_mark(peer, unread).await
+    }
+    async fn mark_dialog_read(&self, peer: PeerRef) -> BackendResult<()> {
+        self.inner.mark_dialog_read(peer).await
+    }
+    async fn clear_history(&self, peer: PeerRef) -> BackendResult<()> {
+        self.inner.clear_history(peer).await
+    }
+    async fn delete_dialog(&self, peer: PeerRef, revoke: bool) -> BackendResult<()> {
+        self.inner.delete_dialog(peer, revoke).await
+    }
+    async fn leave_chat(&self, peer: PeerRef) -> BackendResult<()> {
+        self.inner.leave_chat(peer).await
     }
 }
 
@@ -331,6 +355,9 @@ impl<B: ChatBackend> MessagesApi for MediaCacheLayer<B> {
     async fn set_typing(&self, peer: PeerRef, typing: bool) -> BackendResult<()> {
         self.inner.set_typing(peer, typing).await
     }
+    async fn pin_message(&self, peer: PeerRef, id: MsgId, pinned: bool) -> BackendResult<()> {
+        self.inner.pin_message(peer, id, pinned).await
+    }
 }
 
 #[async_trait]
@@ -362,6 +389,24 @@ impl<B: ChatBackend> StickersApi for MediaCacheLayer<B> {
     async fn faved_stickers(&self) -> BackendResult<Vec<Sticker>> {
         self.inner.faved_stickers().await
     }
+    /// GIFs guardados: lo de la red se guarda; sin red, lo último guardado (ver `gifs.rs`).
+    async fn saved_gifs(&self) -> BackendResult<Vec<tc_core::Gif>> {
+        let net = self.inner.saved_gifs().await;
+        crate::gifs::saved_gifs(self.cache.clone(), net).await
+    }
+    async fn search_gifs(&self, query: String, offset: String) -> BackendResult<tc_core::GifPage> {
+        self.inner.search_gifs(query, offset).await
+    }
+    async fn send_gif(&self, peer: PeerRef, gif: tc_core::Gif, reply_to: Option<MsgId>, random_id: RandomId) -> BackendResult<Message> {
+        self.inner.send_gif(peer, gif, reply_to, random_id).await
+    }
+    /// El uso de emojis vive en la base de la cuenta (la red no lo guarda).
+    async fn emoji_usage(&self) -> BackendResult<Vec<tc_core::EmojiUse>> {
+        crate::gifs::emoji_usage(self.cache.clone()).await
+    }
+    async fn record_emoji_use(&self, emoji: String, at: Timestamp) -> BackendResult<()> {
+        crate::gifs::record_emoji_use(self.cache.clone(), emoji, at).await
+    }
 }
 
 #[async_trait]
@@ -383,6 +428,47 @@ impl<B: ChatBackend> SecretChatsApi for MediaCacheLayer<B> {
     }
     async fn secret_key_visual(&self, id: SecretChatId) -> BackendResult<KeyVisual> {
         self.inner.secret_key_visual(id).await
+    }
+}
+
+/// Grupos con temas: pasan tal cual.
+#[async_trait]
+impl<B: ChatBackend> ForumApi for MediaCacheLayer<B> {
+    async fn forum_topics(&self, group: GroupId, query: TopicsQuery) -> BackendResult<TopicsPage> {
+        self.inner.forum_topics(group, query).await
+    }
+    async fn forum_topics_by_id(&self, group: GroupId, ids: Vec<MsgId>) -> BackendResult<Vec<ForumTopic>> {
+        self.inner.forum_topics_by_id(group, ids).await
+    }
+    async fn topic_history(&self, thread: ThreadRef, anchor: Anchor, limit: usize) -> BackendResult<Vec<Message>> {
+        self.inner.topic_history(thread, anchor, limit).await
+    }
+    async fn send_topic_text(&self, thread: ThreadRef, msg: OutgoingText) -> BackendResult<Message> {
+        self.inner.send_topic_text(thread, msg).await
+    }
+    async fn send_topic_media(&self, thread: ThreadRef, media: OutgoingMedia) -> BackendResult<Vec<Message>> {
+        self.inner.send_topic_media(thread, media).await
+    }
+    async fn send_topic_sticker(&self, thread: ThreadRef, sticker: StickerId, reply_to: Option<MsgId>, random_id: RandomId) -> BackendResult<Message> {
+        self.inner.send_topic_sticker(thread, sticker, reply_to, random_id).await
+    }
+    async fn send_topic_gif(&self, thread: ThreadRef, gif: Gif, reply_to: Option<MsgId>, random_id: RandomId) -> BackendResult<Message> {
+        self.inner.send_topic_gif(thread, gif, reply_to, random_id).await
+    }
+    async fn mark_topic_read(&self, thread: ThreadRef, max_id: MsgId) -> BackendResult<()> {
+        self.inner.mark_topic_read(thread, max_id).await
+    }
+    async fn set_topic_typing(&self, thread: ThreadRef, typing: bool) -> BackendResult<()> {
+        self.inner.set_topic_typing(thread, typing).await
+    }
+    async fn create_topic(&self, group: GroupId, title: String, icon_color: Option<u32>, random_id: RandomId) -> BackendResult<ForumTopic> {
+        self.inner.create_topic(group, title, icon_color, random_id).await
+    }
+    async fn set_topic_pinned(&self, thread: ThreadRef, pinned: bool) -> BackendResult<()> {
+        self.inner.set_topic_pinned(thread, pinned).await
+    }
+    async fn set_topic_closed(&self, thread: ThreadRef, closed: bool) -> BackendResult<()> {
+        self.inner.set_topic_closed(thread, closed).await
     }
 }
 

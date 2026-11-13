@@ -13,10 +13,16 @@ La versión sale siempre de `Cargo.toml` (`[workspace.package] version`). Todo v
 
 ## Compilar en local
 
-Requisito común: Rust 1.99.1 (`rustup toolchain install 1.99.1`). La feature `lottie` de `tc-stickers`
-(rlottie, C++) **no** se activa en los paquetes: los stickers animados usan el respaldo estático.
+Requisito común: Rust 1.99.1 (`rustup toolchain install 1.99.1`). Stickers TGS animados (rlottie, C++,
+ADR-0008): **solo en Linux** y siempre activados ahí (dependencia por destino en `tc-ui`); en Windows y
+macOS los TGS se dibujan con su imagen estática.
 
 ### Linux
+rlottie (stickers TGS animados): `rlottie-sys` **clona** rlottie de GitHub con `git` durante el build
+(hace falta red la primera vez), lo compila con `cmake` + `g++` (usa `ninja` si está) y genera los
+enlaces con bindgen, que necesita libclang (`cmake g++ git libclang-dev` en Debian/Ubuntu; `cmake clang`
+en Arch; `cmake gcc-c++ clang-devel` en Fedora). Se enlaza estático (no hay `.so` de rlottie que instalar).
+
 El audio (notas de voz) sale por ALSA vía cpal: para compilar hacen falta las cabeceras
 (`libasound2-dev` + `pkg-config` en Debian/Ubuntu, `alsa-lib` en Arch, `alsa-lib-devel` en Fedora) y,
 para ejecutar, `libasound.so.2` (presente en cualquier escritorio; PipeWire/PulseAudio la atienden por
@@ -129,4 +135,6 @@ YAML de los workflows (`yaml.safe_load`); XML de plist/manifiesto (`xmllint`); `
 * Windows ARM64 y `aarch64-unknown-linux-gnu` (posibles con la misma estructura; sin probar).
 * Archivos `LICENSE-MIT`/`LICENSE-APACHE` en la raíz: la licencia del workspace es `MIT OR Apache-2.0` pero
   aún no hay texto; los paquetes llevan README y las licencias de fuentes e iconos.
-* Stickers animados (feature `lottie`) en Windows/macOS: rlottie necesita cmake y un compilador C++.
+* Stickers TGS animados en Windows/macOS (ADR-0008): `rlottie` 0.5.4 no compila en Windows (usa
+  `std::os::unix`) y su build.rs enlaza `-lstdc++` fijo (en macOS es libc++). Haría falta un parche o
+  fork del crate (o un renderizador Lottie en Rust puro).

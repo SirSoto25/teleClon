@@ -26,16 +26,21 @@ pub fn bubble_max(col_w: f32, group: bool) -> f32 {
 }
 
 pub fn view(app: &App, narrow: bool) -> Element<'_, Msg> {
-    let Some(cv) = &app.conv else { return empty(app) };
+    // Sin conversación: la lista de temas del foro abierto, si la hay (`topics.rs`).
+    let Some(cv) = &app.conv else { return super::topics::view(app, narrow).unwrap_or_else(|| empty(app)) };
     let mut col = column![header(app, cv, narrow)];
     if matches!(cv.peer, PeerRef::Secret(_)) {
         col = col.push(experimental_banner(app));
     }
-    col = col.push(body(app, cv));
     if app.picker.open {
-        col = col.push(super::stickers::picker(app));
+        // Clic fuera del panel (sobre la conversación) lo cierra.
+        col = col.push(mouse_area(body(app, cv)).on_press(Msg::Panel(crate::panel::PanelMsg::Close)));
+        col = col.push(super::panel::view(app));
+    } else {
+        col = col.push(body(app, cv));
     }
-    col.push(composer(app, cv)).height(Length::Fill).width(Length::Fill).into()
+    // Con mensajes seleccionados, la barra de selección sustituye al compositor (`context_menu.rs`).
+    col.push(super::context_menu::selection_bar(app).unwrap_or_else(|| composer(app, cv))).height(Length::Fill).width(Length::Fill).into()
 }
 
 /// Columna de la conversación (§7): ancho máximo `CHAT_COLUMN_MAX` centrado, con margen lateral
@@ -84,6 +89,10 @@ fn empty(app: &App) -> Element<'_, Msg> {
 // ------------------------------------------------------------------ cabecera
 
 fn header<'a>(app: &'a App, cv: &'a Conversation, narrow: bool) -> Element<'a, Msg> {
+    // Conversación de un tema: «Grupo › Tema» y volver a los temas (`topics.rs`).
+    if let Some(h) = super::topics::topic_header(app, cv, narrow) {
+        return h;
+    }
     let b = app.brasa;
     let peer = cv.peer;
     let d = app.dialog(peer);
@@ -204,8 +213,8 @@ fn body<'a>(app: &'a App, cv: &'a Conversation) -> Element<'a, Msg> {
         };
 
         let mut layers = vec![contour_bg(&app.bg_cache, App::peer_seed(cv.peer), secret, b), content];
-        if cv.from_bottom > 320.0 || cv.new_below > 0 {
-            layers.push(jump_button(app, cv.new_below));
+        if crate::reading::show_jump(cv) {
+            layers.push(jump_button(app, app.jump_badge(cv)));
         }
         if switch < 0.999 {
             // Entrada del chat nuevo: una capa del color de fondo que se desvanece (= opacidad 0 → 1).
@@ -246,7 +255,7 @@ fn jump_button<'a>(app: &App, n: u32) -> Element<'a, Msg> {
 }
 
 /// Construye los elementos (fechas, marca de no leídos, mensajes) con sus alturas medidas.
-fn build_items(app: &App, cv: &Conversation, col_w: f32) -> (Vec<Item>, Vec<MsgLayout>) {
+pub(crate) fn build_items(app: &App, cv: &Conversation, col_w: f32) -> (Vec<Item>, Vec<MsgLayout>) {
     let group = app.is_group_chat(cv.peer);
     let bmax = bubble_max(col_w, group);
     let mut cache = cv.cache.borrow_mut();
@@ -309,6 +318,8 @@ fn messages<'a>(app: &'a App, cv: &'a Conversation, col_w: f32, vh: f32, x_shift
     // Si el contenido no llena la vista, los mensajes se apoyan abajo.
     let filler = (vh - acc - space::S2).max(0.0);
     let win = conv::visible_window(&prefix, vh, cv.from_bottom, vh);
+    // Lo último que se ve (para marcar como leído poco a poco).
+    cv.reading.seen.set(crate::reading::last_seen(&items, &prefix, &cv.messages, vh, cv.from_bottom));
 
     let mut col = column![Space::new().height(Length::Fixed(win.top_space + filler))].width(Length::Fill).align_x(Alignment::Center);
     let mut li = items[..win.start].iter().filter(|i| matches!(i, Item::Msg { .. })).count();
@@ -412,10 +423,12 @@ fn message_row<'a>(
         }
         line = line.push(bubble_el).push(extras).push(hfill());
     }
-    let line = mouse_area(container(line).width(Length::Fixed(col_w)))
-        .on_enter(Msg::Hover(Some(m.id)))
-        .on_exit(Msg::Hover(None))
-        .on_right_press(if conv::is_local(m) { Msg::Hover(Some(m.id)) } else { Msg::ToggleReactions(m.id) });
+    // Clic derecho: menú del mensaje; en modo selección, marcar/desmarcar (`context_menu.rs`).
+    let line = super::context_menu::message_line(
+        app,
+        m,
+        mouse_area(container(line).width(Length::Fixed(col_w))).on_enter(Msg::Hover(Some(m.id))).on_exit(Msg::Hover(None)),
+    );
 
     let mut col = column![Space::new().height(Length::Fixed(gap + y)), line].width(Length::Fixed(col_w)).height(Length::Fixed(height));
     if !m.reactions.is_empty() {
@@ -488,7 +501,7 @@ fn extras<'a>(app: &'a App, m: &'a Message, show: bool) -> Element<'a, Msg> {
         if !m.text.is_empty() {
             r = r.push(ib(Icon::Copy, Msg::Copy(m.id)));
         }
-        if m.outgoing && !m.text.is_empty() && m.sticker.is_none() && !blocked {
+        if app.can_edit(m) {
             r = r.push(ib(Icon::Edit, Msg::StartEdit(m.id)));
         }
         r = r.push(icon_button(Icon::Trash, 16.0, c(b.p.danger), Some(Msg::AskDelete(m.id)), b));
@@ -630,6 +643,9 @@ fn bubble<'a>(app: &'a App, cv: &'a Conversation, m: &'a Message, l: &MsgLayout,
 /// Las fotos abren el visor al pulsarlas.
 fn media_box<'a>(app: &'a App, peer: PeerRef, m: &'a Message, md: &'a tc_core::Media, sz: iced::Size, opacity: f32, meta_c: Color) -> Element<'a, Msg> {
     use tc_core::MediaKind;
+    if md.kind == tc_core::MediaKind::Gif {
+        return super::gif_panel::bubble(app, peer, m, md, sz, opacity, meta_c);
+    }
     if crate::audio::is_audio(md) {
         return super::audio::bubble(app, peer, m, md, sz, opacity);
     }
@@ -711,6 +727,10 @@ fn composer<'a>(app: &'a App, cv: &'a Conversation) -> Element<'a, Msg> {
     let empty = app.composer.text().trim().is_empty();
     let editing = matches!(app.compose, Compose::Edit(_));
     let picker_open = app.picker.open;
+    // Flechas, Enter y Tab van a la rejilla solo en GIFs y Stickers (en Emojis mueven el cursor del texto).
+    let grid_keys = picker_open && app.panel.tab.grid_keys();
+    let stickers_tab = grid_keys && app.panel.tab == crate::panel::PanelTab::Stickers;
+    let panel_cursor = app.panel_cursor().is_some();
     let editor = text_editor(&app.composer)
         .id(COMPOSER_ID)
         .placeholder(if editing { "Edita el mensaje…" } else { "Escribe un mensaje…" })
@@ -731,12 +751,16 @@ fn composer<'a>(app: &'a App, cv: &'a Conversation) -> Element<'a, Msg> {
             match kp.key.as_ref() {
                 Key::Character("e") if kp.modifiers.command() => Some(text_editor::Binding::Custom(Msg::TogglePicker)),
                 // Con el selector abierto, las flechas, Enter y Tab mueven el cursor de la rejilla.
-                Key::Named(Named::ArrowLeft) if picker_open => nav(Nav::Left),
-                Key::Named(Named::ArrowRight) if picker_open => nav(Nav::Right),
-                Key::Named(Named::ArrowUp) if picker_open => nav(Nav::Up),
-                Key::Named(Named::ArrowDown) if picker_open => nav(Nav::Down),
-                Key::Named(Named::Tab) if picker_open => nav(if kp.modifiers.shift() { Nav::PrevTab } else { Nav::NextTab }),
-                Key::Named(Named::Enter) if picker_open && app.picker.cursor.is_some() => nav(Nav::Activate),
+                // Alt+1/2/3: pestañas Emojis | GIFs | Stickers del panel.
+                Key::Character(d) if picker_open && kp.modifiers.alt() && crate::panel::PanelTab::from_digit(d).is_some() => {
+                    Some(text_editor::Binding::Custom(Msg::Panel(crate::panel::PanelMsg::Tab(crate::panel::PanelTab::from_digit(d).unwrap_or_default()))))
+                }
+                Key::Named(Named::ArrowLeft) if grid_keys => nav(Nav::Left),
+                Key::Named(Named::ArrowRight) if grid_keys => nav(Nav::Right),
+                Key::Named(Named::ArrowUp) if grid_keys => nav(Nav::Up),
+                Key::Named(Named::ArrowDown) if grid_keys => nav(Nav::Down),
+                Key::Named(Named::Tab) if stickers_tab => nav(if kp.modifiers.shift() { Nav::PrevTab } else { Nav::NextTab }),
+                Key::Named(Named::Enter) if grid_keys && panel_cursor => nav(Nav::Activate),
                 Key::Named(Named::Enter) if !kp.modifiers.shift() => Some(text_editor::Binding::Custom(Msg::Send)),
                 Key::Named(Named::Escape) => Some(text_editor::Binding::Custom(Msg::Escape)),
                 Key::Named(Named::ArrowUp) if empty => Some(text_editor::Binding::Custom(Msg::EditLast)),
@@ -764,10 +788,11 @@ fn composer<'a>(app: &'a App, cv: &'a Conversation) -> Element<'a, Msg> {
     let sticker_btn: Element<'_, Msg> = if editing {
         Space::new().width(Length::Fixed(0.0)).into()
     } else {
+        // Abre el panel Emojis | GIFs | Stickers (Ctrl+E).
         let ic: Element<'_, Msg> = if picker_open {
-            icon_fill(Icon::Sticker, layout::ICON_MD, c(b.p.accent_text))
+            icon_fill(Icon::Smiley, layout::ICON_MD, c(b.p.accent_text))
         } else {
-            icon(Icon::Sticker, layout::ICON_MD, c(b.p.text_muted))
+            icon(Icon::Smiley, layout::ICON_MD, c(b.p.text_muted))
         };
         container(button(ic).padding(8).style(style::ghost(b, radius::PILL)).on_press(Msg::TogglePicker)).center(Length::Fixed(40.0)).into()
     };

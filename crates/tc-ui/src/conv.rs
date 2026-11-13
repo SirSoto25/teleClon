@@ -399,6 +399,8 @@ pub struct Conversation {
     /// Índices `[desde, hasta)` de los mensajes de la ventana visible (lo fija la vista; decide qué
     /// fotos se cargan).
     pub visible: std::cell::Cell<Option<(usize, usize)>>,
+    /// Lectura: ventana hacia lo más nuevo, salto a la marca y marcado progresivo (`reading.rs`).
+    pub reading: crate::reading::ReadState,
 }
 
 impl Conversation {
@@ -419,6 +421,7 @@ impl Conversation {
             last_viewport: std::cell::Cell::new(0.0),
             anim_visible: std::cell::Cell::new(false),
             visible: std::cell::Cell::new(None),
+            reading: Default::default(),
         }
     }
 

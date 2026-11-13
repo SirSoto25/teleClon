@@ -33,6 +33,9 @@ use tc_core::{
 };
 use tokio::sync::broadcast;
 
+/// `ForumApi` del decorador (temas y historial por tema).
+mod forum;
+
 /// Resultado de la búsqueda local.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LocalHit {
@@ -167,6 +170,24 @@ impl<B: ChatBackend> Shared<B> {
                     // Sin efecto en la base: estado de conexión, «escribiendo…» y chats secretos (su estado de
                     // protocolo y claves los gestiona quien implementa el backend, no esta caché).
                     BackendEvent::Connection(_) | BackendEvent::Typing { .. } | BackendEvent::SecretChat(_) | BackendEvent::Download { .. } => {}
+                    BackendEvent::DialogRemoved { peer } => {
+                        if let Some(ck) = cv::find_chat_key(s, peer)? {
+                            s.delete_dialog(ck)?;
+                        }
+                    }
+                    BackendEvent::HistoryCleared { peer } => {
+                        if let Some(ck) = cv::find_chat_key(s, peer)? {
+                            s.clear_dialog_history(ck)?;
+                        }
+                    }
+                    // Grupos con temas (`cached/forum.rs`).
+                    BackendEvent::TopicMessageNew { topic, msg } => {
+                        if let PeerRef::Group(group) = msg.peer {
+                            forum::persist_topic_messages(s, tc_core::ThreadRef { group, topic }, std::slice::from_ref(&msg))?;
+                        }
+                    }
+                    BackendEvent::ForumTopicUpserted(t) => forum::persist_topic(s, &t)?,
+                    BackendEvent::ForumTopicsChanged { .. } => {}
                 }
                 Ok(())
             })
@@ -326,6 +347,14 @@ impl<B: ChatBackend> ProfileApi for CachedBackend<B> {
             Err(e) => Err(e),
         }
     }
+
+    async fn set_blocked(&self, user: UserId, blocked: bool) -> BackendResult<()> {
+        self.shared.inner.set_blocked(user, blocked).await
+    }
+
+    async fn chat_info(&self, peer: PeerRef) -> BackendResult<tc_core::ChatInfo> {
+        self.shared.inner.chat_info(peer).await
+    }
 }
 
 #[async_trait]
@@ -404,6 +433,67 @@ impl<B: ChatBackend> DialogsApi for CachedBackend<B> {
                 .await?;
         }
         self.shared.inner.save_draft(peer, draft).await
+    }
+
+    async fn mute_until(&self, peer: PeerRef, until: Option<Timestamp>) -> BackendResult<()> {
+        self.shared.inner.mute_until(peer, until).await?;
+        let until = until.map_or(i64::from(i32::MAX), |t| t.0);
+        self.shared.db(move |s| s.set_dialog_mute(cv::ensure_dialog(s, peer)?, until)).await
+    }
+
+    async fn set_unread_mark(&self, peer: PeerRef, unread: bool) -> BackendResult<()> {
+        self.shared.inner.set_unread_mark(peer, unread).await?;
+        self.shared.db(move |s| s.set_dialog_unread_mark(cv::ensure_dialog(s, peer)?, unread)).await
+    }
+
+    async fn mark_dialog_read(&self, peer: PeerRef) -> BackendResult<()> {
+        self.shared.inner.mark_dialog_read(peer).await?;
+        self.shared
+            .db(move |s| {
+                if let Some(ck) = cv::find_chat_key(s, peer)? {
+                    let top = s.get_dialog(ck)?.and_then(|d| d.top_message_id).unwrap_or(0);
+                    s.mark_dialog_read(ck, top)?;
+                    s.set_dialog_unread_mark(ck, false)?;
+                }
+                Ok(())
+            })
+            .await
+    }
+
+    async fn clear_history(&self, peer: PeerRef) -> BackendResult<()> {
+        self.shared.inner.clear_history(peer).await?;
+        self.shared
+            .db(move |s| {
+                if let Some(ck) = cv::find_chat_key(s, peer)? {
+                    s.clear_dialog_history(ck)?;
+                }
+                Ok(())
+            })
+            .await
+    }
+
+    async fn delete_dialog(&self, peer: PeerRef, revoke: bool) -> BackendResult<()> {
+        self.shared.inner.delete_dialog(peer, revoke).await?;
+        self.forget_dialog(peer).await
+    }
+
+    async fn leave_chat(&self, peer: PeerRef) -> BackendResult<()> {
+        self.shared.inner.leave_chat(peer).await?;
+        self.forget_dialog(peer).await
+    }
+}
+
+impl<B: ChatBackend> CachedBackend<B> {
+    /// Quita la fila y, en cascada, sus mensajes de la caché.
+    async fn forget_dialog(&self, peer: PeerRef) -> BackendResult<()> {
+        self.shared
+            .db(move |s| {
+                if let Some(ck) = cv::find_chat_key(s, peer)? {
+                    s.delete_dialog(ck)?;
+                }
+                Ok(())
+            })
+            .await
     }
 }
 
@@ -529,6 +619,10 @@ impl<B: ChatBackend> MessagesApi for CachedBackend<B> {
     async fn set_typing(&self, peer: PeerRef, typing: bool) -> BackendResult<()> {
         self.shared.inner.set_typing(peer, typing).await
     }
+
+    async fn pin_message(&self, peer: PeerRef, id: MsgId, pinned: bool) -> BackendResult<()> {
+        self.shared.inner.pin_message(peer, id, pinned).await
+    }
 }
 
 #[async_trait]
@@ -569,6 +663,42 @@ impl<B: ChatBackend> StickersApi for CachedBackend<B> {
 
     async fn faved_stickers(&self) -> BackendResult<Vec<tc_core::Sticker>> {
         self.shared.inner.faved_stickers().await
+    }
+
+    /// GIFs guardados: la lista de la red se guarda; sin red se devuelve la guardada (ver `gifs.rs`).
+    async fn saved_gifs(&self) -> BackendResult<Vec<tc_core::Gif>> {
+        match self.shared.inner.saved_gifs().await {
+            Ok(list) => {
+                let keep = list.clone();
+                if let Err(e) = self.shared.db(move |s| s.put_saved_gifs(&keep)).await {
+                    tracing::warn!(error = %e, "no se pudo guardar la lista de GIFs");
+                }
+                Ok(list)
+            }
+            Err(e) if is_transient(&e) => match self.shared.db(|s| s.saved_gifs()).await {
+                Ok(cached) if !cached.is_empty() => Ok(cached),
+                _ => Err(e),
+            },
+            Err(e) => Err(e),
+        }
+    }
+
+    async fn search_gifs(&self, query: String, offset: String) -> BackendResult<tc_core::GifPage> {
+        self.shared.inner.search_gifs(query, offset).await
+    }
+
+    async fn send_gif(&self, peer: PeerRef, gif: tc_core::Gif, reply_to: Option<MsgId>, random_id: RandomId) -> BackendResult<Message> {
+        let m = self.shared.inner.send_gif(peer, gif, reply_to, random_id).await?;
+        self.remember(vec![m.clone()], Some(random_id)).await;
+        Ok(m)
+    }
+
+    async fn emoji_usage(&self) -> BackendResult<Vec<tc_core::EmojiUse>> {
+        self.shared.db(|s| s.emoji_usage()).await
+    }
+
+    async fn record_emoji_use(&self, emoji: String, at: tc_core::Timestamp) -> BackendResult<()> {
+        self.shared.db(move |s| s.record_emoji_use(&emoji, at.0)).await
     }
 }
 

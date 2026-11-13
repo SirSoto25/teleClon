@@ -10,6 +10,10 @@ pub const ME: UserId = UserId(1000);
 pub const BIG_CHAT: PeerRef = PeerRef::User(UserId(1001));
 pub const BIG_CHAT_LEN: usize = 5_000;
 pub const SECRET_ID: SecretChatId = SecretChatId(1);
+/// Grupo con muchos mensajes sin leer: abre en «Sin leer desde aquí» y pagina hacia abajo.
+pub const UNREAD_CHAT: PeerRef = PeerRef::Group(GroupId(5002));
+/// No leídos (como mucho) del grupo `UNREAD_CHAT`.
+pub const UNREAD_CHAT_COUNT: usize = 90;
 
 pub struct Seed {
     pub me: User,
@@ -144,7 +148,7 @@ pub fn build(seed: u64, now: i64) -> Seed {
         let id = GroupId(5000 + i as i64);
         groups.insert(
             id,
-            Group { id, kind: *kind, title: (*title).into(), username: None, member_count: *members, photo: crate::images::profile_photo(id.0) },
+            Group { id, kind: *kind, title: (*title).into(), username: None, member_count: *members, photo: crate::images::profile_photo(id.0), is_forum: false },
         );
     }
 
@@ -178,6 +182,12 @@ pub fn build(seed: u64, now: i64) -> Seed {
         messages.insert(peer, list);
     }
 
+    // El grupo con muchos no leídos tiene siempre un historial largo (con su propio generador,
+    // para no alterar el resto de datos).
+    if let Some(last_at) = messages.get(&UNREAD_CHAT).and_then(|l| l.last()).map(|m| m.date.0) {
+        let mut r2 = Lcg::new(seed ^ 0x5eed_0001);
+        messages.insert(UNREAD_CHAT, gen_history(&mut r2, UNREAD_CHAT, 220, last_at, &user_ids, &sets));
+    }
     // Chat secreto simulado con una persona concreta.
     let secret_user = user_ids[2];
     let secret = SecretChat {
@@ -218,6 +228,8 @@ pub fn build(seed: u64, now: i64) -> Seed {
         let unread = if *peer == BIG_CHAT { 0 } else if rng.chance(45) { tail_incoming.min(1 + rng.below(6) as u32) } else { 0 };
         let activity = last.as_ref().map_or(Timestamp(0), |m| m.date);
         let read_out = list.iter().rev().find(|m| m.outgoing).map_or(MsgId(0), |m| m.id);
+        // Último entrante leído: el anterior a los `unread` entrantes del final.
+        let read_in = list.iter().rev().filter(|m| !m.outgoing).nth(unread as usize).map_or(MsgId(0), |m| m.id);
         dialogs.insert(
             *peer,
             Dialog {
@@ -232,7 +244,9 @@ pub fn build(seed: u64, now: i64) -> Seed {
                 draft: None,
                 activity,
                 read_outbox_max_id: read_out,
+                read_inbox_max_id: read_in,
                 photo: photo_of(*peer),
+                unread_mark: false,
             },
         );
     }
@@ -242,6 +256,14 @@ pub fn build(seed: u64, now: i64) -> Seed {
             d.pinned_order = Some(order as u32);
             d.archived = false;
         }
+    }
+    if let (Some(list), Some(d)) = (messages.get(&UNREAD_CHAT), dialogs.get_mut(&UNREAD_CHAT)) {
+        let incoming = list.iter().filter(|m| !m.outgoing).count();
+        let unread = UNREAD_CHAT_COUNT.min(incoming.saturating_sub(12));
+        d.unread_count = unread as u32;
+        d.read_inbox_max_id = list.iter().rev().filter(|m| !m.outgoing).nth(unread).map_or(MsgId(0), |m| m.id);
+        d.muted = false;
+        d.archived = false;
     }
     if let Some(d) = dialogs.get_mut(&PeerRef::User(user_ids[4])) {
         d.draft = Some(Draft { text: "Oye, una cosa sobre el sábado…".into(), reply_to: None });

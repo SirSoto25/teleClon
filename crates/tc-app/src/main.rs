@@ -26,10 +26,15 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use iced::widget::text_editor::{Action, Edit};
-use tc_core::{ChatBackend, GroupId, PeerRef, StickerId};
-use tc_mock::{ANIMATED_SET_ID, BIG_CHAT, MOCK_2FA_PASSWORD, MOCK_LOGIN_CODE, MockBackend, MockConfig, SECRET_ID};
+use tc_core::{ChatBackend, GroupId, MsgId, PeerRef, StickerId};
+use tc_ui::app::chat_actions::ChatMsg;
+use tc_ui::app::forum::ForumMsg;
+use tc_mock::{ANIMATED_SET_ID, BIG_CHAT, MOCK_2FA_PASSWORD, MOCK_LOGIN_CODE, MockBackend, MockConfig, SECRET_ID, UNREAD_CHAT};
 use tc_telegram::{GrammersBackend, TelegramConfig};
 use tc_theme::ThemeKind;
+use tc_ui::emoji::{Category, Tone};
+use tc_ui::gifs::GifMsg;
+use tc_ui::panel::{PanelMsg, PanelTab};
 use tc_ui::{Connector, DemoStep, LoginMsg, Msg, Session};
 use tracing_subscriber::EnvFilter;
 
@@ -249,7 +254,8 @@ fn save_png(path: &str, w: u32, h: u32, rgba: &[u8]) {
 /// Guion de capturas (`TC_DEMO_SHOTS=<directorio>`): login (teléfono, espera por límite, QR, código
 /// erróneo, 2FA), selector de stickers (estáticos y animados) y stickers en la conversación, el
 /// recorrido de M1 (chat largo, grupo, tema claro, huella, búsqueda) y los chats secretos (aviso
-/// EXPERIMENTAL, autodestrucción, nuevo chat secreto). Guarda una captura en cada estado y cierra.
+/// EXPERIMENTAL, autodestrucción, nuevo chat secreto) y el panel del compositor (emojis y GIFs).
+/// Guarda una captura en cada estado y cierra.
 fn demo_script(dir: &str) -> Vec<(Duration, DemoStep)> {
     let at = |ms: u64, step: DemoStep| (Duration::from_millis(ms), step);
     let shot = |name: &str| DemoStep::Shot(format!("{dir}/{name}"));
@@ -282,6 +288,8 @@ fn demo_script(dir: &str) -> Vec<(Duration, DemoStep)> {
         // Stickers.
         at(m + 1000, msg(Msg::Open(BIG_CHAT))),
         at(m + 2000, msg(Msg::TogglePicker)),
+        // El panel abre en Emojis; los stickers son su tercera pestaña.
+        at(m + 2100, msg(Msg::Panel(PanelMsg::Tab(PanelTab::Stickers)))),
         at(m + 2200, msg(Msg::PickerNav(tc_ui::stickers::Nav::Right))),
         at(m + 2300, msg(Msg::PickerNav(tc_ui::stickers::Nav::Right))),
         at(m + 3200, shot("m2-selector-stickers.png")),
@@ -320,6 +328,85 @@ fn demo_script(dir: &str) -> Vec<(Duration, DemoStep)> {
         at(m + 30800, msg(Msg::CloseOverlay)),
         at(m + 31000, msg(Msg::SearchChanged("ca".into()))),
         at(m + 32300, shot("m1-oscuro-secreto-busqueda.png")),
-        at(m + 33300, DemoStep::Exit),
+        // Grupo con muchos no leídos: abre en «Sin leer desde aquí» (no al final) y, tras
+        // leer un poco más abajo, el contador del botón «ir al final» baja.
+        at(m + 33000, msg(Msg::ClearSearch)),
+        at(m + 33300, msg(Msg::Open(UNREAD_CHAT))),
+        at(m + 35000, shot("m3-abre-en-no-leidos.png")),
+        at(m + 36000, DemoStep::ScrollUp(-600.0)),
+        at(m + 37500, shot("m3-lectura-progresiva.png")),
+        at(m + 38500, msg(Msg::JumpToBottom)),
+        at(m + 40000, shot("m3-ir-al-final.png")),
+        // Panel del compositor: emojis (categoría, búsqueda, tono), GIFs (guardados y búsqueda).
+        at(m + 41000, msg(Msg::Open(BIG_CHAT))),
+        at(m + 41500, msg(Msg::Panel(PanelMsg::Tab(PanelTab::Emoji)))),
+        at(m + 41600, msg(Msg::TogglePicker)),
+        at(m + 42600, shot("m4-panel-emojis.png")),
+        at(m + 42800, msg(Msg::Panel(PanelMsg::Insert("😀".into())))),
+        at(m + 42900, msg(Msg::Panel(PanelMsg::Insert("🔥".into())))),
+        at(m + 43000, msg(Msg::Panel(PanelMsg::Category(Category::Recent)))),
+        at(m + 43100, msg(Msg::Panel(PanelMsg::ToggleTones))),
+        at(m + 44000, shot("m4-panel-emojis-recientes-tono.png")),
+        at(m + 44200, msg(Msg::Panel(PanelMsg::Tone(Tone::Medium)))),
+        at(m + 44300, msg(Msg::Panel(PanelMsg::EmojiQuery("corazón".into())))),
+        at(m + 45300, shot("m4-panel-emojis-busqueda.png")),
+        at(m + 45500, msg(Msg::Panel(PanelMsg::EmojiQuery(String::new())))),
+        at(m + 45600, msg(Msg::Panel(PanelMsg::Category(Category::Flags)))),
+        at(m + 46600, shot("m4-panel-emojis-banderas.png")),
+        at(m + 46800, msg(Msg::Panel(PanelMsg::Tab(PanelTab::Gifs)))),
+        at(m + 48800, shot("m4-panel-gifs-guardados.png")),
+        at(m + 49000, msg(Msg::Panel(PanelMsg::Gif(GifMsg::Query("gato".into()))))),
+        at(m + 49100, msg(Msg::Panel(PanelMsg::Gif(GifMsg::Search)))),
+        at(m + 51000, shot("m4-panel-gifs-busqueda.png")),
+        at(m + 51200, msg(Msg::Panel(PanelMsg::Gif(GifMsg::Send(tc_mock::gifs::GIF_BASE))))),
+        at(m + 51400, msg(Msg::TogglePicker)),
+        at(m + 51500, msg(Msg::Panel(PanelMsg::Gif(GifMsg::Query(String::new()))))),
+        at(m + 51600, msg(Msg::Panel(PanelMsg::Gif(GifMsg::Send(tc_mock::gifs::GIF_BASE + 1))))),
+        at(m + 53500, shot("m4-conversacion-gifs.png")),
+        // Menús contextuales de chats y mensajes (tc-ui/src/view/context_menu.rs).
+        at(m + 54000, msg(Msg::Chat(ChatMsg::HoverChat(Some(BIG_CHAT))))),
+        at(m + 54100, msg(Msg::Chat(ChatMsg::SetCursor(330.0, 150.0)))),
+        at(m + 54200, msg(Msg::Chat(ChatMsg::OpenChatMenu(BIG_CHAT)))),
+        at(m + 55200, shot("m5-menu-chat.png")),
+        at(m + 56200, msg(Msg::Chat(ChatMsg::MuteSubmenu))),
+        at(m + 57200, shot("m5-menu-silenciar.png")),
+        at(m + 58200, msg(Msg::Chat(ChatMsg::CloseMenu))),
+        at(m + 58300, msg(Msg::Chat(ChatMsg::SetCursor(760.0, 420.0)))),
+        at(m + 58400, msg(Msg::Chat(ChatMsg::OpenMessageMenu(MsgId(tc_mock::BIG_CHAT_LEN as i32 - 2))))),
+        at(m + 59600, shot("m5-menu-mensaje.png")),
+        at(m + 60600, msg(Msg::Chat(ChatMsg::StartSelect(MsgId(tc_mock::BIG_CHAT_LEN as i32 - 2))))),
+        at(m + 60700, msg(Msg::Chat(ChatMsg::ToggleSelect(MsgId(tc_mock::BIG_CHAT_LEN as i32 - 4))))),
+        at(m + 61700, shot("m5-seleccion.png")),
+        at(m + 62700, msg(Msg::Chat(ChatMsg::CancelSelect))),
+        at(m + 62800, msg(Msg::Chat(ChatMsg::AskDeleteChat(BIG_CHAT)))),
+        at(m + 63800, shot("m5-confirmar-borrar.png")),
+        at(m + 64800, msg(Msg::Chat(ChatMsg::CancelConfirm))),
+        at(m + 64900, msg(Msg::Chat(ChatMsg::ShowInfo(PeerRef::Group(GroupId(5000)))))),
+        at(m + 66000, shot("m5-info.png")),
+        at(m + 67000, msg(Msg::Chat(ChatMsg::CloseInfo))),
+        at(m + 67100, msg(Msg::Chat(ChatMsg::Archive(PeerRef::Group(GroupId(5000)), true)))),
+        at(m + 68300, shot("m5-archivado-deshacer.png")),
+        at(m + 69300, msg(Msg::Chat(ChatMsg::ToggleArchived))),
+        at(m + 70500, shot("m5-archivados.png")),
+        // Grupos con temas (tc-ui/src/view/topics.rs): lista de temas, búsqueda, tema abierto en su
+        // primer no leído, envío dentro del tema y menú contextual de un tema.
+        at(m + 71500, msg(Msg::Chat(ChatMsg::ToggleArchived))),
+        at(m + 71700, msg(Msg::Open(tc_mock::FORUM_CHAT))),
+        at(m + 73200, shot("m6-foro-temas.png")),
+        at(m + 74200, msg(Msg::Forum(ForumMsg::Query("riego".into())))),
+        at(m + 75200, shot("m6-foro-busqueda.png")),
+        at(m + 76200, msg(Msg::Forum(ForumMsg::OpenRow(0)))),
+        at(m + 78000, shot("m6-tema-primer-no-leido.png")),
+        at(m + 79000, paste("¿Quién cambia las pilas del programador del sector B?")),
+        at(m + 79200, msg(Msg::Send)),
+        at(m + 79300, msg(Msg::JumpToBottom)),
+        at(m + 80800, shot("m6-tema-envio.png")),
+        at(m + 81800, msg(Msg::Forum(ForumMsg::BackToTopics))),
+        at(m + 81900, msg(Msg::Forum(ForumMsg::ClearQuery))),
+        at(m + 82000, msg(Msg::Chat(ChatMsg::SetCursor(760.0, 260.0)))),
+        at(m + 83000, msg(Msg::Forum(ForumMsg::MenuRow(1)))),
+        at(m + 84000, shot("m6-menu-tema.png")),
+        at(m + 84200, msg(Msg::Forum(ForumMsg::CloseMenu))),
+        at(m + 85000, DemoStep::Exit),
     ]
 }

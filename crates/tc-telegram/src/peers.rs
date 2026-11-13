@@ -76,9 +76,10 @@ pub fn group_from_tl(c: &tl::enums::Chat) -> Option<Group> {
             username: None,
             member_count: c.participants_count.max(0) as u32,
             photo: chat_photo(&c.photo),
+            is_forum: false,
         },
         tl::enums::Chat::Forbidden(c) => {
-            Group { id: chat_group(c.id), kind: GroupKind::Basic, title: c.title.clone(), username: None, member_count: 0, photo: None }
+            Group { id: chat_group(c.id), kind: GroupKind::Basic, title: c.title.clone(), username: None, member_count: 0, photo: None, is_forum: false }
         }
         tl::enums::Chat::Channel(c) => Group {
             id: channel_group(c.id),
@@ -87,6 +88,7 @@ pub fn group_from_tl(c: &tl::enums::Chat) -> Option<Group> {
             username: c.username.clone(),
             member_count: c.participants_count.unwrap_or(0).max(0) as u32,
             photo: chat_photo(&c.photo),
+            is_forum: c.forum && !c.broadcast,
         },
         tl::enums::Chat::ChannelForbidden(c) => Group {
             id: channel_group(c.id),
@@ -95,6 +97,7 @@ pub fn group_from_tl(c: &tl::enums::Chat) -> Option<Group> {
             username: None,
             member_count: 0,
             photo: None,
+            is_forum: false,
         },
         _ => return None,
     })

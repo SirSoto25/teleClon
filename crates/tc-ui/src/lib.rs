@@ -13,11 +13,17 @@ pub mod anim;
 pub mod app;
 pub mod audio;
 pub mod conv;
+pub mod emoji;
+mod emoji_es;
 pub mod format;
+pub mod gifs;
 pub mod icon;
 pub mod login;
 pub mod measure;
 pub mod media;
+pub mod panel;
+pub mod reading;
+pub mod sticker_anim;
 pub mod sticker_img;
 pub mod stickers;
 pub mod style;
@@ -32,8 +38,20 @@ mod tests;
 #[cfg(test)]
 mod tests_m2;
 #[cfg(test)]
+mod tests_panel;
+#[cfg(test)]
+mod tests_panel_shots;
+#[cfg(test)]
 mod tests_media;
 #[cfg(test)]
 mod tests_audio;
 #[cfg(test)]
 mod tests_reactions;
+#[cfg(test)]
+mod tests_chat_actions;
+#[cfg(test)]
+mod tests_reading;
+#[cfg(test)]
+mod tests_forum;
+#[cfg(test)]
+mod tests_sticker_anim;

@@ -352,6 +352,13 @@ pub fn service_text(a: &tl::enums::MessageAction, peers: &PeerStore) -> String {
         A::PhoneCall(_) => "Llamada".into(),
         A::SetMessagesTtl(_) => "Temporizador de borrado cambiado".into(),
         A::ChatMigrateTo(_) | A::ChannelMigrateFrom(_) => "El grupo pasó a supergrupo".into(),
+        A::TopicCreate(t) => format!("Tema «{}» creado", t.title),
+        A::TopicEdit(t) => match (&t.title, t.closed) {
+            (Some(title), _) => format!("Tema renombrado: «{title}»"),
+            (None, Some(true)) => "Tema cerrado".into(),
+            (None, Some(false)) => "Tema reabierto".into(),
+            _ => "Tema editado".into(),
+        },
         _ => "Acción en el chat".into(),
     }
 }
@@ -426,6 +433,9 @@ fn sender_of(from: Option<&tl::enums::Peer>, peer: PeerRef, out: bool, me: Optio
 
 fn reply_id(r: Option<&tl::enums::MessageReplyHeader>) -> Option<MsgId> {
     match r {
+        // En un tema de foro, un mensaje «suelto» lleva como respuesta el mensaje superior del tema
+        // (`forum_topic` sin `reply_to_top_id`): no es una respuesta de verdad.
+        Some(tl::enums::MessageReplyHeader::Header(h)) if h.forum_topic && h.reply_to_top_id.is_none() => None,
         Some(tl::enums::MessageReplyHeader::Header(h)) => h.reply_to_msg_id.map(MsgId),
         _ => None,
     }
@@ -487,7 +497,9 @@ pub fn dialog_from_tl(d: &tl::types::Dialog, last: Option<Message>, pinned_order
         draft: draft_from_tl(d.draft.as_ref()),
         activity: Timestamp(activity),
         read_outbox_max_id: MsgId(d.read_outbox_max_id),
+        read_inbox_max_id: MsgId(d.read_inbox_max_id),
         photo: ctx.peers.photo(peer, ctx.me),
+        unread_mark: d.unread_mark,
     }
 }
 
@@ -505,6 +517,8 @@ pub fn dialog_stub(peer: PeerRef, ctx: &DialogCtx) -> Dialog {
         draft: None,
         activity: Timestamp(0),
         read_outbox_max_id: MsgId(0),
+        read_inbox_max_id: MsgId(0),
         photo: ctx.peers.photo(peer, ctx.me),
+        unread_mark: false,
     }
 }

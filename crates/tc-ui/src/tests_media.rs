@@ -121,3 +121,72 @@ async fn el_progreso_de_descarga_se_registra_y_se_limpia() {
     let _ = app.update(Msg::ImageLoaded(key, None));
     assert!(app.downloads.is_empty());
 }
+
+#[tokio::test]
+async fn visor_vias_de_cierre_navegacion_y_zoom() {
+    let (mut app, backend) = boot().await;
+    let mut chosen = None;
+    for d in app.dialogs.clone() {
+        if matches!(d.peer, PeerRef::Secret(_)) {
+            continue;
+        }
+        let h = backend.history(d.peer, Anchor::Latest, PAGE).await.unwrap();
+        if let Some(m) = h.iter().rev().find(|m| m.media.as_ref().is_some_and(|md| md.kind == MediaKind::Photo)) {
+            chosen = Some((d.peer, m.id, h));
+            break;
+        }
+    }
+    let (peer, id, page) = chosen.expect("alguna foto en el mock");
+    let _ = app.update(Msg::Open(peer));
+    let _ = app.update(Msg::History { peer, older: false, result: Ok(page) });
+    let open = Some(Overlay::Photo { peer, msg: id });
+
+    // Cada vía de cierre: botón X y «volver» (CloseOverlay), clic en el fondo (CloseOverlay) y Escape.
+    for close in [Msg::CloseOverlay, Msg::Escape, Msg::Key(esc_event())] {
+        let _ = app.update(Msg::OpenPhoto { peer, msg: id });
+        assert_eq!(app.overlay, open);
+        let _ = app.update(close);
+        assert_eq!(app.overlay, None);
+    }
+
+    // Zoom: doble clic alterna; rueda lo fija; abrir otra vez vuelve a «ajustar».
+    let _ = app.update(Msg::OpenPhoto { peer, msg: id });
+    assert!(!app.photo_zoom);
+    let _ = app.update(Msg::PhotoZoom(None));
+    assert!(app.photo_zoom);
+    let _ = app.update(Msg::PhotoZoom(Some(false)));
+    assert!(!app.photo_zoom);
+    let _ = app.update(Msg::PhotoZoom(Some(true)));
+    let _ = app.update(Msg::CloseOverlay);
+    let _ = app.update(Msg::OpenPhoto { peer, msg: id });
+    assert!(!app.photo_zoom);
+
+    // Navegación: la vecina anterior (si existe) y vuelta; sin vecina no se mueve.
+    if let Some(prev) = app.photo_neighbor(peer, id, -1) {
+        let _ = app.update(Msg::PhotoStep(-1));
+        assert_eq!(app.overlay, Some(Overlay::Photo { peer, msg: prev }));
+        let _ = app.update(Msg::PhotoStep(1));
+        assert_eq!(app.overlay, open);
+    }
+    let before = app.overlay.clone();
+    let _ = app.update(Msg::PhotoStep(1));
+    if app.photo_neighbor(peer, id, 1).is_none() {
+        assert_eq!(app.overlay, before);
+    }
+    let _ = app.update(Msg::Key(arrow_event(iced::keyboard::key::Named::ArrowLeft)));
+    let _ = app.update(Msg::CloseOverlay);
+    assert_eq!(app.overlay, None);
+}
+
+fn key_event(k: iced::keyboard::key::Named) -> iced::keyboard::Event {
+    use iced::keyboard::{Event, Key, Location, Modifiers};
+    Event::KeyPressed { key: Key::Named(k), modified_key: Key::Named(k), physical_key: iced::keyboard::key::Physical::Unidentified(iced::keyboard::key::NativeCode::Unidentified), location: Location::Standard, modifiers: Modifiers::empty(), text: None, repeat: false }
+}
+
+fn esc_event() -> iced::keyboard::Event {
+    key_event(iced::keyboard::key::Named::Escape)
+}
+
+fn arrow_event(k: iced::keyboard::key::Named) -> iced::keyboard::Event {
+    key_event(k)
+}

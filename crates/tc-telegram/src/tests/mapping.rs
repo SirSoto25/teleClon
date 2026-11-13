@@ -247,6 +247,7 @@ fn dialogs_map_pinned_muted_and_drafts() {
     let ctx = DialogCtx { peers: &p, me: Some(ME), now: 1_000 };
     let last = message_from_tl(&msg_enum(9, peer_user(10), "último", false, 900), Some(ME), &p);
     let mut d = dialog(peer_user(10), 9, 2, true, Some(5_000));
+    d.read_inbox_max_id = 7;
     d.draft = Some(
         tl::types::DraftMessage {
             no_webpage: false,
@@ -268,6 +269,7 @@ fn dialogs_map_pinned_muted_and_drafts() {
     assert_eq!(row.draft, Some(Draft { text: "borrador".into(), reply_to: None }));
     assert_eq!(row.activity, Timestamp(950));
     assert_eq!(row.read_outbox_max_id, MsgId(3));
+    assert_eq!(row.read_inbox_max_id, MsgId(7), "de aquí sale el primer no leído");
     // Silencio caducado y no fijado.
     let row = dialog_from_tl(&dialog(peer_channel(20), 1, 0, false, Some(10)), None, Some(3), true, &ctx);
     assert_eq!((row.muted, row.pinned_order, row.archived), (false, None, true));

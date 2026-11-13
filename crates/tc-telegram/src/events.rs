@@ -36,6 +36,8 @@ pub struct Cache {
     pub sent: HashMap<i64, Message>,
     /// Documentos de stickers conocidos (para enviarlos).
     pub stickers: HashMap<i64, tl::types::InputDocument>,
+    /// Temas conocidos de los grupos foro (ver `forum.rs`).
+    pub forums: crate::forum::Topics,
 }
 
 const MSG_PEER_CAP: usize = 200_000;
@@ -150,6 +152,8 @@ pub fn apply_update(cache: &mut Cache, u: &tl::enums::Update, now: i64, out: &mu
                 }
                 _ => ev.push(BackendEvent::MessageNew(m)),
             }
+            // En un foro: `TopicMessageNew` y el tema actualizado (ver `forum.rs`).
+            crate::forum::route_new_message(cache, message, ev);
             ev.push(BackendEvent::DialogUpserted(d));
         }
         U::EditMessage(tl::types::UpdateEditMessage { message, .. })
@@ -248,7 +252,9 @@ pub fn apply_update(cache: &mut Cache, u: &tl::enums::Update, now: i64, out: &mu
         }
         U::MessageId(m) => cache.assign(m.random_id, m.id),
         U::LoginToken => out.login_token = true,
-        _ => {}
+        other => {
+            crate::forum::apply_update(cache, other, ev);
+        }
     }
 }
 
@@ -270,7 +276,10 @@ pub(crate) fn deleted(cache: &mut Cache, peer: PeerRef, ids: Vec<MsgId>, ev: &mu
 
 fn read_inbox(cache: &mut Cache, peer: PeerRef, max_id: i32, still_unread: i32, ev: &mut Vec<BackendEvent>) {
     ev.push(BackendEvent::ReadInbox { peer, max_id: MsgId(max_id) });
-    if let Some(d) = cache.with_dialog(peer, |d| d.unread_count = still_unread.max(0) as u32) {
+    if let Some(d) = cache.with_dialog(peer, |d| {
+        d.unread_count = still_unread.max(0) as u32;
+        d.read_inbox_max_id = d.read_inbox_max_id.max(MsgId(max_id));
+    }) {
         ev.push(BackendEvent::DialogUpserted(d));
     }
 }

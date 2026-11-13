@@ -415,3 +415,25 @@ async fn downloads_are_cached_on_disk_but_never_for_secret_chats() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn ventana_del_primer_no_leido_va_a_la_red_y_sin_red_a_la_cache() {
+    let c = cached();
+    let d = c.dialogs(all(false)).await.unwrap().into_iter().find(|d| d.peer == tc_mock::UNREAD_CHAT).expect("grupo con no leídos");
+    assert!(d.read_inbox_max_id.0 > 0, "el último leído llega de la red");
+    let anchor = Anchor::Around(d.read_inbox_max_id);
+    let w = c.history(tc_mock::UNREAD_CHAT, anchor, 60).await.unwrap();
+    assert_eq!(w, c.inner().history(tc_mock::UNREAD_CHAT, anchor, 60).await.unwrap());
+    // Hacia lo nuevo también desde la red (la caché puede tener huecos entre páginas sueltas).
+    let newer = c.history(tc_mock::UNREAD_CHAT, Anchor::After(w.last().unwrap().id), 60).await.unwrap();
+    assert!(newer.first().is_none_or(|m| m.id > w.last().unwrap().id));
+    c.inner().set_offline(true);
+    // Sin red se sirve lo guardado alrededor del mismo id (el reparto antes/después puede variar).
+    let off = c.history(tc_mock::UNREAD_CHAT, anchor, 60).await.unwrap();
+    assert!(off.iter().any(|m| m.id == d.read_inbox_max_id));
+    assert!(off.iter().any(|m| m.id > d.read_inbox_max_id));
+    assert!(off.iter().all(|m| w.contains(m) || newer.contains(m)), "sin pérdida de campos");
+    // El último leído sobrevive en la base.
+    let d2 = c.dialogs(all(false)).await.unwrap().into_iter().find(|x| x.peer == tc_mock::UNREAD_CHAT).unwrap();
+    assert_eq!(d2.read_inbox_max_id, d.read_inbox_max_id);
+}

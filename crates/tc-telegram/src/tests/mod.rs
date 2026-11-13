@@ -1,8 +1,11 @@
 //! Pruebas sin red: mapeo TL → dominio y flujos completos contra un transporte falso
 //! que decodifica las peticiones TL y responde con TL serializado.
 mod audio;
+mod dialog_actions;
 mod fixtures;
 mod flows;
+mod forum;
+mod gifs;
 mod mapping;
 mod media;
 mod secret;

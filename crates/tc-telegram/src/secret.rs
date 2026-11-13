@@ -457,7 +457,10 @@ impl Inner {
             muted: false,
             draft: None,
             read_outbox_max_id: c.read_outbox,
+            // Datos locales: el entrante anterior a los `unread` últimos.
+            read_inbox_max_id: c.log.iter().rev().filter(|m| !m.outgoing).nth(c.unread as usize).map_or(MsgId(0), |m| m.id),
             photo,
+            unread_mark: false,
         }
     }
 

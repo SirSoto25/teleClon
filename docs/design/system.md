@@ -278,7 +278,8 @@ Foco visible en **todos** los interactivos: anillo 2 px `focus-ring`, separació
   sobre cuadrado redondeado `accent` 40 px con el radio de avatar (0.32 × lado). Sin texto ni fuente: es un SVG.
 - **Contenido**: menú principal arriba, carpetas (Todos, No leídos, Personales, Grupos, Canales, personalizadas) como
   icono 24 + etiqueta `caption`, ajustes abajo.
-- **Medidas**: 72 px de ancho, celda 64 px de alto, fondo `surface`, borde derecho `border`.
+- **Medidas**: 72 px de ancho, celda 64×64 px, fondo `surface`, borde derecho `border`. TODOS los botones del raíl (carpetas, Claro/Oscuro, Animar) usan el mismo helper `rail_button` + `rail_row`: celda de ancho y alto fijos, contenido centrado en ambos ejes (icono 24 en caja de 40×28 + etiqueta `caption` sin salto de línea) y la misma fila con hueco de píldora 4+2 px, de modo que los ejes coinciden.
+- **Visor de foto** (overlay a pantalla completa): fondo negro al 88 %; botones circulares 40 px (fondo negro 55 %) con tooltip en español: «Volver al chat» (arriba izq.), «Cerrar» (arriba der.), «Foto anterior/siguiente» (laterales); clic fuera de la imagen, Esc, ←/→ para cambiar de foto; rueda o doble clic alternan ajuste/100 %.
 - **Estados**: default (icono `text-muted`), hover (`surface-hover`, `rapido`), activo (icono fill `accent-text`, etiqueta `text`,
   píldora 4×24 `accent` en el borde izquierdo que se desliza entre carpetas con `estandar`), foco, con no leídos
   (badge `accent`/`on-accent` arriba a la derecha; si la carpeta está silenciada, badge `border-strong`/`text`),
@@ -464,6 +465,35 @@ fundido de 120 ms.
 
 **Lista virtual** (chats, mensajes): fila «cargando más» = spinner 16 centrado; fin del historial = píldora de servicio.
 
+### 8.10 Grupos con temas («comunidades», foros)
+Decisión de disposición: la **lista de temas ocupa el panel de la conversación** (en ventana estrecha, la pantalla
+entera, igual que una conversación) y al abrir un tema su conversación la sustituye en ese mismo panel; no hay un cuarto
+panel intermedio. Motivo: con la lista de chats a 360 px y la columna de conversación centrada (`CHAT_COLUMN_MAX`), un
+panel intermedio dejaría la conversación por debajo de su ancho cómodo en portátiles de 1280 px, y la navegación
+«grupo → tema → atrás» es la misma en ancha y estrecha (una sola pila, sin estados distintos por ancho).
+- **Fila del foro en la lista de chats**: icono `hash` 16 `text-muted` delante del nombre (no solo color); el contador es la
+  suma de los no leídos de sus temas (cuando la lista de temas está cargada; si no, el de la red). Seleccionada mientras
+  su lista de temas o uno de sus temas está abierto.
+- **Cabecera de la lista** (alto `HEADER_HEIGHT`): ← volver a los chats (solo en estrecho) · avatar md del grupo · `hash` +
+  nombre en `title` · «N temas · M miembros» en `meta` · botón «+» (nuevo tema) a la derecha. Debajo, el buscador de temas
+  (campo hundido de 40 px como el de la lista de chats, filtro local y búsqueda en el servidor si la lista no está entera).
+- **Fila de tema** (alto `CHAT_ITEM_HEIGHT_COMFORTABLE`, misma rejilla que §8.2, en la columna de la conversación): icono
+  40 circular — el color del tema al 22 % de opacidad con su emoji encima, o el color entero con la inicial en
+  `avatar-ink`; el «General», `#` `text-muted` sobre `surface-hover` —; título `ui-strong` (700 con no leídos) con candado 16
+  si está cerrado; vista previa «Remitente: texto» en `meta`; columna derecha de 60 px con hora `caption` y badge de no
+  leídos, o chincheta si está fijado. Orden: fijados primero y luego por actividad. Clic derecho: menú contextual con el
+  aspecto de §8.8 (Abrir · Marcar como leído · Fijar/Desfijar · Cerrar/Reabrir).
+- **Cabecera de la conversación de un tema**: ← volver a los temas (siempre, en ancha y estrecha) · icono del tema 36 ·
+  migas «Grupo › Tema» (grupo en `ui` `text-muted`, `caret-right` 16, tema en `title`) · estado `meta`: «escribiendo…»,
+  «tema cerrado» en `warning`, «N sin leer» o los miembros · fijar tema a la derecha. El cuerpo, el compositor y la lectura
+  (marca «Sin leer desde aquí», «ir al final» con el contador del tema) son los de una conversación normal; en un tema
+  cerrado el compositor muestra el motivo en lugar del campo.
+- Estados de la lista: «Cargando temas…» `text-muted` centrado · error en `danger` con «Reintentar» · vacío («Este grupo
+  todavía no tiene temas.» / «Ningún tema coincide con «…».») · «Cargando más temas…» al final mientras pagina.
+- Nuevo tema: fila bajo el buscador con campo md, «Cancelar» (fantasma) y «Crear tema» (primario); Enter crea y abre.
+- Capturas: `screens/m6-foro-temas.png`, `m6-foro-busqueda.png`, `m6-tema-primer-no-leido.png`, `m6-tema-envio.png`,
+  `m6-menu-tema.png`.
+
 ---
 
 ## 9. Anti-«aspecto IA» (prohibido)
@@ -495,4 +525,5 @@ del portal XDG), densidad (cómoda | compacta), escala de texto, fondo del chat 
 | --- | --- | --- |
 | 2026-11-06 | 1.0.0 | Creación: dirección Brasa, paletas OKLCH, escalas, muelles, componentes. |
 | 2026-11-09 | 1.0.2 | Alineación tras la prueba real: columna de conversación compartida por cabecera, mensajes, «ir al final», aviso y compositor (§7); rejilla fija de la fila de lista con columna derecha de 60 px, líneas de 20 px, elipsis por ancho medido y check delante de la vista previa (§8.2); hora en línea a la línea de base del texto y reglas de avatar de grupo (§8.4); marca provisional «P» (§8.1); plegado de letras «de estilo» Unicode en nombres y vistas previas (§3). Sin cambios de tokens de color. |
+| 2026-11-13 | 1.0.3 | §8.10 grupos con temas: la lista de temas ocupa el panel de la conversación (sin panel intermedio), fila de tema, cabecera «Grupo › Tema», insignia `hash` en la lista de chats. Icono `hash` de dibujo propio. Sin cambios de tokens. |
 | 2026-11-06 | 1.0.1 | Implementación M1 en `tc-ui` (sin cambiar tokens). Adaptaciones por iced 0.14: la entrada de chat (opacidad 0 → 1) se pinta como capa `bg` que se desvanece; hover de filas/botones sin animar; sin anillo de foco en botones (iced no da foco de teclado a botones) ni en el buscador; vista previa de la lista recortada por caracteres (no hay elipsis); el «menú contextual» de mensaje es una barra de acciones al pasar el ratón + selector de 6 reacciones (clic derecho). Capturas en `screens/`. |

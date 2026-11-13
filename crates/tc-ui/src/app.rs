@@ -27,7 +27,12 @@ use crate::media::{self, ImageKey, ImageRequest, Images};
 use crate::stickers::{self, Art, Nav, Picker};
 use crate::style::Brasa;
 
+pub mod chat_actions;
+/// Grupos con temas: lista de temas y conversación de un tema.
+pub mod forum;
 mod net_stickers;
+mod panel;
+mod sticker_anims;
 mod reacts;
 pub use reacts::{apply_mine, reaction_error_text};
 
@@ -314,8 +319,22 @@ pub enum Msg {
     ImageLoaded(ImageKey, Option<media::Decoded>),
     /// Abrir el visor de la foto de un mensaje.
     OpenPhoto { peer: PeerRef, msg: MsgId },
+    /// Visor: pasar a la foto anterior (`-1`) o siguiente (`1`) del chat.
+    PhotoStep(i32),
+    /// Visor: alternar ajuste/100 % (`None`), o fijarlo (`Some(true)` = 100 %).
+    PhotoZoom(Option<bool>),
     /// Notas de voz y audios (ver `audio.rs`).
     Audio(crate::audio::AudioMsg),
+    /// Menús contextuales de chats y mensajes (ver `app/chat_actions.rs`).
+    Chat(chat_actions::ChatMsg),
+    /// Lectura de la conversación: paginación hacia lo nuevo y marcado progresivo (`reading.rs`).
+    Reading(crate::reading::ReadMsg),
+    /// Stickers TGS animados: reloj, cargas, fotogramas, foco y hover (ver `sticker_anim.rs`).
+    StickerAnim(crate::sticker_anim::AnimMsg),
+    /// Grupos con temas (ver `app/forum.rs`).
+    Forum(forum::ForumMsg),
+    /// Panel del compositor: pestañas, emojis y GIFs (ver `panel.rs`, `app/panel.rs`).
+    Panel(crate::panel::PanelMsg),
 }
 
 pub struct App {
@@ -342,6 +361,8 @@ pub struct App {
     pub sticker_ms: f32,
     on_start: Option<Arc<dyn Fn() + Send + Sync>>,
     pub brasa: Brasa,
+    /// Visor de fotos: `true` = tamaño real (100 %), `false` = ajustado a la ventana.
+    pub photo_zoom: bool,
     pub anim: Animator<AnimKey>,
     pub me: Option<User>,
     pub users: HashMap<UserId, User>,
@@ -378,6 +399,14 @@ pub struct App {
     pub downloads: HashMap<i64, (u64, u64)>,
     /// Reproductor de notas de voz y audios, y sus descargas.
     pub audio: crate::audio::AudioState,
+    /// Menús contextuales, confirmaciones y selección de mensajes (`app/chat_actions.rs`).
+    pub chat_actions: chat_actions::ChatActions,
+    /// Animación de los stickers TGS (fotogramas en caché, foco de la ventana, hover del selector).
+    pub sticker_anims: crate::sticker_anim::StickerAnims,
+    /// Grupos con temas: lista abierta, tema abierto y temas cargados (`app/forum.rs`).
+    pub forum: forum::ForumUi,
+    /// Pestaña del panel del compositor y estado de emojis y GIFs (`picker.open` = panel abierto).
+    pub panel: crate::panel::Panel,
     pub dots: u8,
     demo: std::collections::VecDeque<(Duration, DemoStep)>,
     demo_start: Option<Instant>,
@@ -442,6 +471,7 @@ impl App {
             sticker_ms: 0.0,
             on_start: flags.on_start,
             brasa: Brasa::new(flags.theme),
+            photo_zoom: false,
             anim: Animator::new(MotionPreference::from_reduced(flags.reduced_motion)),
             me: None,
             users: HashMap::new(),
@@ -473,6 +503,10 @@ impl App {
             images: Images::default(),
             downloads: HashMap::new(),
             audio: crate::audio::AudioState::default(),
+            chat_actions: chat_actions::ChatActions::default(),
+            sticker_anims: crate::sticker_anim::StickerAnims::default(),
+            forum: forum::ForumUi::default(),
+            panel: crate::panel::Panel::default(),
             dots: 0,
             demo: flags.demo.into_iter().collect(),
             demo_start: None,
@@ -523,6 +557,7 @@ impl App {
             self.call(|b| async move { b.secret_chats().await }, Msg::Secrets),
             self.call(|b| async move { b.installed_sticker_sets().await }, Msg::StickerSets),
             self.load_net_stickers(),
+            self.load_archived(),
         ])
     }
 
@@ -573,14 +608,23 @@ impl App {
         if self.phase == Phase::Auth && self.login.needs_tick() {
             subs.push(iced::time::every(Duration::from_secs(1)).map(|t| Msg::Login(LoginMsg::Tick(t))));
         }
-        if self.anim.is_active() || self.stickers_animating() {
+        if self.anim.is_active() {
             subs.push(window::frames().map(Msg::Frame));
         }
+        // Reloj único de los stickers animados (pack propio y TGS): 30 fps como mucho y solo con algo
+        // animado a la vista, la ventana con foco y sin movimiento reducido.
+        if self.stickers_animating() || self.gifs_animating() {
+            subs.push(iced::time::every(crate::sticker_anim::TICK).map(|t| Msg::StickerAnim(crate::sticker_anim::AnimMsg::Tick(t))));
+        }
+        subs.push(iced::event::listen_with(crate::sticker_anim::focus_event));
         if !self.demo.is_empty() {
             subs.push(iced::time::every(Duration::from_millis(250)).map(Msg::DemoTick));
         }
-        if !self.typing.is_empty() || !self.toasts.is_empty() {
+        if !self.typing.is_empty() || !self.toasts.is_empty() || self.chat_actions.needs_tick() {
             subs.push(iced::time::every(Duration::from_millis(400)).map(Msg::Tick));
+        }
+        if self.read_flush_due() {
+            subs.push(iced::time::every(crate::reading::FLUSH_EVERY).map(|t| Msg::Reading(crate::reading::ReadMsg::Flush(t))));
         }
         if self.audio.needs_tick() {
             subs.push(iced::time::every(Duration::from_millis(100)).map(|_| Msg::Audio(crate::audio::AudioMsg::Tick)));
@@ -596,8 +640,9 @@ impl App {
         Fut: Future<Output = T> + Send + 'static,
         T: Send + 'static,
     {
-        match &self.backend {
-            Some(b) => Task::perform(f(b.clone()), map),
+        // Con un tema abierto, las llamadas del grupo van a ese tema (`app/forum.rs`).
+        match self.scoped_backend() {
+            Some(b) => Task::perform(f(b), map),
             None => Task::none(),
         }
     }
@@ -614,13 +659,14 @@ impl App {
         }
     }
 
-    /// ¿Hay stickers animados a la vista (y el movimiento no está reducido)?
+    /// ¿Hay stickers animados a la vista (con la ventana enfocada y sin movimiento reducido)?
     pub fn stickers_animating(&self) -> bool {
-        if self.anim.pref.is_reduced() || self.phase != Phase::Main {
+        if self.anim.pref.is_reduced() || self.phase != Phase::Main || !self.sticker_anims.focused {
             return false;
         }
-        let in_picker = self.picker.open && self.picker_tab_stickers().iter().any(|s| stickers::is_animated(s));
-        in_picker || self.conv.as_ref().is_some_and(|c| c.anim_visible.get())
+        // En el selector: la animación procedural del pack propio o el TGS activo (hover/cursor).
+        let in_picker = self.picker.open && self.picker_tab_stickers().iter().any(|s| stickers::is_animated(s) && stickers::art_index(s).is_some());
+        in_picker || self.conv.as_ref().is_some_and(|c| c.anim_visible.get()) || self.tgs_visible()
     }
 
     /// Fase (0..1) del ciclo de animación para el sticker `seed` (desfasados entre sí).
@@ -636,6 +682,10 @@ impl App {
     }
 
     pub fn picker_tab_stickers(&self) -> Vec<&Sticker> {
+        // Con el panel en Emojis o GIFs no hay stickers a la vista (ni que cargar ni que animar).
+        if self.panel.tab != crate::panel::PanelTab::Stickers {
+            return Vec::new();
+        }
         match self.picker_tabs().get(self.picker.tab) {
             Some(t) => stickers::tab_stickers_with(*t, &self.sticker_sets, &self.recents, &self.sticker_lists),
             None => Vec::new(),
@@ -699,6 +749,9 @@ impl App {
 
     /// ¿Se puede escribir en el chat? Devuelve el motivo si no.
     pub fn write_block(&self, peer: PeerRef) -> Option<String> {
+        if let Some(r) = self.forum_write_block(peer) {
+            return Some(r);
+        }
         if self.is_channel(peer) {
             return Some("En este canal solo publica quien lo administra.".into());
         }
@@ -727,13 +780,15 @@ impl App {
     /// Diálogos visibles según carpeta y búsqueda local.
     pub fn visible_dialogs(&self) -> Vec<&Dialog> {
         let q = format::fold(self.search.trim());
-        self.dialogs.iter().filter(|d| self.in_folder(d, self.folder) && format::matches(&d.title, &q)).collect()
+        // Archivados aparte: solo con «Archivados» abierto (ver `app/chat_actions.rs`).
+        let archived = self.chat_actions.show_archived;
+        self.dialogs.iter().filter(|d| d.archived == archived && self.in_folder(d, self.folder) && format::matches(&d.title, &q)).collect()
     }
 
     pub fn in_folder(&self, d: &Dialog, f: Folder) -> bool {
         match f {
             Folder::All => true,
-            Folder::Unread => d.unread_count > 0 || self.conv.as_ref().is_some_and(|c| c.peer == d.peer),
+            Folder::Unread => d.looks_unread() || self.conv.as_ref().is_some_and(|c| c.peer == d.peer),
             Folder::Personal => matches!(d.peer, PeerRef::User(_) | PeerRef::Secret(_)),
             Folder::Groups => matches!(d.peer, PeerRef::Group(_)) && !self.is_channel(d.peer),
             Folder::Channels => self.is_channel(d.peer),
@@ -741,7 +796,7 @@ impl App {
     }
 
     pub fn folder_unread(&self, f: Folder) -> usize {
-        self.dialogs.iter().filter(|d| d.unread_count > 0 && !d.muted && self.in_folder(d, f)).count()
+        self.dialogs.iter().filter(|d| !d.archived && d.looks_unread() && !d.muted && self.in_folder(d, f)).count()
     }
 
     fn toast(&mut self, text: String, error: bool) {
@@ -756,7 +811,7 @@ impl App {
         }
     }
 
-    fn want_user(&mut self, id: Option<UserId>) -> Task<Msg> {
+    pub(crate) fn want_user(&mut self, id: Option<UserId>) -> Task<Msg> {
         match id {
             Some(u) if !self.users.contains_key(&u) && Some(u) != self.me_id() && self.requested_users.insert(u) => {
                 self.call(move |b| async move { b.user(u).await }, Msg::UserLoaded)
@@ -775,6 +830,7 @@ impl App {
     }
 
     fn upsert_dialog(&mut self, d: Dialog) {
+        let d = self.estimate_unread(d);
         match self.dialogs.iter_mut().find(|x| x.peer == d.peer) {
             Some(x) => *x = d,
             None => self.dialogs.push(d),
@@ -785,7 +841,8 @@ impl App {
     fn mark_read_task(&self) -> Task<Msg> {
         let Some(c) = &self.conv else { return Task::none() };
         let peer = c.peer;
-        let unread = self.dialog(peer).is_some_and(|d| d.unread_count > 0);
+        // Con la ventana lejos del final, «lo más nuevo cargado» no es el último del chat.
+        let unread = self.reading_dialog(peer).is_some_and(|d| d.unread_count > 0) && c.reading.reached_end;
         match c.newest_real() {
             Some(max) if unread => self.call(move |b| async move { b.mark_read(peer, max).await }, Msg::Op),
             _ => Task::none(),
@@ -841,7 +898,7 @@ impl App {
 
     /// Backend de chat ya conectado (para módulos hermanos como `audio.rs`).
     pub(crate) fn chat_backend(&self) -> Option<Backend> {
-        self.backend.clone()
+        self.scoped_backend()
     }
 
     // ------------------------------------------------------------ fotos
@@ -858,6 +915,18 @@ impl App {
 
     fn avatar_request(peer: PeerRef, photo: Option<ProfilePhoto>) -> Option<ImageRequest> {
         photo.map(|photo| ImageRequest::Avatar { peer, photo })
+    }
+
+    /// Id de la foto vecina (`dir < 0` anterior, `dir > 0` siguiente) de la conversación abierta.
+    pub fn photo_neighbor(&self, peer: PeerRef, msg: MsgId, dir: i32) -> Option<MsgId> {
+        let cv = self.conv.as_ref().filter(|c| c.peer == peer)?;
+        let is_photo = |m: &Message| m.media.as_ref().is_some_and(|md| md.kind == MediaKind::Photo && md.file.is_some()) && !conv::is_local(m);
+        let at = cv.messages.iter().position(|m| m.id == msg)?;
+        if dir < 0 {
+            cv.messages[..at].iter().rev().find(|m| is_photo(m)).map(|m| m.id)
+        } else {
+            cv.messages[at + 1..].iter().find(|m| is_photo(m)).map(|m| m.id)
+        }
     }
 
     /// Petición de la foto (o miniatura de vídeo) de un mensaje, si tiene algo que mostrar.
@@ -894,6 +963,7 @@ impl App {
         }
         // Stickers de la conversación y del selector antes que los avatares de la lista.
         out.extend(self.sticker_requests());
+        out.extend(self.gif_requests());
         let list = self.visible_dialogs();
         let (first, last) = crate::view::sidebar::visible_rows(self.list_from_top, self.list_viewport, list.len());
         for d in &list[first..last] {
@@ -933,9 +1003,10 @@ impl App {
 
     pub fn update(&mut self, msg: Msg) -> Task<Msg> {
         // Los mensajes de cada frame, reloj, ratón y tecleo no cambian lo que hay que cargar.
-        let pump = !matches!(msg, Msg::Frame(_) | Msg::Tick(_) | Msg::Hover(_) | Msg::Edit(_) | Msg::DemoTick(_) | Msg::Audio(crate::audio::AudioMsg::Tick));
+        let pump = !matches!(msg, Msg::Frame(_) | Msg::Tick(_) | Msg::Hover(_) | Msg::Edit(_) | Msg::DemoTick(_) | Msg::Audio(crate::audio::AudioMsg::Tick) | Msg::StickerAnim(_))
+            && !matches!(msg, Msg::Chat(chat_actions::ChatMsg::HoverChat(_)));
         let task = self.update_inner(msg);
-        if pump { Task::batch([task, self.pump_images()]) } else { task }
+        if pump { Task::batch([task, self.pump_images(), self.pump_gif_anims()]) } else { task }
     }
 
     fn update_inner(&mut self, msg: Msg) -> Task<Msg> {
@@ -964,10 +1035,11 @@ impl App {
                 match self.conv.as_ref().map(|c| c.peer) {
                     Some(p) if self.write_block(p).is_none() && !matches!(self.compose, Compose::Edit(_)) => {
                         self.picker.open();
+                        let opened = self.panel_opened();
                         if self.sticker_sets.is_empty() {
-                            return self.call(|b| async move { b.installed_sticker_sets().await }, Msg::StickerSets);
+                            return Task::batch([opened, self.call(|b| async move { b.installed_sticker_sets().await }, Msg::StickerSets)]);
                         }
-                        Task::none()
+                        opened
                     }
                     _ => Task::none(),
                 }
@@ -980,6 +1052,9 @@ impl App {
             Msg::PickerNav(nav) => {
                 if !self.picker.open {
                     return Task::none();
+                }
+                if let Some(t) = self.panel_nav(nav) {
+                    return t;
                 }
                 let (len, n) = (self.picker_tab_stickers().len(), self.picker_tabs().len());
                 match self.picker.nav(nav, len, self.picker_cols.get(), n) {
@@ -1082,7 +1157,9 @@ impl App {
                 Task::none()
             }
             Msg::DialogsLoaded(Ok(list)) => {
-                self.dialogs = list;
+                // Los archivados se cargan aparte (`load_archived`): se conservan.
+                self.dialogs.retain(|d| d.archived);
+                self.dialogs.extend(list);
                 sort_dialogs(&mut self.dialogs);
                 self.dialogs_state = LoadState::Ready;
                 let peers: Vec<PeerRef> = self.dialogs.iter().map(|d| d.peer).collect();
@@ -1149,6 +1226,9 @@ impl App {
             Msg::History { peer, older, result } => self.on_history(peer, older, result),
             Msg::ConvScrolled(v) => self.on_conv_scrolled(v),
             Msg::JumpToBottom => {
+                if let Some(t) = self.jump_to_latest() {
+                    return t;
+                }
                 if let Some(c) = &mut self.conv {
                     c.new_below = 0;
                     c.from_bottom = 0.0;
@@ -1300,6 +1380,7 @@ impl App {
             Msg::Tick(now) => {
                 self.typing.retain(|_, (_, until)| *until > now);
                 self.toasts.retain(|t| now.saturating_duration_since(t.born) < Duration::from_secs(t.secs));
+                self.chat_actions.tick(now);
                 self.dots = (self.dots + 1) % 3;
                 Task::none()
             }
@@ -1337,10 +1418,31 @@ impl App {
                     return Task::none();
                 }
                 self.overlay = Some(Overlay::Photo { peer, msg });
+                self.photo_zoom = false;
                 self.open_overlay_anim();
                 Task::none()
             }
+            Msg::PhotoStep(dir) => {
+                if let Some(Overlay::Photo { peer, msg }) = self.overlay
+                    && let Some(next) = self.photo_neighbor(peer, msg, dir)
+                {
+                    self.overlay = Some(Overlay::Photo { peer, msg: next });
+                    self.photo_zoom = false;
+                }
+                Task::none()
+            }
+            Msg::PhotoZoom(z) => {
+                if matches!(self.overlay, Some(Overlay::Photo { .. })) {
+                    self.photo_zoom = z.unwrap_or(!self.photo_zoom);
+                }
+                Task::none()
+            }
             Msg::Audio(m) => self.on_audio(m),
+            Msg::Chat(m) => self.on_chat(m),
+            Msg::Reading(m) => self.on_reading(m),
+            Msg::StickerAnim(m) => self.on_sticker_anim(m),
+            Msg::Forum(m) => self.on_forum(m),
+            Msg::Panel(m) => self.on_panel(m),
         }
     }
 
@@ -1366,11 +1468,18 @@ impl App {
     }
 
     fn open(&mut self, peer: PeerRef) -> Task<Msg> {
+        // Un grupo con temas abre su lista de temas (`app/forum.rs`).
+        if let Some(t) = self.forum_intercept_open(peer) {
+            return t;
+        }
         if self.conv.as_ref().is_some_and(|c| c.peer == peer) {
             return Task::none();
         }
         let save = self.save_draft_task();
+        let carry = self.conv.as_ref().map(crate::reading::Carry::of);
         self.conv = Some(Conversation::new(peer));
+        // Con no leídos: ventana alrededor del último leído (abre en «Sin leer desde aquí»).
+        let anchor = self.start_reading(carry);
         self.compose = Compose::Normal;
         self.hover = None;
         self.reactions_for = None;
@@ -1384,7 +1493,7 @@ impl App {
         let now = Instant::now();
         self.anim.start(AnimKey::ChatSwitch, 0.0, 1.0, Curve::new(Spring::ESTANDAR, Property::Opacity, Self::anim_ms(Easing::ESTANDAR)), now);
         let load = self.call(
-            move |b| async move { b.history(peer, Anchor::Latest, PAGE).await },
+            move |b| async move { b.history(peer, anchor, PAGE).await },
             move |result| Msg::History { peer, older: false, result },
         );
         let user = match peer {
@@ -1398,7 +1507,6 @@ impl App {
     }
 
     fn on_history(&mut self, peer: PeerRef, older: bool, result: BackendResult<Vec<Message>>) -> Task<Msg> {
-        let unread = self.dialog(peer).map_or(0, |d| d.unread_count) as usize;
         let Some(c) = self.conv.as_mut().filter(|c| c.peer == peer) else { return Task::none() };
         let page = match result {
             Ok(p) => p,
@@ -1419,13 +1527,11 @@ impl App {
             c.messages = page;
             // Hasta la primera maquetación: ¿hay algún sticker animado entre los últimos?
             c.anim_visible.set(c.messages.iter().rev().take(16).any(|m| m.sticker.as_ref().is_some_and(stickers::is_animated)));
-            if unread > 0 {
-                c.unread_from = c.messages.iter().rev().filter(|m| !m.outgoing).nth(unread - 1).map(|m| m.id);
-            }
         }
         let mut tasks: Vec<Task<Msg>> = senders.into_iter().collect::<HashSet<_>>().into_iter().map(|s| self.want_user(s)).collect();
         if !older {
-            tasks.push(self.mark_read_task());
+            // Marca «Sin leer desde aquí», salto a ella y lectura progresiva (no todo de golpe).
+            tasks.push(self.after_first_page(peer));
         }
         Task::batch(tasks)
     }
@@ -1458,10 +1564,16 @@ impl App {
         if self.conv.as_ref().is_some_and(Conversation::near_bottom) {
             tasks.push(self.mark_read_task());
         }
+        tasks.push(self.reading_on_scroll(vh));
         Task::batch(tasks)
     }
 
     fn on_event(&mut self, ev: BackendEvent) -> Task<Msg> {
+        // Temas de los foros (y filtro de la conversación de un tema): `app/forum.rs`.
+        let ev = match self.forum_event(ev) {
+            Ok(t) => return t,
+            Err(ev) => *ev,
+        };
         match ev {
             BackendEvent::Connection(s) => {
                 self.connection = s;
@@ -1476,7 +1588,7 @@ impl App {
                 self.typing.remove(&m.peer);
                 let want = self.want_user(m.sender);
                 let mut tasks = vec![want];
-                let in_conv = self.conv.as_ref().is_some_and(|c| c.peer == m.peer);
+                let in_conv = self.conv.as_ref().is_some_and(|c| c.peer == m.peer) && !self.defer_new_message(&m);
                 if in_conv {
                     let h = self.row_height_estimate(&m);
                     let key = MsgKey::of(&m);
@@ -1562,6 +1674,10 @@ impl App {
                 self.downloads.insert(file_id, (done, total));
                 Task::none()
             }
+            BackendEvent::DialogRemoved { peer } => self.on_dialog_removed(peer),
+            BackendEvent::HistoryCleared { peer } => self.on_history_cleared(peer),
+            // Ya tratados en `forum_event`.
+            BackendEvent::TopicMessageNew { .. } | BackendEvent::ForumTopicUpserted(_) | BackendEvent::ForumTopicsChanged { .. } => Task::none(),
         }
     }
 
@@ -1688,6 +1804,9 @@ impl App {
     }
 
     fn retry(&mut self, rid: RandomId) -> Task<Msg> {
+        if let Some(t) = self.retry_gif(rid) {
+            return t;
+        }
         let Some(c) = self.conv.as_mut() else { return Task::none() };
         let Some(m) = c.messages.iter_mut().find(|m| m.random_id == Some(rid) && conv::is_local(m)) else {
             return Task::none();
@@ -1707,6 +1826,9 @@ impl App {
     fn escape(&mut self) -> Task<Msg> {
         if self.phase == Phase::Auth {
             return self.login_escape();
+        }
+        if self.chat_actions_escape() {
+            return Task::none();
         }
         if self.overlay.take().is_some() {
             return Task::none();
@@ -1729,18 +1851,31 @@ impl App {
 
     fn on_key(&mut self, ev: keyboard::Event) -> Task<Msg> {
         let keyboard::Event::KeyPressed { key, modifiers, .. } = ev else { return Task::none() };
+        // Atajos de los menús contextuales (Supr, Shift+F10 / Menú, Enter en confirmaciones).
+        if self.phase == Phase::Main
+            && let Some(t) = self.chat_actions_key(key.as_ref(), modifiers)
+        {
+            return t;
+        }
         match key.as_ref() {
             Key::Named(Named::Escape) => self.escape(),
+            Key::Named(Named::ArrowLeft) if matches!(self.overlay, Some(Overlay::Photo { .. })) => self.update(Msg::PhotoStep(-1)),
+            Key::Named(Named::ArrowRight) if matches!(self.overlay, Some(Overlay::Photo { .. })) => self.update(Msg::PhotoStep(1)),
             // Navegación con Tab entre campos y botones enfocables (login, diálogos).
-            Key::Named(Named::Tab) if self.picker.open && self.overlay.is_none() => {
+            Key::Named(Named::Tab) if self.picker.open && self.panel.tab == crate::panel::PanelTab::Stickers && self.overlay.is_none() => {
                 self.update(Msg::PickerNav(if modifiers.shift() { Nav::PrevTab } else { Nav::NextTab }))
             }
             Key::Named(Named::Tab) if modifiers.shift() => operation::focus_previous(),
             Key::Named(Named::Tab) => operation::focus_next(),
             _ if self.phase != Phase::Main => Task::none(),
             Key::Character("e") if modifiers.command() => self.update(Msg::TogglePicker),
+            // Alt+1/2/3: pestañas Emojis | GIFs | Stickers del panel.
+            Key::Character(d) if self.picker.open && modifiers.alt() && crate::panel::PanelTab::from_digit(d).is_some() => {
+                let tab = crate::panel::PanelTab::from_digit(d).unwrap_or_default();
+                self.update(Msg::Panel(crate::panel::PanelMsg::Tab(tab)))
+            }
             Key::Named(n @ (Named::ArrowLeft | Named::ArrowRight | Named::ArrowUp | Named::ArrowDown | Named::Enter))
-                if self.picker.open && self.overlay.is_none() && !modifiers.alt() =>
+                if self.picker.open && self.panel.tab.grid_keys() && self.overlay.is_none() && !modifiers.alt() =>
             {
                 let nav = match n {
                     Named::ArrowLeft => Nav::Left,

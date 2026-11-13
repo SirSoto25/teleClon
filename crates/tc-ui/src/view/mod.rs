@@ -1,13 +1,19 @@
 //! Vista raíz: disposición responsiva (raíl + lista + conversación), diálogos y toasts.
 
 pub mod audio;
+pub mod context_menu;
 pub mod conversation;
+pub mod emoji_panel;
+pub mod gif_panel;
 pub mod login;
+pub mod panel;
 pub mod sidebar;
 pub mod stickers;
+/// Grupos con temas: lista de temas, cabecera de un tema y su menú.
+pub mod topics;
 
 use iced::alignment::{Horizontal, Vertical};
-use iced::widget::{Space, button, checkbox, column, container, image, mouse_area, opaque, responsive, row, scrollable, stack, text_input};
+use iced::widget::{Space, button, checkbox, column, container, image, mouse_area, opaque, responsive, row, scrollable, stack, text_input, tooltip};
 use iced::{Alignment, ContentFit, Element, Length, Padding};
 use tc_core::PeerRef;
 use tc_theme::tokens::{layout, radius, space, text as ts};
@@ -32,7 +38,8 @@ impl App {
         responsive(move |size| {
             let narrow = size.width < layout::BREAKPOINT_SPLIT;
             let main: Element<'_, Msg> = if narrow {
-                if self.conv.is_some() {
+                // La lista de temas de un foro ocupa la pantalla como una conversación (`topics.rs`).
+                if self.conv.is_some() || self.topics_shown().is_some() {
                     conversation::view(self, true)
                 } else {
                     row![sidebar::rail(self), sidebar::list(self, (size.width - layout::RAIL_WIDTH - 2.0).max(200.0))].into()
@@ -52,7 +59,10 @@ impl App {
             if let Some(o) = &self.overlay {
                 layers.push(overlay(self, o));
             }
-            stack(layers).width(Length::Fill).height(Length::Fill).into()
+            // Menús contextuales, confirmaciones y «Deshacer» (ver `context_menu.rs`).
+            layers.extend(context_menu::layers(self, size));
+            layers.extend(topics::layers(self, size));
+            context_menu::probe(self, stack(layers).width(Length::Fill).height(Length::Fill).into())
         })
         .into()
     }
@@ -126,7 +136,8 @@ fn overlay<'a>(app: &'a App, o: &'a Overlay) -> Element<'a, Msg> {
 }
 
 /// Visor de foto a pantalla completa: la versión completa en cuanto llega (antes, la de la burbuja
-/// ampliada), con el progreso de la descarga si es larga. Se cierra con Escape, la X o pulsando fuera.
+/// ampliada), con el progreso de la descarga si es larga. Se cierra con Escape, la X, «volver» o pulsando fuera de la imagen; flechas y botones laterales
+/// cambian de foto; rueda o doble clic alternan ajuste y 100 %.
 fn photo_viewer<'a>(app: &'a App, peer: PeerRef, msg: tc_core::MsgId, k: f32) -> Element<'a, Msg> {
     let b = app.brasa;
     let file = app.conv.as_ref().filter(|c| c.peer == peer).and_then(|c| c.find(msg)).and_then(|m| m.media.as_ref()).and_then(|md| md.file.as_ref());
@@ -142,18 +153,67 @@ fn photo_viewer<'a>(app: &'a App, peer: PeerRef, msg: tc_core::MsgId, k: f32) ->
         }),
         _ => None,
     };
+    let zoom = app.photo_zoom;
     let picture: Element<'a, Msg> = match shown {
-        Some(d) => image(d.handle.clone()).content_fit(ContentFit::Contain).width(Length::Fill).height(Length::Fill).opacity(k).into(),
+        Some(d) => {
+            let (handle, iw, ih) = (d.handle.clone(), d.width.max(1) as f32, d.height.max(1) as f32);
+            responsive(move |size| {
+                let (aw, ah) = ((size.width - 2.0 * space::S8).max(1.0), (size.height - 2.0 * space::S8).max(1.0));
+                let (w, h) = if zoom {
+                    (iw, ih)
+                } else {
+                    let f = (aw / iw).min(ah / ih);
+                    (iw * f, ih * f)
+                };
+                let pic = image(handle.clone()).content_fit(ContentFit::Fill).width(Length::Fixed(w)).height(Length::Fixed(h)).opacity(k);
+                let hit = mouse_area(pic)
+                    .on_double_click(Msg::PhotoZoom(None))
+                    .on_scroll(|d| {
+                        let y = match d {
+                            iced::mouse::ScrollDelta::Lines { y, .. } | iced::mouse::ScrollDelta::Pixels { y, .. } => y,
+                        };
+                        Msg::PhotoZoom(Some(y > 0.0))
+                    })
+                    .interaction(iced::mouse::Interaction::ZoomIn);
+                container(opaque(hit)).width(Length::Fill).height(Length::Fill).center(Length::Fill).clip(true).into()
+            })
+            .into()
+        }
         None => Space::new().into(),
     };
-    let ink = c(b.p.on_accent);
-    let close = button(icon(Icon::Close, layout::ICON_MD, ink)).padding(8).style(style::ghost(b, radius::SM)).on_press(Msg::CloseOverlay);
+    let ink = iced::Color::WHITE;
+    let chip = |i: Icon, tip: &'static str, msg: Option<Msg>| -> Element<'a, Msg> {
+        let btn = button(container(icon(i, layout::ICON_MD, ink)).center(Length::Fixed(40.0)))
+            .padding(0)
+            .style(style::ghost(b, radius::PILL))
+            .on_press_maybe(msg);
+        tooltip(
+            container(btn).style(style::rounded_fill(iced::Color { a: 0.55, ..iced::Color::BLACK }, style::r(radius::PILL))),
+            container(t1(tip, ts::CAPTION, ink)).padding([4, 8]).style(style::rounded_fill(iced::Color { a: 0.85, ..iced::Color::BLACK }, style::r(radius::SM))),
+            tooltip::Position::Bottom,
+        )
+        .into()
+    };
+    let (prev, next) = (app.photo_neighbor(peer, msg, -1), app.photo_neighbor(peer, msg, 1));
+    let side = |i: Icon, tip: &'static str, target: Option<tc_core::MsgId>, dir: i32, right: bool| -> Element<'a, Msg> {
+        let Some(_) = target else { return Space::new().into() };
+        container(chip(i, tip, Some(Msg::PhotoStep(dir))))
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(if right { Horizontal::Right } else { Horizontal::Left })
+            .align_y(Vertical::Center)
+            .padding(space::S3)
+            .into()
+    };
     let mut layers = vec![
         mouse_area(container(Space::new()).width(Length::Fill).height(Length::Fill).style(style::fill(iced::Color { a: 0.88 * k, ..iced::Color::BLACK })))
             .on_press(Msg::CloseOverlay)
             .into(),
-        container(opaque(picture)).padding(space::S8).center(Length::Fill).into(),
-        container(close).width(Length::Fill).align_x(Horizontal::Right).padding(space::S3).into(),
+        container(picture).width(Length::Fill).height(Length::Fill).into(),
+        side(Icon::CaretLeft, "Foto anterior (←)", prev, -1, false),
+        side(Icon::CaretRight, "Foto siguiente (→)", next, 1, true),
+        container(chip(Icon::Back, "Volver al chat (Esc)", Some(Msg::CloseOverlay))).width(Length::Fill).align_x(Horizontal::Left).padding(space::S3).into(),
+        container(chip(Icon::Close, "Cerrar (Esc)", Some(Msg::CloseOverlay))).width(Length::Fill).align_x(Horizontal::Right).padding(space::S3).into(),
     ];
     if let Some(s) = status {
         layers.push(

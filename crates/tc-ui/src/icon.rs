@@ -49,6 +49,8 @@ icons! {
     Fingerprint => "fingerprint",
     Back => "arrow-left",
     Down => "caret-down",
+    CaretLeft => "caret-left",
+    CaretRight => "caret-right",
     Chats => "chat-circle",
     Unread => "eye-slash",
     User => "user",
@@ -62,6 +64,15 @@ icons! {
     Sticker => "sticker",
     Download => "download-simple",
     Mic => "microphone",
+    // Menús contextuales de chats y mensajes (`view/context_menu.rs`).
+    Archive => "archive",
+    More => "dots-three",
+    Forward => "arrow-bend-up-right",
+    Folder => "folder",
+    // Grupos con temas (`view/topics.rs`); «hash» es un dibujo propio, no de Phosphor.
+    Hash => "hash",
+    Plus => "plus",
+    Lock => "lock",
 }
 
 /// Handles creados una vez (el id del handle es un hash de los bytes; evitamos rehacerlo cada frame).

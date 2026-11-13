@@ -2,7 +2,7 @@
 //! 72 px con pestañas de pack de 28 px, hover `surface-hover`, foco con anillo).
 
 use iced::alignment::{Horizontal, Vertical};
-use iced::widget::{Space, button, column, container, image, responsive, row, scrollable, stack};
+use iced::widget::{Space, button, column, container, image, mouse_area, responsive, row, scrollable, stack};
 use iced::{Alignment, Color, Element, Length, Padding, Radians, Rotation};
 use tc_core::Sticker;
 use tc_theme::TextStyle;
@@ -10,6 +10,7 @@ use tc_theme::tokens::{layout, space, text as ts};
 
 use crate::app::{App, Msg};
 use crate::icon::{Icon, icon, icon_fill};
+use crate::sticker_anim::AnimMsg;
 use crate::stickers::{self, CELL, CELL_ART, CELL_GAP, PANEL_H, Tab};
 use crate::style::{self, c};
 use crate::widgets::{hfill, icon_button, t, t1};
@@ -28,7 +29,8 @@ pub fn art<'a>(app: &'a App, s: &'a Sticker, size: f32, seed: usize, fallback: C
                 .rotation(Rotation::Floating(Radians(rot)))
                 .into()
         }
-        _ => match app.sticker_image(s, size) {
+        // TGS animado (fotograma actual) o, si no, la imagen estática del sticker de la red.
+        _ => match app.sticker_anim_frame(s, size).or_else(|| app.sticker_image(s, size)) {
             Some(h) => image(h).width(Length::Fixed(size)).height(Length::Fixed(size)).content_fit(iced::ContentFit::Contain).into(),
             None => {
                 let fs = (size * 0.66).round();
@@ -98,13 +100,17 @@ pub fn picker(app: &App) -> Element<'_, Msg> {
                 for (k, s) in chunk.iter().enumerate() {
                     let i = r * cols + k;
                     let focused = app.picker.cursor == Some(i);
+                    let cell = button(container(art(app, s, CELL_ART, i, c(b.p.text))).center(Length::Fixed(CELL)))
+                        .padding(0)
+                        .width(Length::Fixed(CELL))
+                        .height(Length::Fixed(CELL))
+                        .style(style::sticker_cell(b, focused))
+                        .on_press(Msg::SendSticker(s.id));
+                    // El TGS bajo el ratón se anima (ver `sticker_anim.rs`).
                     line = line.push(
-                        button(container(art(app, s, CELL_ART, i, c(b.p.text))).center(Length::Fixed(CELL)))
-                            .padding(0)
-                            .width(Length::Fixed(CELL))
-                            .height(Length::Fixed(CELL))
-                            .style(style::sticker_cell(b, focused))
-                            .on_press(Msg::SendSticker(s.id)),
+                        mouse_area(cell)
+                            .on_enter(Msg::StickerAnim(AnimMsg::Hover(s.id)))
+                            .on_exit(Msg::StickerAnim(AnimMsg::Unhover(s.id))),
                     );
                 }
                 col = col.push(line);

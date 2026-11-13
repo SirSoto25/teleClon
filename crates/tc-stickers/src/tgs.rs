@@ -67,14 +67,19 @@ pub fn render(
     }
     let mut surface = rlottie::Surface::new(rlottie::Size::new(width as usize, height as usize));
     anim.render(frame, &mut surface);
-    let mut rgba = Vec::with_capacity(surface.data().len() * 4);
-    for p in surface.data() {
-        // rlottie entrega ARGB premultiplicado (en memoria BGRA): se pasa a RGBA recto.
+    Ok(Frame { width, height, rgba: unpremultiply(surface.data()) })
+}
+
+/// rlottie entrega ARGB premultiplicado (en memoria BGRA): se pasa a RGBA recto.
+#[cfg(feature = "lottie")]
+pub(crate) fn unpremultiply(data: &[rlottie::Bgra]) -> Vec<u8> {
+    let mut rgba = Vec::with_capacity(data.len() * 4);
+    for p in data {
         let a = u32::from(p.a);
         let un = |c: u8| (u32::from(c) * 255 + a / 2).checked_div(a).map_or(0, |v| v.min(255) as u8);
         rgba.extend_from_slice(&[un(p.r), un(p.g), un(p.b), p.a]);
     }
-    Ok(Frame { width, height, rgba })
+    rgba
 }
 
 #[cfg(not(feature = "lottie"))]

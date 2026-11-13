@@ -23,6 +23,9 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0003_secret_chat_states.sql"),
     include_str!("../migrations/0004_media_cache.sql"),
     include_str!("../migrations/0005_media_extra.sql"),
+    include_str!("../migrations/0006_dialog_unread_mark.sql"),
+    include_str!("../migrations/0007_emoji_gifs.sql"),
+    include_str!("../migrations/0008_forum_topics.sql"),
 ];
 
 /// Última versión de esquema que conoce este binario.

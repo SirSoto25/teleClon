@@ -1,11 +1,12 @@
 //! Stickers de la red como imagen: qué variante pedir y cómo decodificarla.
 //!
 //! * WebP estático: el archivo entero en la burbuja; su miniatura (WebP de ~128 px) en el selector.
-//! * TGS (Lottie con gzip): sin la feature `lottie` (rlottie, C++ que no se compila en el CI de
-//!   Windows/macOS) se dibuja la miniatura WebP estática que trae el documento; con `lottie`, el
-//!   primer fotograma del TGS en la burbuja. La animación en sí queda pendiente.
-//! * WebM (vídeo): su miniatura estática. Reproducir el vídeo queda pendiente (no hay decodificador
-//!   de VP9 en el árbol de dependencias).
+//! * TGS (Lottie con gzip): sin `lottie` (rlottie; solo se compila en Linux, ADR-0008) se dibuja la
+//!   miniatura WebP estática que trae el documento; con `lottie`, el primer fotograma del TGS en la
+//!   burbuja. Esa es la imagen estática (movimiento reducido, mientras cargan los fotogramas); la
+//!   animación va aparte, en `sticker_anim.rs`.
+//! * WebM (vídeo): su miniatura estática. Reproducir el vídeo queda pendiente (sin decodificador de
+//!   VP9 con alfa fiable y portable, ver ADR-0008).
 //!
 //! La descarga va por `MediaApi::download_media` (con la caché de disco de tc-store) y el
 //! decodificado fuera del hilo de la UI (`media::load`); los `Handle` viven en `media::Images`.

@@ -472,3 +472,26 @@ async fn startup_without_session_is_logged_out_and_secret_chats_need_login() {
     assert_eq!(b.dialogs(DialogsPage { offset: 0, limit: 10, archived: false }).await, Err(BackendError::Unauthorized));
     let _ = b.inner.net.session.home_dc_id();
 }
+
+/// Al abrir un chat con no leídos la UI pide `Anchor::Around(read_inbox_max_id)`: una sola
+/// `messages.getHistory` con `offset_id` = último leído + 1 y `add_offset` = -limit/2 (la mitad
+/// nueva cae en los no leídos y el resto es contexto ya leído).
+#[tokio::test]
+async fn history_window_around_first_unread() {
+    let (b, fake, _) = restored(
+        |_, id, body| {
+            assert_eq!(id, cid::<tl::functions::messages::GetHistory>());
+            let req: tl::functions::messages::GetHistory = decode(body);
+            assert_eq!((req.offset_id, req.add_offset, req.limit, req.min_id, req.max_id), (121, -30, 60, 0, 0));
+            // El servidor responde de nuevo a viejo: 30 posteriores al leído (121..=150) y 30 hasta él.
+            let msgs = (91..=150).rev().map(|i| msg_enum(i, peer_user(10), "x", false, 1)).collect();
+            ok(tl::enums::messages::Messages::from(tl::types::messages::Messages { messages: msgs, topics: vec![], chats: vec![], users: vec![] }))
+        },
+        None,
+    )
+    .await;
+    b.inner.ingest(&[user_enum(10, "Ana", 100, false)], &[]);
+    let page = b.history(PeerRef::User(UserId(10)), Anchor::Around(MsgId(120)), 60).await.unwrap();
+    assert_eq!(page.iter().map(|m| m.id.0).collect::<Vec<_>>(), (91..=150).collect::<Vec<_>>());
+    assert_eq!(fake.count("messages.getHistory"), 1);
+}

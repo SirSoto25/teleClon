@@ -33,7 +33,11 @@ pub(crate) fn history_params(anchor: Anchor, limit: i32) -> (i32, i32, i32) {
     }
 }
 
-fn reply_to(id: Option<MsgId>) -> Option<tl::enums::InputReplyTo> {
+pub(crate) fn reply_to(id: Option<MsgId>) -> Option<tl::enums::InputReplyTo> {
+    // Dentro de un envío a un tema de foro (`forum::in_topic`), el `reply_to` lleva el tema.
+    if let Some(topic) = crate::forum::current_topic() {
+        return crate::forum::topic_reply_to(topic, id);
+    }
     id.map(|r| {
         tl::types::InputReplyToMessage {
             reply_to_msg_id: r.0,
@@ -125,7 +129,7 @@ impl Inner {
     }
 
     /// Envío común: registra el `random_id`, llama y saca el mensaje confirmado.
-    async fn send_and_confirm(
+    pub(crate) async fn send_and_confirm(
         &self,
         peer: PeerRef,
         random_id: RandomId,
@@ -322,6 +326,14 @@ impl ProfileApi for GrammersBackend {
             tl::enums::contacts::Contacts::NotModified => Ok(vec![]),
         }
     }
+
+    /// Ver `dialog_actions.rs`.
+    async fn set_blocked(&self, user: UserId, blocked: bool) -> BackendResult<()> {
+        self.inner.act_set_blocked(user, blocked).await
+    }
+    async fn chat_info(&self, peer: PeerRef) -> BackendResult<ChatInfo> {
+        self.inner.act_chat_info(peer).await
+    }
 }
 
 #[async_trait]
@@ -429,6 +441,27 @@ impl DialogsApi for GrammersBackend {
             .await?;
         self.inner.dialog_changed(peer, |d| d.draft = draft);
         Ok(())
+    }
+
+    /// Ver `dialog_actions.rs`.
+    async fn mute_until(&self, peer: PeerRef, until: Option<Timestamp>) -> BackendResult<()> {
+        self.inner.act_mute_until(peer, until).await
+    }
+    async fn set_unread_mark(&self, peer: PeerRef, unread: bool) -> BackendResult<()> {
+        self.inner.act_unread_mark(peer, unread).await
+    }
+    async fn mark_dialog_read(&self, peer: PeerRef) -> BackendResult<()> {
+        let max = self.inner.read_all_target(peer);
+        self.inner.act_mark_dialog_read(peer, self.mark_read(peer, max)).await
+    }
+    async fn clear_history(&self, peer: PeerRef) -> BackendResult<()> {
+        self.inner.act_clear_history(peer).await
+    }
+    async fn delete_dialog(&self, peer: PeerRef, revoke: bool) -> BackendResult<()> {
+        self.inner.act_delete_dialog(peer, revoke).await
+    }
+    async fn leave_chat(&self, peer: PeerRef) -> BackendResult<()> {
+        self.inner.act_leave_chat(peer).await
     }
 }
 
@@ -632,6 +665,7 @@ impl MessagesApi for GrammersBackend {
         }
         self.inner.emit(BackendEvent::ReadInbox { peer, max_id });
         self.inner.dialog_changed(peer, |d| {
+            d.read_inbox_max_id = d.read_inbox_max_id.max(max_id);
             if d.last_message.as_ref().is_none_or(|l| l.id <= max_id) {
                 d.unread_count = 0;
             }
@@ -648,6 +682,10 @@ impl MessagesApi for GrammersBackend {
             if typing { tl::enums::SendMessageAction::SendMessageTypingAction } else { tl::enums::SendMessageAction::SendMessageCancelAction };
         self.inner.rpc(&tl::functions::messages::SetTyping { peer: input, top_msg_id: None, action }).await?;
         Ok(())
+    }
+
+    async fn pin_message(&self, peer: PeerRef, id: MsgId, pinned: bool) -> BackendResult<()> {
+        self.inner.act_pin_message(peer, id, pinned).await
     }
 }
 
@@ -668,6 +706,20 @@ impl StickersApi for GrammersBackend {
 
     async fn faved_stickers(&self) -> BackendResult<Vec<Sticker>> {
         self.inner.faved_stickers().await
+    }
+
+    /// Ver `gifs.rs` (guardados con `hash`, búsqueda con el bot `@gif`, envío como documento o
+    /// como resultado del bot).
+    async fn saved_gifs(&self) -> BackendResult<Vec<Gif>> {
+        self.inner.saved_gifs().await
+    }
+
+    async fn search_gifs(&self, query: String, offset: String) -> BackendResult<GifPage> {
+        self.inner.search_gifs(query, offset).await
+    }
+
+    async fn send_gif(&self, peer: PeerRef, gif: Gif, reply_to: Option<MsgId>, random_id: RandomId) -> BackendResult<Message> {
+        self.inner.send_gif(peer, gif, reply_to, random_id).await
     }
 }
 

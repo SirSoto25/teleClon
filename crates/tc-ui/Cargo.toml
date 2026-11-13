@@ -17,19 +17,28 @@ tc-audio.workspace = true
 iced = { workspace = true, features = ["canvas"] }
 futures.workspace = true
 # Decodificar fotos de perfil y de mensajes (JPEG/PNG/WebP) fuera del hilo de la UI.
-image.workspace = true
+# `gif`: animar los GIF reales del panel y de las burbujas (ADR-0010).
+image = { workspace = true, features = ["gif"] }
+# Catálogo de emojis del panel del compositor (ADR-0009).
+emojis.workspace = true
 tokio = { workspace = true, features = ["rt"] }
 jiff.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
 tc-mock.workspace = true
+# Capturas sin ventana del panel del compositor (`tests_panel_shots.rs`, ignorada por defecto).
+iced_test = "0.14.0"
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
+
+# Stickers TGS animados (rlottie) activados por defecto SOLO en Linux (ADR-0008): rlottie-sys clona
+# rlottie con git, lo compila con cmake + C++ y genera los enlaces con bindgen (libclang). En Windows
+# `rlottie` 0.5.4 ni compila (usa `std::os::unix`) y en macOS su build.rs enlaza `-lstdc++` fijo.
+[target.'cfg(target_os = "linux")'.dependencies]
+tc-stickers = { workspace = true, features = ["lottie"] }
 
 [features]
 default = []
-# TGS con rlottie (pasa a `tc-stickers/lottie`). Desactivada por defecto: rlottie-sys compila el C++
-# de rlottie (cmake, clang, g++), probado solo en Linux y no en el CI de Windows/macOS. Sin ella, los
-# TGS se dibujan con su miniatura WebP estática; con ella, su primer fotograma (animación pendiente).
-# Uso: `cargo build -p tc-app --features tc-ui/lottie`.
+# TGS con rlottie (pasa a `tc-stickers/lottie`). En Linux ya va siempre (ver arriba); esta feature solo
+# sirve para probarlo a mano en otro SO. Sin ella, los TGS se dibujan con su miniatura WebP estática.
 lottie = ["tc-stickers/lottie"]

@@ -4,8 +4,8 @@
 //!
 //! Los stickers de la red (`Sticker.file`) se descargan por `MediaApi` y se dibujan como imagen
 //! (ver `sticker_img.rs`): WebP estático entero, TGS con su miniatura WebP (o el primer fotograma
-//! con la feature `lottie`) y WebM con su miniatura. Mientras cargan, o sin archivo, el emoji hace de
-//! respaldo. El pack propio de Parlo sigue como pack local adicional cuando la cuenta no lo tiene.
+//! con la feature `lottie`, animado por `sticker_anim.rs`) y WebM con su miniatura. Mientras cargan, o
+//! sin archivo, el emoji hace de respaldo. El pack propio de Parlo sigue como pack local adicional cuando la cuenta no lo tiene.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -41,8 +41,8 @@ pub fn art_index(s: &Sticker) -> Option<usize> {
     None
 }
 
-/// ¿Se anima en pantalla? Solo el pack propio (movimiento procedural); los TGS/WebM de la red se
-/// dibujan estáticos por ahora (ver `sticker_img.rs`).
+/// ¿Se anima con la animación procedural del pack propio? Los TGS de la red se animan aparte con
+/// rlottie (`sticker_anim::plays`); los WebM siguen estáticos (ver `sticker_img.rs`).
 pub fn is_animated(s: &Sticker) -> bool {
     is_animated_format(s) && art_index(s).is_some()
 }

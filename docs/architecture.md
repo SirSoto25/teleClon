@@ -122,10 +122,17 @@ Operaciones ("rutas" del cliente). Cada fila es una operación del backend; en e
 | Secret | `send_secret_text` / `send_secret_media` | envía cifrado | id, `OutgoingSecret{text, ttl, media}` → `SecretMessage` | F18 |
 | Secret | `set_secret_ttl` / `mark_secret_read` | TTL / lectura (arranca TTL) | id, segundos / max_date → () | F18 |
 | Secret | `secret_key_visual` | huella | id → `KeyVisual{fingerprint, grid, emoji}` | F18 |
+| Forum | `forum_topics` / `forum_topics_by_id` | temas de un grupo foro (paginados, búsqueda) | group, `TopicsQuery{query, offset, limit}` → `TopicsPage{topics, total, next}` | F19 |
+| Forum | `topic_history` | historial de un tema (`messages.getReplies`) | `ThreadRef{group, topic}`, `Anchor`, limit → `Vec<Message>` | F19 |
+| Forum | `send_topic_text` / `send_topic_media` / `send_topic_sticker` / `send_topic_gif` | envío en un tema (`reply_to.top_msg_id`) | thread, … → `Message` | F19 |
+| Forum | `mark_topic_read` / `set_topic_typing` | lectura (`messages.readDiscussion`) / escribiendo | thread, max_id / bool → () | F19 |
+| Forum | `create_topic` / `set_topic_pinned` / `set_topic_closed` | gestión de temas | group, título / thread, bool → `ForumTopic` / () | F19 |
 
-Total: 66 operaciones (contando por separado las agrupadas con `/`).
+Total: 78 operaciones (contando por separado las agrupadas con `/`; 12 de foros).
 
 `BackendEvent` (entrada a la UI): `Connection(Connecting|Online|Updating|Offline)`, `Auth(QrAccepted|LoggedOut|PasswordNeeded)`, `DialogUpserted`, `MessageNew`, `MessageEdited`, `MessagesDeleted`, `MessageSent{random_id, msg}`, `MessageFailed{random_id, err}`, `ReadInbox`, `ReadOutbox`, `Typing`, `UserStatus`, `Reactions`, `FoldersChanged`, `NotifyChanged`, `StickerSetsChanged`, `SecretChat(Requested|Accepted|KeyChanged|TtlChanged|Discarded|Screenshot)`, `SecretMessage`, `SecretMessagesDeleted`, `Transfer{id, done, total}`, `Resync{reason}`.
+
+**Grupos con temas** (2026-11-13, `tc-core/src/forum.rs`): `Group::is_forum`; `ForumTopic{group, id (= mensaje superior; General = 1), title, icon{color, emoji, custom_emoji_id}, last_message, unread_count, read_inbox_max_id, pinned, closed, hidden, my}`; sub-trait `ForumApi` (supertrait de `ChatBackend`, todo con implementación por defecto). Eventos: `TopicMessageNew{topic, msg}` (en un foro sustituye a `MessageNew`), `ForumTopicUpserted(ForumTopic)`, `ForumTopicsChanged{group}`. `ThreadScope` envuelve un backend y lleva historial, envíos, lectura y «escribiendo…» del grupo a un tema: la UI lo usa para reutilizar la conversación normal dentro de un tema. tc-store guarda los temas y el tema de cada mensaje (migración 0008: `groups.is_forum`, `forum_topics`, `message_topics`) y los sirve sin red.
 
 Errores: `BackendError{ Network, FloodWait(secs), Unauthorized, NotFound, Forbidden(reason), InvalidInput(field), Crypto(..), Storage(..), Internal }`; la UI tiene un mensaje para cada uno.
 
@@ -221,10 +228,10 @@ Bóveda (keyring, servicio con el nombre provisional de la app; se migra al reno
 | formato | cómo | prioridad |
 | --- | --- | --- |
 | WebP estático | `image` (decodificador `image-webp`, Rust puro) → RGBA8 → `iced::widget::image::Handle::from_rgba` | must |
-| TGS animado | `flate2` (gunzip con tope de 4 MiB descomprimidos contra bombas) → JSON Lottie → `rlottie` (feature `lottie`) renderiza el fotograma al tamaño pedido → RGBA | should |
-| WebM vídeo | aplazado (decodificador de vídeo); se muestra la miniatura | could |
+| TGS animado | `flate2` (gunzip con tope de 4 MiB descomprimidos contra bombas) → JSON Lottie → `rlottie` (feature `lottie`, siempre activa en Linux) pinta lotes de fotogramas a 256 px en `spawn_blocking` → RGBA → `Handle` (ADR-0008) | should |
+| WebM vídeo | estático (miniatura): sin decodificador VP9 con alfa fiable y portable (ADR-0008) | could |
 
-Caché de fotogramas LRU con tope (64 MiB por defecto) clave `(sticker_id, tamaño, fotograma)`. Solo se animan los stickers visibles; pausa con la ventana sin foco o con "reducir movimiento" (ADR-0002). Si `lottie` no está compilada, TGS se muestra como miniatura estática. No se empaquetan stickers de Telegram; el pack propio original vive en `assets/stickers/` con licencia propia (fase brand).
+Caché de fotogramas LRU con tope en bytes (`ByteLru`; 48 MiB de fotogramas animados en la UI) clave `(documento, tamaño, fotograma)`. Reloj único a 30 fps como mucho, suscrito solo con algo animado a la vista. Solo se animan los stickers visibles (en el selector, el del ratón o el cursor); pausa con la ventana sin foco; con "reducir movimiento" (ADR-0002), primer fotograma. Si `lottie` no está compilada (Windows/macOS), TGS se muestra como miniatura estática. No se empaquetan stickers de Telegram; el pack propio original vive en `assets/stickers/` con licencia propia (fase brand).
 
 ## 9. UI (tc-ui)
 

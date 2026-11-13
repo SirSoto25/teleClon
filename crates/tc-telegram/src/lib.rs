@@ -22,7 +22,11 @@ mod auth;
 mod backend;
 pub mod config;
 mod convert;
+mod dialog_actions;
 mod events;
+/// Grupos con temas (foros).
+mod forum;
+mod gifs;
 mod ids;
 mod media;
 mod net;
@@ -108,6 +112,8 @@ pub(crate) struct Inner {
     pub(crate) stickers: Mutex<stickers::StickerCatalog>,
     /// Catálogo de reacciones y lo que admite cada chat (ver `reactions.rs`).
     pub(crate) reactions: Mutex<reactions::ReactionCatalog>,
+    /// GIFs guardados, documentos vistos y el bot de búsqueda (ver `gifs.rs`).
+    pub(crate) gifs: Mutex<gifs::GifCatalog>,
 }
 
 impl Inner {
@@ -270,6 +276,7 @@ impl GrammersBackend {
             dc_auth: tokio::sync::Mutex::new(std::collections::HashMap::new()),
             stickers: Mutex::new(stickers::StickerCatalog::default()),
             reactions: Mutex::new(reactions::ReactionCatalog::default()),
+            gifs: Mutex::new(gifs::GifCatalog::default()),
         });
         let tasks = vec![
             tokio::spawn(startup(Arc::clone(&inner))),

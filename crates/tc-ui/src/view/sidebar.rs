@@ -8,6 +8,7 @@ use tc_core::{Dialog, GroupKind, PeerRef, SendState, UserStatus};
 use tc_theme::ThemeKind;
 use tc_theme::tokens::{layout, radius, space, text as ts};
 
+use crate::app::chat_actions::ChatMsg;
 use crate::app::{App, Folder, LIST_SCROLL_ID, LoadState, Msg, SEARCH_ID};
 use crate::icon::{Icon, icon, icon_fill};
 use crate::style::{self, c, with_weight};
@@ -49,15 +50,8 @@ pub fn rail(app: &App) -> Element<'_, Msg> {
             container(ic).width(Length::Fixed(40.0)).height(Length::Fixed(28.0)).align_x(Horizontal::Center).into()
         };
         let label = t1(f.label(), ts::CAPTION, c(if active { b.p.text } else { b.p.text_muted }));
-        let cell = button(column![ic, label].align_x(Alignment::Center).spacing(space::S0_5))
-            .width(Length::Fixed(64.0))
-            .height(Length::Fixed(64.0))
-            .padding(Padding::from([space::S2, 0.0]))
-            .style(style::rail_cell(b))
-            .on_press(Msg::SetFolder(f));
-        let pill = container(Space::new().width(Length::Fixed(4.0)).height(Length::Fixed(24.0)))
-            .style(style::rounded_fill(if active { c(b.p.accent) } else { style::TRANSPARENT }, style::r(radius::PILL)));
-        col = col.push(row![pill, hgap(space::S0_5), cell].align_y(Alignment::Center));
+        let cell = rail_button(ic, label.into(), b, Msg::SetFolder(f));
+        col = col.push(rail_row(cell, active, b));
     }
     let (theme_icon, theme_label) = match b.kind {
         ThemeKind::Dark => (Icon::Sun, "Claro"),
@@ -65,12 +59,9 @@ pub fn rail(app: &App) -> Element<'_, Msg> {
     };
     let reduced = app.anim.pref.is_reduced();
     let toggle = |i: Icon, label: &'static str, on: bool, msg: Msg| {
-        let ic = if on { icon_fill(i, layout::ICON_MD, c(b.p.accent_text)) } else { icon(i, layout::ICON_MD, c(b.p.text_muted)) };
-        button(column![ic, t1(label, ts::CAPTION, c(b.p.text_muted))].align_x(Alignment::Center).spacing(space::S0_5))
-            .width(Length::Fixed(64.0))
-            .padding(Padding::from([space::S2, 0.0]))
-            .style(style::rail_cell(b))
-            .on_press(msg)
+        let ic = if on { icon_fill(i, layout::ICON_LG, c(b.p.accent_text)) } else { icon(i, layout::ICON_LG, c(b.p.text_muted)) };
+        let ic = container(ic).width(Length::Fixed(40.0)).height(Length::Fixed(28.0)).align_x(Horizontal::Center).align_y(Vertical::Center);
+        rail_row(rail_button(ic.into(), t1(label, ts::CAPTION, c(b.p.text_muted)).into(), b, msg), false, b)
     };
     col = col
         .push(Space::new().height(Length::Fill))
@@ -78,6 +69,25 @@ pub fn rail(app: &App) -> Element<'_, Msg> {
         .push(toggle(if reduced { Icon::Pause } else { Icon::Play }, "Animar", reduced, Msg::ToggleMotion))
         .push(vgap(space::S3));
     with_border_right(container(col).height(Length::Fill).style(style::surface(b)).into(), app)
+}
+
+/// Botón del raíl (64x64): icono y etiqueta centrados en ambos ejes. Lo usan TODOS los botones del raíl.
+fn rail_button<'a>(ic: Element<'a, Msg>, label: Element<'a, Msg>, b: style::Brasa, msg: Msg) -> Element<'a, Msg> {
+    let inner = column![ic, label].align_x(Alignment::Center).spacing(space::S0_5).width(Length::Fill);
+    button(container(inner).width(Length::Fill).height(Length::Fill).align_x(Horizontal::Center).align_y(Vertical::Center))
+        .width(Length::Fixed(64.0))
+        .height(Length::Fixed(64.0))
+        .padding(Padding::ZERO)
+        .style(style::rail_cell(b))
+        .on_press(msg)
+        .into()
+}
+
+/// Fila del raíl: píldora de selección (4 px, invisible si no está activa) + hueco + botón; misma geometría para todos.
+fn rail_row<'a>(cell: Element<'a, Msg>, active: bool, b: style::Brasa) -> Element<'a, Msg> {
+    let pill = container(Space::new().width(Length::Fixed(4.0)).height(Length::Fixed(24.0)))
+        .style(style::rounded_fill(if active { c(b.p.accent) } else { style::TRANSPARENT }, style::r(radius::PILL)));
+    row![pill, hgap(space::S0_5), cell].align_y(Alignment::Center).into()
 }
 
 fn with_border_right<'a>(inner: Element<'a, Msg>, app: &App) -> Element<'a, Msg> {
@@ -126,7 +136,11 @@ pub fn list(app: &App, width: f32) -> Element<'_, Msg> {
         .into(),
         LoadState::Ready => rows(app, width),
     };
-    let col = column![header, body].width(Length::Fixed(width)).height(Length::Fill);
+    let mut col = column![header].width(Length::Fixed(width)).height(Length::Fill);
+    if let Some(r) = super::context_menu::archive_row(app) {
+        col = col.push(r);
+    }
+    let col = col.push(body);
     with_border_right(container(col).style(style::surface(b)).height(Length::Fill).into(), app)
 }
 
@@ -202,7 +216,7 @@ fn chat_row<'a>(app: &'a App, d: &'a Dialog, list_w: f32) -> Element<'a, Msg> {
     use crate::format::{plain_letters, preview};
     use crate::measure::{ellipsize_to, text_width};
     let b = app.brasa;
-    let selected = app.conv.as_ref().is_some_and(|cv| cv.peer == d.peer);
+    let selected = app.conv.as_ref().is_some_and(|cv| cv.peer == d.peer) || app.forum_selected(d.peer);
     let row_bg = c(if selected { b.p.surface_selected } else { b.p.surface });
     let online = match d.peer {
         PeerRef::User(u) => app.users.get(&u).is_some_and(|u| u.status == UserStatus::Online),
@@ -213,12 +227,18 @@ fn chat_row<'a>(app: &'a App, d: &'a Dialog, list_w: f32) -> Element<'a, Msg> {
     let gap = space::S1;
 
     // Línea 1: [escudo|megáfono] nombre [silenciado]
-    let unread = d.unread_count > 0;
+    // En un foro, la suma de los no leídos de sus temas (`app/forum.rs`).
+    let unread_n = app.dialog_unread(d);
+    let unread = unread_n > 0 || d.unread_mark;
     let name_style = if unread { with_weight(ts::UI_STRONG, 700) } else { ts::UI_STRONG };
     let mut line1 = row![].spacing(gap).align_y(Alignment::Center);
     let mut name_w = text_w;
     if matches!(d.peer, PeerRef::Secret(_)) {
         line1 = line1.push(icon(Icon::Shield, layout::ICON_SM, c(b.p.success)));
+        name_w -= layout::ICON_SM + gap;
+    }
+    if app.is_forum(d.peer) {
+        line1 = line1.push(icon(Icon::Hash, layout::ICON_SM, c(b.p.text_muted)));
         name_w -= layout::ICON_SM + gap;
     }
     if app.group_kind(d.peer) == Some(GroupKind::Channel) {
@@ -276,15 +296,20 @@ fn chat_row<'a>(app: &'a App, d: &'a Dialog, list_w: f32) -> Element<'a, Msg> {
 
     // Columna derecha: hora · [@] badge | chincheta, alineados a la derecha.
     let mut top = row![].spacing(gap).align_y(Alignment::Center);
-    if let Some(m) = &d.last_message {
+    if app.chat_actions.hover_chat == Some(d.peer) {
+        // «⋯»: el mismo menú que el clic derecho (`context_menu.rs`).
+        top = top.push(super::context_menu::more_button(b, d.peer));
+    } else if let Some(m) = &d.last_message {
         top = top.push(t1(crate::format::list_time(m.date, crate::app::now(), &app.tz), ts::CAPTION, c(b.p.text_muted)));
     }
     let mut bottom = row![].spacing(gap).align_y(Alignment::Center);
     if d.unread_mentions > 0 {
         bottom = bottom.push(badge_at(b));
     }
-    if unread {
-        bottom = bottom.push(badge(d.unread_count, d.muted, b));
+    if unread_n > 0 {
+        bottom = bottom.push(badge(unread_n, d.muted, b));
+    } else if unread {
+        bottom = bottom.push(super::context_menu::unread_dot(b, d.muted));
     } else if d.pinned_order.is_some() {
         bottom = bottom.push(icon(Icon::Pin, layout::ICON_SM, c(b.p.text_muted)));
     }
@@ -307,6 +332,9 @@ fn chat_row<'a>(app: &'a App, d: &'a Dialog, list_w: f32) -> Element<'a, Msg> {
             .style(style::chat_row(b, selected))
             .on_press(Msg::Open(d.peer)),
     )
+    .on_enter(Msg::Chat(ChatMsg::HoverChat(Some(d.peer))))
+    .on_exit(Msg::Chat(ChatMsg::HoverChat(None)))
+    .on_right_press(Msg::Chat(ChatMsg::OpenChatMenu(d.peer)))
     .into()
 }
 

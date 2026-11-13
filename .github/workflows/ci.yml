@@ -41,9 +41,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       # Salida de audio (cpal → ALSA) en Linux; Windows y macOS no necesitan nada (ADR-0007).
-      - name: Dependencias de audio (Linux)
+      # Stickers TGS animados (rlottie, solo Linux, ADR-0008): rlottie-sys clona rlottie con git (red en
+      # el build), lo compila con cmake + g++ y genera enlaces con bindgen (libclang).
+      - name: Dependencias de audio y de rlottie (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libasound2-dev pkg-config
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libasound2-dev pkg-config cmake g++ git libclang-dev
 
       - name: Build
         run: cargo build --workspace --all-targets --locked

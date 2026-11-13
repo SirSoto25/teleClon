@@ -217,6 +217,8 @@ async fn selector_de_stickers_teclado_envio_y_recientes() {
 
     let _ = app.update(Msg::TogglePicker);
     assert!(app.picker.open);
+    // El panel abre en Emojis la primera vez; los stickers son su tercera pestaña (y se recuerda).
+    let _ = app.update(Msg::Panel(crate::panel::PanelMsg::Tab(crate::panel::PanelTab::Stickers)));
     assert_eq!(app.picker_tabs(), vec![Tab::Set(0), Tab::Set(1)], "sin recientes todavía");
     let _ = app.update(Msg::PickerNav(Nav::Right));
     let _ = app.update(Msg::PickerNav(Nav::Right));

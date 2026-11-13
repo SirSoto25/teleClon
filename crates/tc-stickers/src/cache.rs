@@ -1,11 +1,8 @@
-//! Caché LRU en memoria de fotogramas decodificados, con tope en bytes.
+//! Caché LRU en memoria de fotogramas decodificados, con tope en bytes (sobre [`ByteLru`]).
 
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-};
+use std::sync::Arc;
 
-use crate::Frame;
+use crate::{Frame, lru::ByteLru};
 
 /// 64 MiB por defecto (architecture.md §8).
 pub const DEFAULT_CACHE_BYTES: usize = 64 * 1024 * 1024;
@@ -20,11 +17,7 @@ pub struct CacheKey {
 
 #[derive(Debug)]
 pub struct FrameCache {
-    max_bytes: usize,
-    used: usize,
-    tick: u64,
-    map: HashMap<CacheKey, (Arc<Frame>, u64)>,
-    order: BTreeMap<u64, CacheKey>,
+    lru: ByteLru<CacheKey, Arc<Frame>>,
 }
 
 impl Default for FrameCache {
@@ -35,72 +28,45 @@ impl Default for FrameCache {
 
 impl FrameCache {
     pub fn new(max_bytes: usize) -> Self {
-        Self { max_bytes, used: 0, tick: 0, map: HashMap::new(), order: BTreeMap::new() }
+        Self { lru: ByteLru::new(max_bytes) }
     }
 
     pub fn len(&self) -> usize {
-        self.map.len()
+        self.lru.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.map.is_empty()
+        self.lru.is_empty()
     }
 
     pub fn used_bytes(&self) -> usize {
-        self.used
+        self.lru.used_bytes()
     }
 
     pub fn max_bytes(&self) -> usize {
-        self.max_bytes
-    }
-
-    fn touch(&mut self, key: CacheKey) {
-        self.tick += 1;
-        if let Some((_, t)) = self.map.get_mut(&key) {
-            self.order.remove(t);
-            *t = self.tick;
-            self.order.insert(self.tick, key);
-        }
+        self.lru.max_bytes()
     }
 
     /// Devuelve el fotograma y lo marca como usado recientemente.
     pub fn get(&mut self, key: &CacheKey) -> Option<Arc<Frame>> {
-        let frame = self.map.get(key)?.0.clone();
-        self.touch(*key);
-        Some(frame)
+        self.lru.get(key).cloned()
     }
 
     pub fn contains(&self, key: &CacheKey) -> bool {
-        self.map.contains_key(key)
+        self.lru.contains(key)
     }
 
     /// Inserta (reemplaza si existía) y expulsa los menos recientes hasta caber.
     /// Un fotograma mayor que el tope entero no se guarda (se devuelve igualmente el `Arc`).
     pub fn insert(&mut self, key: CacheKey, frame: Frame) -> Arc<Frame> {
-        self.remove(&key);
         let arc = Arc::new(frame);
         let len = arc.byte_len();
-        if len > self.max_bytes {
-            return arc;
-        }
-        while self.used + len > self.max_bytes {
-            let Some((_, oldest)) = self.order.pop_first() else { break };
-            if let Some((f, _)) = self.map.remove(&oldest) {
-                self.used -= f.byte_len();
-            }
-        }
-        self.tick += 1;
-        self.order.insert(self.tick, key);
-        self.map.insert(key, (arc.clone(), self.tick));
-        self.used += len;
+        self.lru.insert(key, arc.clone(), len);
         arc
     }
 
     pub fn remove(&mut self, key: &CacheKey) -> Option<Arc<Frame>> {
-        let (f, t) = self.map.remove(key)?;
-        self.order.remove(&t);
-        self.used -= f.byte_len();
-        Some(f)
+        self.lru.remove(key)
     }
 
     /// Obtiene de la caché o calcula con `make` y guarda.
@@ -116,8 +82,6 @@ impl FrameCache {
     }
 
     pub fn clear(&mut self) {
-        self.map.clear();
-        self.order.clear();
-        self.used = 0;
+        self.lru.clear();
     }
 }

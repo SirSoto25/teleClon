@@ -8,6 +8,10 @@
 
 mod audio;
 mod data;
+mod dialog_actions;
+/// Grupo con temas (foro) simulado.
+mod forum;
+pub mod gifs;
 mod images;
 mod rng;
 
@@ -22,7 +26,8 @@ use tokio::sync::broadcast::{self, error::RecvError};
 use tokio::task::JoinHandle;
 
 use crate::rng::Lcg;
-pub use data::{ANIMATED_SET_ID, BIG_CHAT, BIG_CHAT_LEN, ME, SECRET_ID};
+pub use forum::{FORUM_BUSY_TOPIC, FORUM_CHAT, FORUM_GROUP};
+pub use data::{ANIMATED_SET_ID, BIG_CHAT, BIG_CHAT_LEN, ME, SECRET_ID, UNREAD_CHAT, UNREAD_CHAT_COUNT};
 
 #[derive(Debug, Clone)]
 pub struct MockConfig {
@@ -67,6 +72,12 @@ struct State {
     auth: AuthState,
     /// Teléfono del login en curso (simulado).
     auth_phone: Option<String>,
+    /// Uso de emojis del panel: emoji → (veces, último uso).
+    emoji: HashMap<String, (u32, i64)>,
+    /// Gestión de chats (bloqueados, mensajes fijados, silencios con plazo): ver `dialog_actions.rs`.
+    acts: dialog_actions::Acts,
+    /// Temas de los grupos foro y a qué tema va cada mensaje (ver `forum.rs`).
+    forums: forum::Forums,
 }
 
 struct Inner {
@@ -94,7 +105,8 @@ impl Default for MockBackend {
 impl MockBackend {
     pub fn new(cfg: MockConfig) -> Self {
         let now = cfg.now.unwrap_or_else(real_now);
-        let seed = data::build(cfg.seed, now);
+        let mut seed = data::build(cfg.seed, now);
+        let forums = forum::seed(&mut seed, now, cfg.seed);
         let state = State {
             me: seed.me.clone(),
             users: seed.users,
@@ -109,6 +121,9 @@ impl MockBackend {
             next_secret: 2,
             auth: if cfg.logged_in { AuthState::LoggedIn(seed.me.clone()) } else { AuthState::LoggedOut },
             auth_phone: None,
+            emoji: HashMap::new(),
+            acts: dialog_actions::Acts::default(),
+            forums,
         };
         let (tx, _) = broadcast::channel(1024);
         let (auth_tx, _) = broadcast::channel(64);
@@ -274,6 +289,10 @@ impl Inner {
     }
 
     fn incoming(&self, peer: PeerRef, text: String) -> BackendResult<Message> {
+        // En un grupo foro el entrante va a un tema (ver `forum.rs`).
+        if let Some(r) = self.forum_incoming(peer, None, &text) {
+            return r;
+        }
         let (m, d) = {
             let mut st = self.lock();
             st.ensure_peer(peer)?;
@@ -345,6 +364,12 @@ impl ProfileApi for MockBackend {
         self.inner.gate().await?;
         Ok(self.inner.lock().users.values().filter(|u| u.is_contact).cloned().collect())
     }
+    async fn set_blocked(&self, user: UserId, blocked: bool) -> BackendResult<()> {
+        self.act_set_blocked(user, blocked).await
+    }
+    async fn chat_info(&self, peer: PeerRef) -> BackendResult<ChatInfo> {
+        self.act_chat_info(peer).await
+    }
 }
 
 #[async_trait]
@@ -366,6 +391,7 @@ impl DialogsApi for MockBackend {
         let d = {
             let mut st = self.inner.lock();
             st.ensure_peer(peer)?;
+            dialog_actions::check_pin_limit(&st.dialogs, peer, pinned)?;
             let next = st.dialogs.values().filter_map(|d| d.pinned_order).max().map_or(0, |m| m + 1);
             let d = st.dialogs.get_mut(&peer).expect("comprobado");
             d.pinned_order = if pinned { d.pinned_order.or(Some(next)) } else { None };
@@ -415,6 +441,25 @@ impl DialogsApi for MockBackend {
         };
         self.inner.emit(BackendEvent::DialogUpserted(d));
         Ok(())
+    }
+
+    async fn mute_until(&self, peer: PeerRef, until: Option<Timestamp>) -> BackendResult<()> {
+        self.act_mute_until(peer, until).await
+    }
+    async fn set_unread_mark(&self, peer: PeerRef, unread: bool) -> BackendResult<()> {
+        self.act_unread_mark(peer, unread).await
+    }
+    async fn mark_dialog_read(&self, peer: PeerRef) -> BackendResult<()> {
+        self.act_mark_dialog_read(peer).await
+    }
+    async fn clear_history(&self, peer: PeerRef) -> BackendResult<()> {
+        self.act_clear_history(peer).await
+    }
+    async fn delete_dialog(&self, peer: PeerRef, revoke: bool) -> BackendResult<()> {
+        self.act_delete_dialog(peer, revoke).await
+    }
+    async fn leave_chat(&self, peer: PeerRef) -> BackendResult<()> {
+        self.act_leave_chat(peer).await
     }
 }
 
@@ -596,6 +641,8 @@ impl MessagesApi for MockBackend {
                 .map_or(0, |l| l.iter().filter(|m| !m.outgoing && m.id > max_id).count() as u32);
             let d = st.dialogs.get_mut(&peer).expect("comprobado");
             d.unread_count = d.unread_count.min(unread);
+            d.read_inbox_max_id = d.read_inbox_max_id.max(max_id);
+            d.unread_mark = false;
             d.clone()
         };
         self.inner.emit(BackendEvent::ReadInbox { peer, max_id });
@@ -606,6 +653,10 @@ impl MessagesApi for MockBackend {
     async fn set_typing(&self, peer: PeerRef, _typing: bool) -> BackendResult<()> {
         self.inner.gate().await?;
         self.inner.lock().ensure_peer(peer)
+    }
+
+    async fn pin_message(&self, peer: PeerRef, id: MsgId, pinned: bool) -> BackendResult<()> {
+        self.act_pin_message(peer, id, pinned).await
     }
 }
 
@@ -669,6 +720,15 @@ impl MediaApi for MockBackend {
     /// documentos devuelven bytes de relleno en `Full` y no tienen vista previa.
     async fn download_media(&self, peer: PeerRef, msg: MsgId, file: FileRef, variant: MediaVariant) -> BackendResult<Vec<u8>> {
         self.inner.gate().await?;
+        // GIFs de muestra: se descargan igual desde el panel (`MsgId(0)`) que desde un mensaje.
+        if let Some(bytes) = off_thread({
+            let file = file.clone();
+            move || gifs::download(&file, variant)
+        })
+        .await
+        {
+            return Ok(bytes);
+        }
         let (w, h, voice) = {
             let st = self.inner.lock();
             let m = st.messages.get(&peer).and_then(|l| l.iter().find(|m| m.id == msg)).ok_or(BackendError::NotFound)?;
@@ -726,6 +786,62 @@ impl StickersApi for MockBackend {
         self.inner.emit(BackendEvent::DialogUpserted(d));
         Ok(m)
     }
+
+    async fn saved_gifs(&self) -> BackendResult<Vec<Gif>> {
+        self.inner.gate().await?;
+        Ok(gifs::saved())
+    }
+
+    async fn search_gifs(&self, query: String, offset: String) -> BackendResult<GifPage> {
+        self.inner.gate().await?;
+        Ok(gifs::search(&query, &offset))
+    }
+
+    /// Mensaje con el documento del GIF (como hace la red: un `MediaKind::Gif`).
+    async fn send_gif(&self, peer: PeerRef, gif: Gif, reply_to: Option<MsgId>, random_id: RandomId) -> BackendResult<Message> {
+        self.inner.gate().await?;
+        let gif = gifs::by_id(gif.id).ok_or(BackendError::NotFound)?;
+        let (m, d) = {
+            let mut st = self.inner.lock();
+            st.ensure_writable(peer)?;
+            let me = st.me.id;
+            let mut m = st.blank_message(peer, true, Some(me));
+            let ext = if gif.is_real_gif() { "gif" } else { "mp4" };
+            m.media = Some(Media {
+                id: gif.id,
+                kind: MediaKind::Gif,
+                file_name: Some(format!("{}.{ext}", gif.title.replace(' ', "_"))),
+                size_bytes: gif.file.as_ref().map_or(0, |f| f.size_bytes),
+                width: gif.width,
+                height: gif.height,
+                duration_secs: gif.duration_secs,
+                local_path: None,
+                file: gif.file,
+                audio: None,
+            });
+            m.reply_to = reply_to;
+            m.random_id = Some(random_id);
+            st.append(m)
+        };
+        self.inner.emit(BackendEvent::MessageSent { random_id, msg: m.clone() });
+        self.inner.emit(BackendEvent::DialogUpserted(d));
+        Ok(m)
+    }
+
+    async fn emoji_usage(&self) -> BackendResult<Vec<EmojiUse>> {
+        let st = self.inner.lock();
+        let mut v: Vec<EmojiUse> = st.emoji.iter().map(|(e, (n, at))| EmojiUse { emoji: e.clone(), count: *n, last_used: Timestamp(*at) }).collect();
+        v.sort_by(|a, b| b.last_used.cmp(&a.last_used).then(b.count.cmp(&a.count)).then(a.emoji.cmp(&b.emoji)));
+        Ok(v)
+    }
+
+    async fn record_emoji_use(&self, emoji: String, at: Timestamp) -> BackendResult<()> {
+        let mut st = self.inner.lock();
+        let e = st.emoji.entry(emoji).or_insert((0, at.0));
+        e.0 += 1;
+        e.1 = e.1.max(at.0);
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -758,7 +874,9 @@ impl SecretChatsApi for MockBackend {
                 draft: None,
                 activity,
                 read_outbox_max_id: MsgId(0),
+                read_inbox_max_id: MsgId(0),
                 photo: st.users.get(&user).and_then(|u| u.photo),
+                unread_mark: false,
             };
             st.dialogs.insert(peer, d.clone());
             st.messages.insert(peer, Vec::new());

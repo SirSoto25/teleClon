@@ -138,6 +138,8 @@ async fn account_stickers_load_in_the_picker_and_in_bubbles() {
     assert!(app.find_sticker(StickerId(3)).is_some(), "los recientes del servidor se pueden enviar");
 
     // Selector abierto en el pack de la red: se piden las miniaturas (sin mensaje: MsgId(0)).
+    // El panel recuerda la pestaña: se elige Stickers antes de abrirlo (si no, abre en Emojis).
+    let _ = app.update(Msg::Panel(crate::panel::PanelMsg::Tab(crate::panel::PanelTab::Stickers)));
     app.images.clear(); // libera los huecos que ocupan los avatares de la lista
     let _ = app.update(Msg::TogglePicker);
     let _ = app.update(Msg::PickerTab(2));

@@ -28,4 +28,15 @@ pub enum BackendEvent {
     SecretChat(SecretChat),
     /// Progreso de una descarga larga (id del archivo, bytes recibidos, total conocido). Efímero.
     Download { file_id: i64, done: u64, total: u64 },
+    /// El chat salió de la lista (borrado, abandonado o cerrado): se quita la fila y su historial.
+    DialogRemoved { peer: PeerRef },
+    /// Se vació el historial del chat (la fila sigue en la lista, sin mensajes).
+    HistoryCleared { peer: PeerRef },
+    /// Mensaje nuevo dentro de un tema de un grupo foro (en lugar de `MessageNew`).
+    TopicMessageNew { topic: MsgId, msg: Message },
+    /// Tema nuevo o cambiado (último mensaje, no leídos, título, fijado, cerrado…).
+    ForumTopicUpserted(crate::forum::ForumTopic),
+    /// La lista de temas del foro cambió de una forma que no se puede aplicar por partes (orden de
+    /// fijados, tema borrado o desconocido): se vuelve a pedir si está a la vista.
+    ForumTopicsChanged { group: GroupId },
 }
