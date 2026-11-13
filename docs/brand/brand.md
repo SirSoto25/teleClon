@@ -81,3 +81,10 @@ La comprobación automática es `python3 tools/brand/sweep.py --root . --out doc
 
 ## Aclaración de alcance (2026-11-07)
 El usuario confirma que Parlo es un proyecto de **uso personal, sin intención de comercializarlo**. Por tanto las comprobaciones de disponibilidad de marca, dominio y usuarios de este documento quedan **descartadas** (ya no son un pendiente). Si el proyecto se distribuyera públicamente en el futuro, habría que retomarlas, además de la nota sobre «Parler».
+
+## 6. Pendiente: icono definitivo (paso final del flujo)
+
+Anotado el 2026-11-14 a petición del usuario: **como último paso**, tras QA, paridad y licencias, generar el
+icono definitivo de la app siguiendo el brief de la sección 5 (el monograma «P» actual es provisional).
+Entregables y regeneración de los formatos de paquete (`.ico`, `.icns`, PNG de Linux): ver
+`tools/packaging/make_icons.py` y `docs/packaging.md`.
