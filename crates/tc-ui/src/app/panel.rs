@@ -212,6 +212,10 @@ impl App {
                 self.panel.gifs.anims.finish(file, frames, Instant::now());
                 Task::none()
             }
+            GifMsg::Scrolled { y, h } => {
+                (self.panel.gifs.scroll_y, self.panel.gifs.view_h) = (y, h);
+                Task::none()
+            }
         }
     }
 
@@ -322,7 +326,8 @@ impl App {
         self.images.handle(&ImageKey::Thumb { peer: self.sticker_peer(), msg: MsgId(0), file })
     }
 
-    /// GIF reales a la vista: los del panel y los de las burbujas visibles.
+    /// GIFs a la vista que se animan: los de las filas visibles del panel y los de las burbujas
+    /// visibles, como mucho `gifs::MAX_ANIMATED` (así todos caben en la caché a la vez).
     fn gif_anim_targets(&self) -> Vec<AnimTarget> {
         let mut out: Vec<AnimTarget> = Vec::new();
         let mut push = |peer, msg, file: &FileRef| {
@@ -332,7 +337,8 @@ impl App {
         };
         if self.picker.open && self.panel.tab == PanelTab::Gifs {
             let peer = self.sticker_peer();
-            for g in self.panel.gifs.shown().into_iter().take(48).filter(|g| g.is_real_gif()) {
+            let shown = self.panel.gifs.shown();
+            for g in shown.get(self.panel.gifs.visible_range(shown.len())).unwrap_or_default() {
                 if let Some(f) = &g.file {
                     push(peer, MsgId(0), f);
                 }
@@ -341,12 +347,13 @@ impl App {
         if let Some(cv) = &self.conv {
             let (a, z) = cv.image_range();
             for m in cv.messages.get(a..z).unwrap_or_default() {
-                let Some(md) = m.media.as_ref().filter(|md| gifs::is_real_gif_media(md)) else { continue };
+                let Some(md) = m.media.as_ref().filter(|md| gifs::animates(md)) else { continue };
                 let Some(f) = &md.file else { continue };
                 let (peer, msg) = if conv::is_local(m) || matches!(cv.peer, PeerRef::Secret(_)) { (self.sticker_peer(), MsgId(0)) } else { (cv.peer, m.id) };
                 push(peer, msg, f);
             }
         }
+        out.truncate(gifs::MAX_ANIMATED);
         out
     }
 

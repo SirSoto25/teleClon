@@ -1,23 +1,32 @@
 //! GIFs en la UI (ADR-0010): pestaña del panel (guardados, búsqueda en lo guardado y en la red) y
-//! animación de los GIF reales.
+//! animación en bucle, sin sonido, de todos los GIF.
 //!
-//! * Los GIF de Telegram son casi siempre MP4/H.264 sin sonido: no hay decodificador de vídeo
-//!   portable en el árbol, así que se dibuja su miniatura estática con la insignia «GIF».
-//! * Los GIF de verdad (`image/gif`, o un `.gif` en la burbuja) se descargan enteros (como mucho
-//!   `MAX_ANIM_BYTES`), se decodifican con `image` fuera del hilo de la UI a fotogramas de como
-//!   mucho `ANIM_PX` y se animan con el reloj compartido de los stickers (`App::sticker_ms`, reloj
-//!   de `sticker_anim.rs`); con movimiento reducido, el primer fotograma.
+//! * Los GIF de Telegram son casi siempre MP4/H.264 sin sonido (`documentAttributeAnimated`): se
+//!   decodifican con tc-video (demultiplexor MP4 propio + OpenH264).
+//! * Los GIF de verdad (`image/gif`) se decodifican con `image`.
+//! * En los dos casos: descarga entera (como mucho `MAX_ANIM_BYTES`), decodificado fuera del hilo de
+//!   la UI, fotogramas de como mucho `ANIM_PX` y `MAX_FRAMES`, y un presupuesto de memoria por
+//!   animación (`ANIM_BUDGET`, ver `tc_video::plan`) para que las `MAX_ANIMATED` animaciones a la
+//!   vista quepan juntas en la LRU (`CACHE_BYTES`) sin desalojarse unas a otras. Se animan con el
+//!   reloj compartido de los stickers (`App::sticker_ms`, `sticker_anim::TICK`); sin foco o con
+//!   movimiento reducido, quietas (primer fotograma).
+//! * Lo que no se puede decodificar (otro códec, archivo dañado) se queda con su miniatura y la
+//!   insignia «GIF».
 
 use std::cell::Cell;
 use std::collections::HashMap;
+use std::ops::Range;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use ::image::AnimationDecoder;
+use ::image::RgbaImage;
 use ::image::codecs::gif::GifDecoder;
 use ::image::imageops::FilterType;
 use iced::widget::image::Handle;
 use tc_core::{BackendResult, Gif, GifPage, Media, MediaKind, RandomId};
+use tc_video::Limits;
+use tc_video::plan;
 
 use crate::format::fold;
 use crate::stickers::Picker;
@@ -26,10 +35,25 @@ use crate::stickers::Picker;
 pub const MAX_ANIM_BYTES: u64 = 8 * 1024 * 1024;
 /// Lado máximo (px físicos) de los fotogramas animados.
 pub const ANIM_PX: u32 = 320;
-/// Fotogramas como mucho por GIF (los demás se descartan).
+/// Lado por debajo del cual, para caber en el presupuesto, se prefiere quitar fotogramas a encoger.
+pub const MIN_ANIM_PX: u32 = 160;
+/// Fotogramas como mucho por GIF (si hay más, se reparten por todo el bucle).
 pub const MAX_FRAMES: usize = 150;
 /// Tope de memoria de todos los fotogramas decodificados.
-pub const CACHE_BYTES: usize = 64 * 1024 * 1024;
+pub const CACHE_BYTES: usize = 128 * 1024 * 1024;
+/// GIFs animándose a la vez como mucho (los demás, miniatura con insignia).
+pub const MAX_ANIMATED: usize = 12;
+/// Presupuesto de cada animación: así las `MAX_ANIMATED` a la vista caben juntas en la caché.
+pub const ANIM_BUDGET: usize = CACHE_BYTES / MAX_ANIMATED;
+const _: () = assert!(MAX_ANIMATED * ANIM_BUDGET <= CACHE_BYTES, "las animaciones a la vista caben juntas");
+/// Topes del decodificado. Los fotogramas más cortos que el reloj (`sticker_anim::TICK`) se agrupan.
+pub const LIMITS: Limits = Limits {
+    max_side: ANIM_PX,
+    min_side: MIN_ANIM_PX,
+    max_frames: MAX_FRAMES,
+    max_bytes: ANIM_BUDGET,
+    min_frame_ms: crate::sticker_anim::TICK.as_millis() as u32,
+};
 /// Animaciones que se cargan a la vez.
 pub const MAX_INFLIGHT: usize = 3;
 /// Retardo mínimo de un fotograma (los GIF con 0 o 10 ms se ven a 10 fps en los navegadores).
@@ -40,6 +64,8 @@ const RETRY_AFTER: Duration = Duration::from_secs(30);
 pub const CELL_H: f32 = 96.0;
 pub const CELL_GAP: f32 = 4.0;
 pub const CELL_MIN_W: f32 = 120.0;
+/// Alto supuesto de la rejilla hasta que el `scrollable` informa del suyo.
+const DEFAULT_VIEW_H: f32 = 4.0 * (CELL_H + CELL_GAP);
 
 #[derive(Debug, Clone)]
 pub enum GifMsg {
@@ -58,6 +84,8 @@ pub enum GifMsg {
     Send(i64),
     /// Terminó la carga de la animación de un documento (`None`: falló).
     AnimLoaded(i64, Option<Arc<GifFrames>>),
+    /// La rejilla se desplazó: `y` = desplazamiento, `h` = alto visible (solo se animan las filas a la vista).
+    Scrolled { y: f32, h: f32 },
 }
 
 /// Fotogramas de un GIF listos para dibujar.
@@ -85,29 +113,66 @@ impl GifFrames {
     }
 }
 
-/// Decodifica un GIF animado (en el pool bloqueante). `None` si no es un GIF válido.
+impl GifFrames {
+    /// Fotogramas RGBA `(ancho, alto, píxeles, ms)` a `Handle`s.
+    fn from_rgba(frames: impl IntoIterator<Item = (u32, u32, Vec<u8>, u32)>) -> Option<Self> {
+        let (mut total_ms, mut bytes) = (0u32, 0usize);
+        let frames: Vec<(Handle, u32)> = frames
+            .into_iter()
+            .map(|(w, h, px, ms)| {
+                total_ms = total_ms.saturating_add(ms);
+                bytes += px.len();
+                (Handle::from_rgba(w, h, px), ms)
+            })
+            .collect();
+        (!frames.is_empty()).then_some(GifFrames { frames, total_ms, bytes })
+    }
+}
+
+/// Decodifica un GIF (MP4/H.264 o GIF real, según los bytes) en el pool bloqueante. `None` si no
+/// se puede (se queda la miniatura).
 pub fn decode(bytes: &[u8]) -> Option<GifFrames> {
+    if bytes.starts_with(b"GIF8") {
+        decode_gif(bytes)
+    } else if tc_video::looks_like_mp4(bytes) {
+        match tc_video::decode_mp4(bytes, &LIMITS) {
+            Ok(clip) => GifFrames::from_rgba(clip.frames.into_iter().map(|f| (f.width, f.height, f.rgba, f.ms))),
+            Err(e) => {
+                tracing::debug!("GIF MP4 sin animar: {e}");
+                None
+            }
+        }
+    } else {
+        None
+    }
+}
+
+/// GIF real con `image`: fotogramas a ≤ `ANIM_PX` y ≤ `MAX_FRAMES`, luego ajustados a `LIMITS`.
+fn decode_gif(bytes: &[u8]) -> Option<GifFrames> {
     let dec = GifDecoder::new(std::io::Cursor::new(bytes)).ok()?;
-    let mut frames = Vec::new();
-    let (mut total_ms, mut total_bytes) = (0u32, 0usize);
+    let mut frames: Vec<(RgbaImage, u32)> = Vec::new();
     for f in dec.into_frames().take(MAX_FRAMES) {
         let Ok(f) = f else { break };
         let (n, d) = f.delay().numer_denom_ms();
         let ms = if d == 0 || n == 0 { DEFAULT_DELAY_MS } else { (n / d).max(MIN_DELAY_MS) };
         let img = f.into_buffer();
         let (w, h) = img.dimensions();
-        let img = if w.max(h) > ANIM_PX {
-            let (nw, nh) = if w >= h { (ANIM_PX, (h * ANIM_PX / w).max(1)) } else { ((w * ANIM_PX / h).max(1), ANIM_PX) };
-            ::image::imageops::resize(&img, nw, nh, FilterType::Triangle)
-        } else {
-            img
-        };
-        let (w, h) = img.dimensions();
-        total_bytes += (w * h * 4) as usize;
-        total_ms += ms;
-        frames.push((Handle::from_rgba(w, h, img.into_raw()), ms));
+        let (nw, nh) = plan::fit(w, h, ANIM_PX);
+        let img = if (nw, nh) == (w, h) { img } else { ::image::imageops::resize(&img, nw, nh, FilterType::Triangle) };
+        frames.push((img, ms));
     }
-    (!frames.is_empty()).then_some(GifFrames { frames, total_ms, bytes: total_bytes })
+    let (w, h) = frames.first()?.0.dimensions();
+    let durations: Vec<u32> = frames.iter().map(|f| f.1).collect();
+    let p = plan::plan(w, h, &durations, &Limits { max_side: w.max(h), ..LIMITS });
+    let picks = plan::pick(frames.len(), p.frames);
+    let ms = plan::group_ms(&durations, &picks);
+    let mut frames: Vec<Option<RgbaImage>> = frames.into_iter().map(|f| Some(f.0)).collect();
+    GifFrames::from_rgba(picks.iter().zip(ms).filter_map(|(&k, ms)| {
+        let img = frames.get_mut(k)?.take()?;
+        let img = if (p.width, p.height) == img.dimensions() { img } else { ::image::imageops::resize(&img, p.width, p.height, FilterType::Triangle) };
+        let (w, h) = img.dimensions();
+        Some((w, h, img.into_raw(), ms))
+    }))
 }
 
 #[derive(Debug)]
@@ -230,6 +295,9 @@ pub struct GifPanel {
     /// GIFs enviados aún sin confirmar (para reintentar).
     pub pending: HashMap<RandomId, Gif>,
     pub anims: GifAnims,
+    /// Desplazamiento y alto visible de la rejilla (`GifMsg::Scrolled`; alto 0 = aún no se sabe).
+    pub scroll_y: f32,
+    pub view_h: f32,
 }
 
 impl GifPanel {
@@ -260,11 +328,22 @@ impl GifPanel {
     pub fn find(&self, id: i64) -> Option<&Gif> {
         self.shown().into_iter().find(|g| g.id == id)
     }
+
+    /// Índices de `shown()` (de `n`) en las filas a la vista de la rejilla, con una fila de margen.
+    pub fn visible_range(&self, n: usize) -> Range<usize> {
+        let cols = self.cols.get().max(1);
+        let row = CELL_H + CELL_GAP;
+        let h = if self.view_h > 0.0 { self.view_h } else { DEFAULT_VIEW_H };
+        let first = ((self.scroll_y.max(0.0) / row).floor() as usize).saturating_sub(1);
+        let last = ((self.scroll_y.max(0.0) + h) / row).ceil() as usize + 1;
+        (first * cols).min(n)..(last * cols).min(n)
+    }
 }
 
-/// ¿El medio de un mensaje es un GIF de verdad (animable con `image`)?
-pub fn is_real_gif_media(md: &Media) -> bool {
-    md.kind == MediaKind::Gif && md.file_name.as_deref().is_some_and(|n| n.to_ascii_lowercase().ends_with(".gif"))
+/// ¿El medio de un mensaje se anima en la burbuja? Todos los GIF (`documentAttributeAnimated`):
+/// MP4/H.264 (lo normal en Telegram) o GIF real; qué decodificador usar lo deciden los bytes.
+pub fn animates(md: &Media) -> bool {
+    md.kind == MediaKind::Gif
 }
 
 /// Nombre de archivo con el que se muestra un GIF enviado (decide si la burbuja lo anima).
@@ -309,6 +388,40 @@ mod tests {
         // Retardo 0 → 100 ms; retardos ínfimos → MIN_DELAY_MS (el GIF guarda centésimas).
         assert_eq!(decode(&sample_gif(8, 8, 2, 0)).unwrap().total_ms, 2 * DEFAULT_DELAY_MS);
         assert_eq!(decode(&sample_gif(8, 8, 2, 10)).unwrap().total_ms, 2 * MIN_DELAY_MS, "10 ms (1 cs) se sube al mínimo");
+    }
+
+    #[test]
+    fn decodifica_los_mp4_de_telegram() {
+        // MP4/H.264 (perfil High con fotogramas B) de 160×120, 12 fotogramas a 80 ms.
+        let f = decode(tc_mock::gifs::SAMPLE_MP4).expect("MP4 válido");
+        assert_eq!(f.frames.len(), 12);
+        assert_eq!(f.total_ms, 960);
+        assert_eq!(f.bytes, 12 * 160 * 120 * 4);
+        assert_ne!(f.at(0.0).map(Handle::id), f.at(500.0).map(Handle::id));
+        // Lo que no es ni GIF ni MP4, o un MP4 roto: sin animación (se queda la miniatura).
+        assert!(decode(&[0u8; 64]).is_none());
+        assert!(decode(&tc_mock::gifs::SAMPLE_MP4[..200]).is_none());
+    }
+
+    #[test]
+    fn un_gif_grande_se_ajusta_al_presupuesto() {
+        let f = decode(&sample_gif(320, 320, 40, 50)).expect("GIF válido");
+        assert_eq!(f.frames.len(), 40, "basta con encoger");
+        assert!(f.bytes <= ANIM_BUDGET && f.bytes > ANIM_BUDGET / 2, "{} de {ANIM_BUDGET}", f.bytes);
+        assert_eq!(f.total_ms, 40 * 50);
+    }
+
+    #[test]
+    fn solo_se_animan_las_filas_a_la_vista() {
+        let p = GifPanel::default();
+        p.cols.set(3);
+        // Sin medidas: 4 filas supuestas + 1 de margen.
+        assert_eq!(p.visible_range(100), 0..15);
+        let p = GifPanel { scroll_y: 10.0 * (CELL_H + CELL_GAP), view_h: 2.0 * (CELL_H + CELL_GAP), ..Default::default() };
+        p.cols.set(3);
+        assert_eq!(p.visible_range(100), 27..39);
+        assert_eq!(p.visible_range(30), 27..30);
+        assert_eq!(p.visible_range(5), 5..5);
     }
 
     #[test]

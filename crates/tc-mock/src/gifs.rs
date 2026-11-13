@@ -2,7 +2,9 @@
 //!
 //! Los GIF reales (`image/gif`) se generan en memoria (figuras que se mueven sobre el degradado de
 //! la paleta del mock) para ejercitar la animación de la UI; los «MP4» (como casi todos los de
-//! Telegram) devuelven bytes que no son vídeo, así que la UI muestra su miniatura estática.
+//! Telegram) devuelven todos el mismo MP4/H.264 de verdad (`assets/gif-muestra.mp4`: 160×120, perfil
+//! High con fotogramas B, 12 fotogramas a 80 ms, el disco del GIF 0 dando una vuelta), que la UI
+//! decodifica con tc-video (ADR-0010).
 use image::codecs::gif::{GifEncoder, Repeat};
 use image::{Delay, Frame, ImageEncoder, Rgba, RgbaImage, codecs::png::PngEncoder};
 use tc_core::{FileKind, FileRef, GIF_MIME, Gif, GifPage, InlineResult, MediaVariant};
@@ -30,8 +32,19 @@ const SAMPLES: [(&str, bool, u32, u32); 10] = [
 
 /// Cuántos de los de muestra están «guardados» en la cuenta (el resto solo sale al buscar).
 pub const SAVED: usize = 6;
-/// Fotogramas de cada GIF generado.
+/// Fotogramas de cada GIF generado (y del MP4 de muestra).
 const FRAMES: u32 = 12;
+/// MP4 de muestra (3,6 KB), generado una vez con:
+///
+/// ```text
+/// D='hypot(X-W*(0.5+0.28*cos(N*PI/6)),Y-H*(0.5+0.28*sin(N*PI/6)))'
+/// ffmpeg -f lavfi -i "color=c=black:s=160x120:r=12.5:d=0.96,format=rgb24,geq=\
+///   r='if(lt($D,21.6),250,214-142*(X+Y)/(W+H))':g='if(lt($D,21.6),244,104+6*(X+Y)/(W+H))':\
+///   b='if(lt($D,21.6),232,64+96*(X+Y)/(W+H))'" -c:v libx264 -profile:v high \
+///   -x264-params bframes=2:keyint=12 -crf 28 -pix_fmt yuv420p -movflags +faststart -an \
+///   -map_metadata -1 -fflags +bitexact -flags:v +bitexact gif-muestra.mp4
+/// ```
+pub const SAMPLE_MP4: &[u8] = include_bytes!("../assets/gif-muestra.mp4");
 
 fn is_gif_id(id: i64) -> bool {
     (GIF_BASE..GIF_BASE + SAMPLES.len() as i64).contains(&id)
@@ -126,7 +139,8 @@ fn encode_png(img: &RgbaImage) -> Vec<u8> {
 }
 
 /// Bytes de un GIF del mock (`None`: no es uno de ellos). La miniatura es el primer fotograma en
-/// PNG; el archivo, el GIF animado o, en los «MP4», bytes que no son vídeo.
+/// PNG; el archivo, el GIF animado o, en los «MP4», [`SAMPLE_MP4`] (su miniatura es su primer
+/// fotograma: el dibujo del GIF 0).
 pub fn download(file: &FileRef, variant: MediaVariant) -> Option<Vec<u8>> {
     if !is_gif_id(file.id) {
         return None;
@@ -134,9 +148,9 @@ pub fn download(file: &FileRef, variant: MediaVariant) -> Option<Vec<u8>> {
     let i = (file.id - GIF_BASE) as usize;
     let (_, real, w, h) = SAMPLES[i];
     Some(match variant {
-        MediaVariant::Thumb => encode_png(&frame(i, 0, w, h)),
+        MediaVariant::Thumb => encode_png(&frame(if real { i } else { 0 }, 0, w, h)),
         MediaVariant::Full if real => encode_gif(i),
-        MediaVariant::Full => crate::images::document(file.id, file.size_bytes),
+        MediaVariant::Full => SAMPLE_MP4.to_vec(),
     })
 }
 
@@ -164,7 +178,7 @@ mod tests {
         assert_eq!(image::AnimationDecoder::into_frames(dec).count(), FRAMES as usize);
         assert_eq!(&download(&f, MediaVariant::Thumb).unwrap()[..4], b"\x89PNG");
         let mp4 = s.iter().find(|g| !g.is_real_gif()).unwrap().file.clone().unwrap();
-        assert_ne!(&download(&mp4, MediaVariant::Full).unwrap()[..4], b"GIF8");
+        assert_eq!(&download(&mp4, MediaVariant::Full).unwrap()[4..8], b"ftyp");
         assert!(download(&FileRef { id: 5, ..f }, MediaVariant::Full).is_none());
         assert_eq!(by_id(GIF_BASE + 1).map(|g| g.title), Some("aplausos".into()));
     }

@@ -452,7 +452,13 @@ impl DialogsApi for GrammersBackend {
     }
     async fn mark_dialog_read(&self, peer: PeerRef) -> BackendResult<()> {
         let max = self.inner.read_all_target(peer);
-        self.inner.act_mark_dialog_read(peer, self.mark_read(peer, max)).await
+        let r = self.inner.act_mark_dialog_read(peer, self.mark_read(peer, max)).await;
+        if let PeerRef::Group(g) = peer
+            && crate::forum::is_forum(&self.inner.cache(), g)
+        {
+            self.mark_all_topics_read(g).await;
+        }
+        r
     }
     async fn clear_history(&self, peer: PeerRef) -> BackendResult<()> {
         self.inner.act_clear_history(peer).await

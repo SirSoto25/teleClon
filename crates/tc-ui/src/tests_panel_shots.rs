@@ -100,10 +100,9 @@ async fn capturas_del_panel() {
         let key = req.key();
         let img = crate::media::load(backend.clone(), req).await;
         let _ = app.update(Msg::ImageLoaded(key, img));
-        if g.is_real_gif() {
-            let bytes = backend.download_media(BIG_CHAT, MsgId(0), f.clone(), MediaVariant::Full).await.unwrap();
-            let _ = app.update(Msg::Panel(PanelMsg::Gif(GifMsg::AnimLoaded(f.id, crate::gifs::decode(&bytes).map(Arc::new)))));
-        }
+        // GIF reales y MP4/H.264: todos se animan (ADR-0010).
+        let bytes = backend.download_media(BIG_CHAT, MsgId(0), f.clone(), MediaVariant::Full).await.unwrap();
+        let _ = app.update(Msg::Panel(PanelMsg::Gif(GifMsg::AnimLoaded(f.id, crate::gifs::decode(&bytes).map(Arc::new)))));
     }
     shot(&app, &dir, "panel-gifs-guardados.png");
     let _ = app.update(Msg::Panel(PanelMsg::Gif(GifMsg::Query("lluvia".into()))));
@@ -113,7 +112,7 @@ async fn capturas_del_panel() {
     let _ = app.update(pm(PanelMsg::Tab(PanelTab::Stickers)));
     shot(&app, &dir, "panel-stickers.png");
 
-    // Burbujas: un GIF real (animado) y un «MP4» (miniatura con insignia).
+    // Burbujas: un GIF real y un MP4/H.264, los dos animados (ya decodificados arriba: misma caché).
     let _ = app.update(pm(PanelMsg::Tab(PanelTab::Gifs)));
     let _ = app.update(Msg::Panel(PanelMsg::Gif(GifMsg::Query(String::new()))));
     let saved = backend.saved_gifs().await.unwrap();

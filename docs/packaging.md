@@ -17,6 +17,11 @@ Requisito común: Rust 1.99.1 (`rustup toolchain install 1.99.1`). Stickers TGS 
 ADR-0008): **solo en Linux** y siempre activados ahí (dependencia por destino en `tc-ui`); en Windows y
 macOS los TGS se dibujan con su imagen estática.
 
+GIFs de Telegram (MP4/H.264, ADR-0010): `openh264` (feature `source`) compila las fuentes de OpenH264 que
+trae el crate con `cc` en los tres SO (g++/clang en Linux, MSVC en Windows, clang de Xcode en macOS); no
+clona nada ni necesita bibliotecas del sistema. `nasm` es opcional: si está, usa ensamblador x86; si no,
+compila solo C++ (más lento al decodificar, igual de correcto). Se enlaza estático.
+
 ### Linux
 rlottie (stickers TGS animados): `rlottie-sys` **clona** rlottie de GitHub con `git` durante el build
 (hace falta red la primera vez), lo compila con `cmake` + `g++` (usa `ninja` si está) y genera los
@@ -135,6 +140,9 @@ YAML de los workflows (`yaml.safe_load`); XML de plist/manifiesto (`xmllint`); `
 * Windows ARM64 y `aarch64-unknown-linux-gnu` (posibles con la misma estructura; sin probar).
 * Archivos `LICENSE-MIT`/`LICENSE-APACHE` en la raíz: la licencia del workspace es `MIT OR Apache-2.0` pero
   aún no hay texto; los paquetes llevan README y las licencias de fuentes e iconos.
+* Licencia de OpenH264 (BSD-2, ADR-0010): falta copiar su texto a `licenses/` de los paquetes. Patentes de
+  H.264: al compilar OpenH264 desde las fuentes NO aplica la cobertura de licencias de Cisco (solo cubre su
+  binario oficial, cargable con la feature `libloading`). Decisión legal pendiente antes de distribuir.
 * Stickers TGS animados en Windows/macOS (ADR-0008): `rlottie` 0.5.4 no compila en Windows (usa
   `std::os::unix`) y su build.rs enlaza `-lstdc++` fijo (en macOS es libc++). Haría falta un parche o
   fork del crate (o un renderizador Lottie en Rust puro).

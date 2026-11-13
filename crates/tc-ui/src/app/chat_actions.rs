@@ -499,6 +499,18 @@ impl App {
                     d.unread_mentions = 0;
                     d.unread_mark = false;
                 });
+                // En un foro, también sus temas ya cargados (el backend lee los del servidor).
+                if let PeerRef::Group(g) = peer
+                    && let Some(l) = self.forum.topics.get_mut(&g)
+                {
+                    for t in l.items.iter_mut() {
+                        t.unread_count = 0;
+                        t.unread_mentions = 0;
+                        if let Some(m) = &t.last_message {
+                            t.read_inbox_max_id = t.read_inbox_max_id.max(m.id);
+                        }
+                    }
+                }
                 self.dialog_op(peer, prev, None, move |b| async move { b.mark_dialog_read(peer).await })
             }
             ChatMsg::MarkUnread(peer) => {

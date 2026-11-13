@@ -13,6 +13,8 @@ tc-theme.workspace = true
 tc-stickers.workspace = true
 # Notas de voz y audios: decodificado y reproductor en su propio hilo (ADR-0007).
 tc-audio.workspace = true
+# GIFs de Telegram (MP4/H.264) a fotogramas, fuera del hilo de la UI (ADR-0010).
+tc-video.workspace = true
 # `canvas`: fondo de curvas de nivel y celdas de la huella de clave (aditivo sobre las features del workspace).
 iced = { workspace = true, features = ["canvas"] }
 futures.workspace = true

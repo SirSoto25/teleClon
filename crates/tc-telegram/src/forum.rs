@@ -98,7 +98,7 @@ fn topic_from_tl(t: &tl::types::ForumTopic, group: GroupId, last: Option<Message
     }
 }
 
-fn is_forum(cache: &Cache, g: GroupId) -> bool {
+pub(crate) fn is_forum(cache: &Cache, g: GroupId) -> bool {
     cache.peers.groups.get(&g).is_some_and(|g| g.is_forum)
 }
 
@@ -377,5 +377,27 @@ impl ForumApi for GrammersBackend {
         self.inner.apply_forum_updates(r);
         self.inner.topic_changed(thread, |t| t.closed = closed);
         Ok(())
+    }
+}
+
+impl GrammersBackend {
+    /// «Marcar como leído» en un grupo con temas: `messages.readHistory` solo limpia el General, así
+    /// que se leen también todos los temas con mensajes sin leer (`messages.readDiscussion`).
+    pub(crate) async fn mark_all_topics_read(&self, group: GroupId) {
+        let mut query = TopicsQuery::first(100);
+        for _ in 0..10 {
+            let Ok(page) = self.forum_topics(group, query.clone()).await else { return };
+            for t in page.topics.iter().filter(|t| t.unread_count > 0 || t.unread_mentions > 0) {
+                let Some(max) = t.last_message.as_ref().map(|m| m.id) else { continue };
+                let thread = ThreadRef { group, topic: t.id };
+                if let Err(e) = self.mark_topic_read(thread, max).await {
+                    tracing::warn!(error = %e, "no se pudo marcar un tema como leído");
+                }
+            }
+            match page.next {
+                Some(next) => query.offset = Some(next),
+                None => return,
+            }
+        }
     }
 }

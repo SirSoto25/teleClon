@@ -15,6 +15,7 @@ members = [
     "crates/tc-app",
     "crates/tc-telegram",
     "crates/tc-audio",
+    "crates/tc-video",
 ]
 
 [workspace.package]
@@ -35,6 +36,7 @@ tc-stickers = { path = "crates/tc-stickers" }
 tc-ui = { path = "crates/tc-ui" }
 tc-telegram = { path = "crates/tc-telegram" }
 tc-audio = { path = "crates/tc-audio" }
+tc-video = { path = "crates/tc-video" }
 
 # Async y utilidades
 tokio = { version = "1.54.1", default-features = false }
@@ -87,11 +89,20 @@ rodio = { version = "0.23.0", default-features = false, features = ["playback"] 
 symphonia = { version = "0.5.5", default-features = false, features = ["mp3", "aac", "isomp4", "flac", "wav", "pcm", "ogg", "vorbis"] }
 opus-decoder = "0.1.1"
 
+# GIFs de Telegram (MP4/H.264, ADR-0010): OpenH264 de Cisco compilado desde las fuentes que trae el
+# crate (`source`: C++ con `cc`, MSVC/clang/g++; nasm opcional y, si falta, sin ensamblador).
+openh264 = { version = "0.9.10", default-features = false, features = ["source"] }
+
 # Teclado de emojis (ADR-0009): catálogo Unicode/CLDR empaquetado, sin dependencias ni red.
 emojis = "0.9.1"
 
 [profile.dev.package."*"]
 # Dependencias optimizadas en debug: el render de iced y la cripto son lentos sin optimizar.
+opt-level = 2
+
+[profile.dev.package.tc-video]
+# La conversión YUV→RGBA de openh264 y el `resize` de image son genéricos y se compilan en tc-video:
+# sin optimizar, un GIF de 3 s tarda ~2 s en debug en vez de ~0,1 s.
 opt-level = 2
 
 [profile.dev.package.opus-decoder]

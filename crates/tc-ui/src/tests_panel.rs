@@ -158,6 +158,33 @@ async fn gifs_guardados_busqueda_envio_y_reintento() {
 }
 
 #[tokio::test]
+async fn un_gif_mp4_enviado_se_anima_en_su_burbuja() {
+    let (mut app, _, backend) = boot_in_chat().await;
+    let _ = app.update(pm(PanelMsg::Tab(PanelTab::Gifs)));
+    let _ = app.update(Msg::TogglePicker);
+    let _ = app.update(gm(GifMsg::Saved(backend.saved_gifs().await)));
+    let gif = app.panel.gifs.shown().into_iter().find(|g| !g.is_real_gif()).cloned().unwrap();
+    let _ = app.update(gm(GifMsg::Send(gif.id)));
+    assert!(!app.picker.open);
+    let rid = app.conv.as_ref().unwrap().messages.last().unwrap().random_id.unwrap();
+    let r = backend.send_gif(BIG_CHAT, gif.clone(), None, rid).await;
+    let _ = app.update(Msg::Sent { peer: BIG_CHAT, random_id: rid, result: r });
+    let last = app.conv.as_ref().unwrap().messages.last().unwrap().clone();
+    let md = last.media.as_ref().unwrap();
+    assert!(md.file_name.as_deref().is_some_and(|n| n.ends_with(".mp4")) && crate::gifs::animates(md));
+    let file = md.file.clone().unwrap();
+    assert!(!app.gifs_animating(), "aún sin decodificar: miniatura con insignia");
+    // Lo que haría `pump_gif_anims` con la burbuja visible.
+    let bytes = backend.download_media(BIG_CHAT, last.id, file.clone(), MediaVariant::Full).await.unwrap();
+    let _ = app.update(gm(GifMsg::AnimLoaded(file.id, crate::gifs::decode(&bytes).map(Arc::new))));
+    assert!(app.gifs_animating(), "la burbuja visible usa el reloj compartido");
+    assert!(app.gif_frame(file.id).is_some());
+    // Sin foco, el reloj se para (se queda el fotograma actual).
+    let _ = app.update(Msg::StickerAnim(crate::sticker_anim::AnimMsg::Focus(false)));
+    assert!(!app.gifs_animating());
+}
+
+#[tokio::test]
 async fn los_gif_reales_se_animan_con_el_reloj_compartido() {
     let (mut app, _, backend) = boot_in_chat().await;
     let _ = app.update(pm(PanelMsg::Tab(PanelTab::Gifs)));
@@ -173,9 +200,17 @@ async fn los_gif_reales_se_animan_con_el_reloj_compartido() {
     let _ = app.update(gm(GifMsg::AnimLoaded(file.id, frames)));
     assert!(app.gifs_animating());
     assert!(app.gif_frame(file.id).is_some());
-    // Un MP4 no se anima (miniatura con insignia).
+    // Un MP4 (lo normal en Telegram): miniatura con insignia hasta que se decodifica; luego, en bucle.
     let mp4 = app.panel.gifs.shown().into_iter().find(|g| !g.is_real_gif()).unwrap().file.clone().unwrap();
     assert!(app.gif_frame(mp4.id).is_none());
+    let bytes = backend.download_media(BIG_CHAT, MsgId(0), mp4.clone(), MediaVariant::Full).await.unwrap();
+    let frames = crate::gifs::decode(&bytes).map(Arc::new);
+    assert!(frames.as_ref().is_some_and(|f| f.frames.len() > 1), "MP4/H.264 decodificado");
+    let _ = app.update(gm(GifMsg::AnimLoaded(mp4.id, frames)));
+    let first = app.gif_frame(mp4.id).map(|h| h.id());
+    app.sticker_ms = 500.0;
+    assert!(first.is_some() && app.gif_frame(mp4.id).map(|h| h.id()) != first, "avanza con el reloj compartido");
+    app.sticker_ms = 0.0;
     // Movimiento reducido: primer fotograma y sin reloj.
     let _ = app.update(Msg::ToggleMotion);
     assert!(!app.gifs_animating());

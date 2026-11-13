@@ -1,0 +1,15 @@
+[package]
+name = "tc-video"
+description = "Vídeo de Parlo: GIFs de Telegram (MP4/H.264 sin sonido) a fotogramas RGBA con un demultiplexor MP4 propio y OpenH264 (ADR-0010)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+# OpenH264 compilado desde las fuentes que trae el crate (C++ con `cc`; nasm opcional, sin él usa C).
+openh264.workspace = true
+# Solo `imageops::resize` (sin códecs propios).
+image.workspace = true
+thiserror.workspace = true

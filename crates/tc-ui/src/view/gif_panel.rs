@@ -1,6 +1,7 @@
 //! Pestaña de GIFs (guardados, filtro al escribir y búsqueda en Telegram con Enter) y la burbuja de
-//! un GIF en la conversación. Los GIF reales se animan; los MP4 muestran su miniatura con la
-//! insignia «GIF» (reproducirlos queda pendiente, ADR-0010).
+//! un GIF en la conversación. Los GIF (MP4/H.264 o GIF real) se animan en bucle una vez
+//! decodificados; mientras tanto, o si no se pueden decodificar, su miniatura con la insignia «GIF»
+//! (ADR-0010).
 
 use iced::widget::{Space, button, column, container, image, responsive, row, scrollable, stack, text_input};
 use iced::{Alignment, Color, ContentFit, Element, Length, Padding};
@@ -112,7 +113,12 @@ pub fn view(app: &App) -> Element<'_, Msg> {
                         .center_x(Length::Fill),
                 );
             }
-            scrollable(col).style(style::thin_scroll(b)).width(Length::Fill).height(Length::Fill).into()
+            scrollable(col)
+                .style(style::thin_scroll(b))
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .on_scroll(|v| gm(GifMsg::Scrolled { y: v.absolute_offset().y, h: v.bounds().height }))
+                .into()
         })
         .into()
     };
@@ -123,11 +129,12 @@ pub fn view(app: &App) -> Element<'_, Msg> {
     col.push(body).into()
 }
 
-/// Celda de la rejilla: animación (GIF real), miniatura con insignia o hueco con «GIF».
+/// Celda de la rejilla: animación, miniatura con insignia (aún sin decodificar, fuera de la vista o
+/// sin decodificador) o hueco con «GIF».
 fn cell<'a>(app: &'a App, gif: &'a Gif, w: f32, focused: bool) -> Element<'a, Msg> {
     let b = app.brasa;
     let file = gif.file.as_ref().map(|f| f.id);
-    let anim = file.filter(|_| gif.is_real_gif()).and_then(|id| app.gif_frame(id));
+    let anim = file.and_then(|id| app.gif_frame(id));
     let animated = anim.is_some();
     let handle = anim.or_else(|| file.and_then(|id| app.gif_thumb(id)));
     let inner: Element<'a, Msg> = match handle {
@@ -150,12 +157,12 @@ fn cell<'a>(app: &'a App, gif: &'a Gif, w: f32, focused: bool) -> Element<'a, Ms
         .into()
 }
 
-/// GIF en una burbuja: animado si es un `.gif` real ya decodificado; si no, la miniatura con la
-/// insignia «GIF» (los MP4 no se reproducen todavía).
+/// GIF en una burbuja: animado en bucle si ya está decodificado; si no, la miniatura con la insignia
+/// «GIF».
 pub fn bubble<'a>(app: &'a App, peer: PeerRef, m: &'a Message, md: &'a Media, sz: iced::Size, opacity: f32, meta_c: Color) -> Element<'a, Msg> {
     let b = app.brasa;
     let file = md.file.as_ref().map(|f| f.id);
-    let anim = file.filter(|_| gifs::is_real_gif_media(md)).and_then(|id| app.gif_frame(id));
+    let anim = file.filter(|_| gifs::animates(md)).and_then(|id| app.gif_frame(id));
     let animated = anim.is_some();
     let handle = anim
         .or_else(|| file.and_then(|id| app.images.handle(&ImageKey::Thumb { peer, msg: m.id, file: id })))
