@@ -1,4 +1,4 @@
-# Plan de acción: archivos, búsqueda en el chat y notificaciones de escritorio
+# Plan de acción: los 5 primeros faltantes del informe de paridad
 
 - **Fecha:** 2026-11-14 · **Origen:** faltantes 1–4 del informe de paridad (`replica/diff-report.md`,
   45,0/100; filas F10 y S23/S28/S34 de `replica/features.csv`).
@@ -6,6 +6,18 @@
   (`tc-core/src/api.rs`), pero la UI solo envía stickers y GIF; `download_media` devuelve `Vec<u8>` entero
   (sin progreso ni cancelación); los documentos se mapean como `MediaKind::File` sin acción; `tc-store` tiene
   FTS5 de mensajes sin interfaz; no hay ninguna dependencia de notificaciones.
+
+## Los 5 puntos y dónde se resuelven
+
+| # | Faltante (informe de paridad) | Fase | Hecho cuando |
+| --- | --- | --- | --- |
+| 1 | Enviar archivo: selector, diálogo con pie de foto, arrastrar y soltar | A0 + A1 (envío) + A2 | Se envía un archivo/foto/álbum desde clip, Ctrl+O, arrastrar o pegar, con pie y cancelación |
+| 2 | Progreso de subida y descarga con cancelar; descargar y guardar a disco | A0 + A1 (descarga) + A3 | Barra de progreso real, cancelar a mitad, «Guardar como…» y «Abrir» |
+| 3 | Archivos y documentos como tipo de mensaje con acciones | A3 | Burbuja de documento con icono, nombre, tamaño y acciones (hoy `File` sin acción) |
+| 4 | Búsqueda dentro de un chat (S23) | B1 + B2 | Ctrl+F con contador, saltos ↑/↓, resaltado y filtros |
+| 5 | Ajustes de notificaciones por tipo (S28) y notificaciones de escritorio (S34) | C1 + C2 + C3 | Aviso del SO con mensaje nuevo, reglas (foco, silenciado, abierto), ajustes por tipo y No molestar |
+
+Orden recomendado: **1 → 2 → 3** (misma cadena A), **4** y **5** en paralelo con ella.
 
 ## Orden y dependencias
 
