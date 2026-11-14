@@ -358,6 +358,9 @@ impl<B: ChatBackend> MessagesApi for MediaCacheLayer<B> {
     async fn pin_message(&self, peer: PeerRef, id: MsgId, pinned: bool) -> BackendResult<()> {
         self.inner.pin_message(peer, id, pinned).await
     }
+    async fn search_in_chat(&self, peer: PeerRef, query: tc_core::SearchQuery) -> BackendResult<tc_core::SearchPage> {
+        self.inner.search_in_chat(peer, query).await
+    }
 }
 
 #[async_trait]
@@ -464,6 +467,9 @@ impl<B: ChatBackend> ForumApi for MediaCacheLayer<B> {
     }
     async fn mark_topic_read(&self, thread: ThreadRef, max_id: MsgId) -> BackendResult<()> {
         self.inner.mark_topic_read(thread, max_id).await
+    }
+    async fn search_in_topic(&self, thread: ThreadRef, query: tc_core::SearchQuery) -> BackendResult<tc_core::SearchPage> {
+        self.inner.search_in_topic(thread, query).await
     }
     async fn set_topic_typing(&self, thread: ThreadRef, typing: bool) -> BackendResult<()> {
         self.inner.set_topic_typing(thread, typing).await
@@ -594,6 +600,21 @@ mod tests {
         assert_eq!(std::fs::read(&dest).unwrap().len(), 300);
         assert_eq!(cache.usage().unwrap(), 0, "nada en la caché");
         layer.cancel_transfer(id).await.unwrap();
+    }
+
+    /// La capa debe reenviar la búsqueda: sin ello caía en «no soportado» y la UI decía que en ese
+    /// chat no se puede buscar.
+    #[tokio::test]
+    async fn layer_forwards_in_chat_search() {
+        use tc_core::{MessagesApi, SearchQuery};
+        let tmp = TmpDir::new("layer-search");
+        let cache = Arc::new(MediaCache::open(tmp.0.join("m"), Store::open_in_memory().unwrap(), 1 << 20).unwrap());
+        let layer = MediaCacheLayer::new(Arc::new(tc_mock::MockBackend::default()), cache);
+        let r = layer.search_in_chat(PeerRef::User(UserId(1001)), SearchQuery::new("hola", 10)).await;
+        assert!(r.is_ok(), "{r:?}");
+        let th = tc_core::ThreadRef { group: tc_core::GroupId(1), topic: tc_core::MsgId(1) };
+        let r = tc_core::ForumApi::search_in_topic(&layer, th, SearchQuery::new("hola", 10)).await;
+        assert!(!matches!(r, Err(tc_core::BackendError::Forbidden(ref m)) if m == tc_core::UNSUPPORTED), "{r:?}");
     }
 
     #[tokio::test]

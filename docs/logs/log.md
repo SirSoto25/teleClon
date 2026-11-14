@@ -390,3 +390,4 @@
 - Usuario confirma: notificaciones de escritorio correctas. `replica/features.csv` actualizado (18 filas) y `parity.py`: 45,0 → 58,2; must-haves 16 → 23 de 54. `replica/diff-report.md` con nota de actualización.
 - Pendiente de prueba del usuario: carpeta de descargas, búsqueda en el chat (Ctrl+F), icono nuevo (`packaging/linux/install-user.sh`).
 - Usuario confirma: carpeta de descargas correcta (creación por defecto y selección de otra).
+- Bug de búsqueda (informado por el usuario: «En este chat no se puede buscar» en cualquier chat): `MediaCacheLayer` no reenviaba `search_in_chat` ni `search_in_topic` y caía en el «no soportado» por defecto. Reenviados + prueba `layer_forwards_in_chat_search`. Lección: toda capa que envuelve un backend debe reenviar los métodos con implementación por defecto.
