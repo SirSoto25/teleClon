@@ -19,6 +19,8 @@ pub mod forum;
 pub mod gif;
 pub mod ids;
 pub mod model;
+/// Búsqueda dentro de un chat (`SearchQuery`, `SearchFilter`, `SearchPage`; ADR-0012).
+pub mod search;
 /// Subidas y descargas con progreso y cancelación (`TransferId`, `Transfer`; ADR-0011).
 pub mod transfer;
 /// Forma de onda de 5 bits de las notas de voz (decodificar/codificar/reescalar).
@@ -33,4 +35,5 @@ pub use forum::{ForumApi, ForumTopic, GENERAL_TOPIC, TOPIC_COLORS, ThreadRef, Th
 pub use gif::{EmojiUse, GIF_MIME, Gif, GifPage, InlineResult};
 pub use ids::*;
 pub use model::*;
+pub use search::{SearchFilter, SearchPage, SearchQuery, fold, text_matches};
 pub use transfer::{Transfer, TransferId, TransferKind, TransferState, partial_path};

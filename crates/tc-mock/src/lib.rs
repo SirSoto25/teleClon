@@ -14,6 +14,7 @@ mod forum;
 pub mod gifs;
 mod images;
 mod rng;
+mod search;
 /// Subidas y descargas simuladas con progreso, cancelación y fallos inyectables (ADR-0011).
 mod transfers;
 
@@ -494,6 +495,13 @@ impl MessagesApi for MockBackend {
             }
         };
         Ok(list[start..end].to_vec())
+    }
+
+    async fn search_in_chat(&self, peer: PeerRef, query: SearchQuery) -> BackendResult<SearchPage> {
+        self.inner.gate().await?;
+        let st = self.inner.lock();
+        st.ensure_peer(peer)?;
+        Ok(search::search(st.messages.get(&peer).into_iter().flatten(), &query))
     }
 
     async fn send_text(&self, peer: PeerRef, msg: OutgoingText) -> BackendResult<Message> {

@@ -90,6 +90,10 @@ fn empty(app: &App) -> Element<'_, Msg> {
 // ------------------------------------------------------------------ cabecera
 
 fn header<'a>(app: &'a App, cv: &'a Conversation, narrow: bool) -> Element<'a, Msg> {
+    // Búsqueda abierta: la barra sustituye a la cabecera (`find_bar.rs`).
+    if let Some(bar) = super::find_bar::view(app, cv) {
+        return bar;
+    }
     // Conversación de un tema: «Grupo › Tema» y volver a los temas (`topics.rs`).
     if let Some(h) = super::topics::topic_header(app, cv, narrow) {
         return h;
@@ -119,6 +123,9 @@ fn header<'a>(app: &'a App, cv: &'a Conversation, narrow: bool) -> Element<'a, M
     left = left.push(column![name, t1(status, ts::META, status_color)].spacing(0));
 
     let mut actions = row![].spacing(space::S1).align_y(Alignment::Center);
+    if app.can_find(peer) {
+        actions = actions.push(find_button(app));
+    }
     match peer {
         PeerRef::Secret(s) => {
             let ttl_on = app.secrets.get(&s).is_some_and(|c| c.ttl_secs.is_some());
@@ -147,6 +154,14 @@ fn header<'a>(app: &'a App, cv: &'a Conversation, narrow: bool) -> Element<'a, M
         .align_y(Vertical::Center)
         .style(style::surface(b));
     column![bar, hairline(b)].into()
+}
+
+/// Lupa de la cabecera: abre la búsqueda en el chat (`Ctrl+F`).
+pub fn find_button<'a>(app: &App) -> Element<'a, Msg> {
+    let b = app.brasa;
+    let btn = icon_button(Icon::Search, layout::ICON_MD, c(b.p.text), Some(Msg::Find(crate::app::find::FindMsg::Open)), b);
+    let tip = container(t1("Buscar en el chat (Ctrl+F)", ts::CAPTION, c(b.p.text))).padding([4, 8]).style(style::raised(b, 2, radius::SM));
+    tooltip(btn, tip, tooltip::Position::Bottom).into()
 }
 
 fn hairline<'a>(b: Brasa) -> Element<'a, Msg> {
@@ -432,6 +447,7 @@ fn message_row<'a>(
     );
 
     let mut col = column![Space::new().height(Length::Fixed(gap + y)), line].width(Length::Fixed(col_w)).height(Length::Fixed(height));
+    let current = app.find_active().and_then(|f| f.current_id()) == Some(m.id) && !conv::is_local(m);
     if !m.reactions.is_empty() {
         let mut chips = row![].spacing(space::S1);
         for r in &m.reactions {
@@ -448,6 +464,14 @@ fn message_row<'a>(
         let lead = if !m.outgoing && group { conv::GROUP_AVATAR_COL } else { 0.0 };
         let chips_row = if m.outgoing { row![hfill(), chips] } else { row![hgap(lead), chips] };
         col = col.push(vgap(conv::REACT_GAP)).push(chips_row.width(Length::Fixed(col_w)));
+    }
+    if current {
+        // Resultado de búsqueda seleccionado: banda `highlight` detrás de la fila (sin moverla).
+        let band = container(container(Space::new().width(Length::Fill).height(Length::Fill)).style(style::find_band(b)))
+            .padding(Padding { top: (gap - space::S1).max(0.0), ..Padding::ZERO })
+            .width(Length::Fixed(col_w))
+            .height(Length::Fixed(height));
+        return stack![band, col].into();
     }
     col.into()
 }
@@ -605,8 +629,30 @@ fn bubble<'a>(app: &'a App, cv: &'a Conversation, m: &'a Message, l: &MsgLayout,
     }
     if !m.text.trim().is_empty() {
         let link = if m.outgoing { None } else { Some(fade(c(b.p.accent_text), opacity)) };
-        let body: Element<'_, Msg> = if m.entities.is_empty() {
+        // Términos de la búsqueda abierta resaltados (alfa `selection`), sin cambiar la maqueta.
+        let ranges = app
+            .find_active()
+            .and_then(|f| f.terms())
+            .filter(|q| tc_core::text_matches(q, &m.text))
+            .map(|q| crate::app::find::highlight_ranges(q, &m.text))
+            .unwrap_or_default();
+        let body: Element<'_, Msg> = if m.entities.is_empty() && ranges.is_empty() {
             t(m.text.as_str(), ts::BODY, fg).into()
+        } else if !ranges.is_empty() {
+            let runs = conv::runs(m);
+            let (pieces, marks): (Vec<conv::Run<'_>>, Vec<bool>) = crate::app::find::split_runs(&m.text, &runs, &ranges).into_iter().unzip();
+            let hl = fade(style::ca(b.a.selection), opacity);
+            let spans: Vec<_> = to_spans(&pieces, ts::BODY, Some(fg), link)
+                .into_iter()
+                .zip(marks)
+                .map(|(s, on)| if on { s.background(hl).border(iced::Border { radius: style::r(radius::XS), ..Default::default() }) } else { s })
+                .collect();
+            rich_text(spans)
+                .size(Pixels(ts::BODY.size))
+                .line_height(LineHeight::Absolute(Pixels(ts::BODY.line)))
+                .font(style::font_of(ts::BODY))
+                .wrapping(crate::measure::WRAP)
+                .into()
         } else {
             rich_text(to_spans(&conv::runs(m), ts::BODY, Some(fg), link))
                 .size(Pixels(ts::BODY.size))
@@ -739,6 +785,8 @@ fn composer<'a>(app: &'a App, cv: &'a Conversation) -> Element<'a, Msg> {
     let grid_keys = picker_open && app.panel.tab.grid_keys();
     let stickers_tab = grid_keys && app.panel.tab == crate::panel::PanelTab::Stickers;
     let panel_cursor = app.panel_cursor().is_some();
+    // Con la búsqueda abierta, `Esc` sigue su curso hasta la app (cierra la barra; `app/find.rs`).
+    let find_open = app.find_active().is_some();
     let editor = text_editor(&app.composer)
         .id(COMPOSER_ID)
         .placeholder(if editing { "Edita el mensaje…" } else { "Escribe un mensaje…" })
@@ -773,6 +821,7 @@ fn composer<'a>(app: &'a App, cv: &'a Conversation) -> Element<'a, Msg> {
                 Key::Named(Named::Tab) if stickers_tab => nav(if kp.modifiers.shift() { Nav::PrevTab } else { Nav::NextTab }),
                 Key::Named(Named::Enter) if grid_keys && panel_cursor => nav(Nav::Activate),
                 Key::Named(Named::Enter) if !kp.modifiers.shift() => Some(text_editor::Binding::Custom(Msg::Send)),
+                Key::Named(Named::Escape) if find_open => None,
                 Key::Named(Named::Escape) => Some(text_editor::Binding::Custom(Msg::Escape)),
                 Key::Named(Named::ArrowUp) if empty => Some(text_editor::Binding::Custom(Msg::EditLast)),
                 _ => text_editor::Binding::from_key_press(kp),

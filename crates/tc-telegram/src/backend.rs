@@ -21,6 +21,12 @@ pub(crate) fn random_i64() -> i64 {
     i64::from_le_bytes(b)
 }
 
+/// Búsqueda en un chat o, con `top`, en un tema de foro (implementada en `search.rs`).
+#[async_trait]
+pub(crate) trait MessagesApiSearch {
+    async fn search_with(&self, peer: PeerRef, top: Option<MsgId>, query: SearchQuery) -> BackendResult<SearchPage>;
+}
+
 /// Parámetros de `messages.getHistory` para cada ancla: `(offset_id, add_offset, min_id)`.
 /// Telegram devuelve de nuevo a viejo empezando justo por debajo de `offset_id`;
 /// un `add_offset` negativo desplaza la ventana hacia mensajes más nuevos.
@@ -494,6 +500,10 @@ impl MessagesApi for GrammersBackend {
         out.sort_by_key(|m| m.id);
         out.dedup_by_key(|m| m.id);
         Ok(out)
+    }
+
+    async fn search_in_chat(&self, peer: PeerRef, query: SearchQuery) -> BackendResult<SearchPage> {
+        self.search_with(peer, None, query).await
     }
 
     async fn send_text(&self, peer: PeerRef, msg: OutgoingText) -> BackendResult<Message> {

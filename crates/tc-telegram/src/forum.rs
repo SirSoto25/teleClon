@@ -301,6 +301,11 @@ impl ForumApi for GrammersBackend {
         Ok(out)
     }
 
+    async fn search_in_topic(&self, thread: ThreadRef, query: SearchQuery) -> BackendResult<SearchPage> {
+        use crate::backend::MessagesApiSearch;
+        self.search_with(thread.peer(), Some(thread.topic), query).await
+    }
+
     async fn send_topic_text(&self, thread: ThreadRef, msg: OutgoingText) -> BackendResult<Message> {
         in_topic(thread.topic, self.send_text(thread.peer(), msg)).await
     }

@@ -14,3 +14,5 @@ Categories=Network;InstantMessaging;Chat;
 Keywords=chat;mensajes;messaging;
 StartupNotify=true
 StartupWMClass=parlo
+# GNOME: lista Parlo en Ajustes > Notificaciones (tc-notify envía la pista desktop-entry=parlo).
+X-GNOME-UsesNotifications=true

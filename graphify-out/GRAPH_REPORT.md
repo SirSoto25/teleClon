@@ -1,28 +1,28 @@
 # Graph Report - teleClon  (2026-11-14)
 
 ## Corpus Check
-- 253 files · ~286,016 words
+- 272 files · ~306,370 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 13 file(s) not represented in the graph (top: (none) 2, .example 1, .opus 1)
 
 ## Summary
-- 6486 nodes · 17462 edges · 344 communities (181 shown, 163 thin omitted)
-- Extraction: 91% EXTRACTED · 9% INFERRED · 0% AMBIGUOUS · INFERRED: 1540 edges (avg confidence: 0.74)
+- 6927 nodes · 18882 edges · 386 communities (215 shown, 171 thin omitted)
+- Extraction: 91% EXTRACTED · 9% INFERRED · 0% AMBIGUOUS · INFERRED: 1662 edges (avg confidence: 0.75)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `a808e958`
+- Built from commit: `30414e82`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - style.rs
-- App
+- find.rs
 - tokens.rs
 - Msg
 - Msg
 - f
-- BackendEvent
+- net.rs
 - tc-telegram/src/secret.rs
 - Sistema de diseño de teleClon — dirección «Brasa»
 - conv.rs
@@ -41,8 +41,9 @@
 - super
 - transfers/tests.rs
 - tests/transfers.rs
-- messages_of
+- .search_with
 - ForumMsg
+- tc-telegram/src/secret.rs
 - icon
 - cached.rs
 - tc-ui/src/tests.rs
@@ -55,7 +56,7 @@
 - tc-ui/src/gifs.rs
 - app.rs
 - with
-- StickerId
+- tc-telegram/src/convert.rs
 - tc-ui/src/stickers.rs
 - tc-telegram/src/auth.rs
 - Entropy
@@ -64,36 +65,36 @@
 - TelegramConfig
 - ADR-0003: Arquitectura del cliente (workspace, backend tras trait, caché SQLite, E2E sans-IO)
 - Timestamp
-- tc-ui/src/media.rs
+- tc-video/src/decode.rs
 - crypto.rs
-- net.rs
+- tc-telegram/src/lib.rs
 - Cache
 - dialogs.rs
 - tc-stickers/src/lib.rs
 - tc-store/src/lib.rs
 - Compositor (componente)
-- tc-telegram/src/forum.rs
+- GrammersBackend
 - Frame
 - tc-store/src/lib.rs
 - Cabecera de conversación
 - Tipografía (Atkinson Hyperlegible, Bricolage, JetBrains Mono)
 - crate::Inner
 - pack.rs
-- .get
+- ChatKey
 - App
 - restored
-- tests/forum.rs
+- mapping.rs
 - media_cache.rs
 - view/audio.rs
 - secret.rs
 - messages.rs
 - FilesMsg
 - tl.rs
-- Timestamp
+- rules.rs
 - decode.rs
 - tests_audio.rs
 - tc-ui/src/audio.rs
-- tc-telegram/src/media.rs
+- .download_to_disk
 - CachedBackend<B>
 - Store
 - reading.rs
@@ -101,7 +102,7 @@
 - EntityKind
 - SessionSnapshot
 - view/login.rs
-- src/login.rs
+- LoginMsg
 - tc-ui/src/tests.rs
 - tc-mock/src/lib.rs
 - main.rs
@@ -115,35 +116,35 @@
 - uploads.rs
 - CLAUDE.md
 - .claude/CLAUDE.md
-- Output
+- NoDevice
 - StoreError
-- sticker_img.rs
-- tests/mod.rs
+- BackendError
+- arc
 - tests/secret.rs
 - StickerError
-- MockConfig
-- Backend
+- sidebar.rs
+- tests_m2.rs
 - UserId
 - tests_sticker_anim.rs
 - folders.rs
 - files.rs
 - sticker_anim.rs
-- tl_visual_ttl.rs
+- KeyVisualization
 - ThreadRef
 - GifAnims
 - jobs
 - reactions.rs
-- EntityKind
+- SearchQuery
 - MockBackend
 - Marca propia — Parlo
-- .lock
+- tc-core/src/lib.rs
 - tc-store
 - Informe de barrido de marca
 - env
 - release
 - tests_reactions.rs
-- icon_fill
-- KeyVisualization
+- mapping.rs
+- transfers/tests.rs
 - AudioError
 - ImageKey
 - Track
@@ -156,39 +157,48 @@
 - emoji.rs
 - meta
 - 0005-nombre-parlo.md
-- cached.rs
-- tc-telegram/src/convert.rs
+- MediaVariant
+- linux.rs
 - tc-store/src/convert.rs
 - file_name.rs
-- tc-telegram/src/reactions.rs
+- PeerRef
 - MuteFor
 - vault.rs
 - Store
-- tc-telegram/src/lib.rs
-- view/mod.rs
-- palette.py
+- src/login.rs
+- tc-telegram/src/media.rs
+- .on_chat
+- find_bar.rs
+- UserId
 - apply_media_extra
 - App
 - waveform.rs
-- tc-telegram/src/forum.rs
+- Event
 - .download_media
 - .update_inner
-- Decoded
-- sweep.py
-- tests_panel.rs
+- NotifySettings
+- decode_mp4
+- tc-telegram/src/forum.rs
+- Suppress
 - tests_qa.rs
-- Overlay
-- Measurer
+- Step
+- tc-telegram/src/auth.rs
+- tests/media.rs
+- tests/search.rs
 - Item
 - tests_downloads.rs
-- doc_media
-- measure.rs
+- palette.py
+- sweep.py
+- TextStyle
 - tests_chat_actions.rs
+- .on_reacted
 - Informe de emprendedor: qué molesta, qué falta y qué plan de mejoras para Parlo
 - BackendResult
-- Body
+- tc-mock/src/search.rs
 - StorePrefs
 - tc-mock/src/gifs.rs
+- fetch_cached
+- chat_actions.rs
 - ADR-0007: Audio (notas de voz y música)
 - make_fixtures.sh
 - on
@@ -196,74 +206,104 @@
 - install-user.sh
 - env
 - build-macos.sh
+- tests_find.rs
 - build-linux.sh
+- layout_message
+- Category
+- windows.rs
 - anim_tests.rs
-- peers.rs
-- .send_text
+- tests_panel.rs
+- tc_core
+- sticker_img.rs
+- mux
+- Login
+- CodeKind
 - tests_panel_shots.rs
 - context_menu.rs
+- PanelTab
+- pathbuf
+- ADR-0012: Búsqueda dentro de un chat
 - tc-mock/src/audio.rs
+- math
 - ADR-0008: Stickers animados (TGS con rlottie; WebM estático)
+- backend
+- .next
 - ADR-0009: Teclado de emojis
 - ADR-0010: GIFs (guardados, búsqueda, envío y animación)
 - emoji_es.rs
-- media_key
+- layer_passes_disk_downloads_through_without_caching
 - tests_forum.rs
-- Event
+- .get
 - Plan de acción: los 5 primeros faltantes del informe de paridad
 - .sticker_send_task
-- blob
-- CodeKind
 - Informe de paridad: Parlo frente al cliente original
 - ADR-0011: Transferencias (subidas y descargas a disco con progreso y cancelación)
+- tc-ui/src/media.rs
 - Nav
 - Bugs (replica-test, 2026-11-14)
-- profile_photo_key
-- tests_media.rs
-- tc-ui/src/anim.rs
+- Backend
+- ByteLru<K, V>
 - Easing
+- map_error
+- VaultResult
+- Spring
+- Inner
+- Decoded
+- tc-notify
+- MotionPreference
+- .start
+- ADR-0013: Notificaciones de escritorio (crate `tc-notify`)
+- GifMsg
+- Body
+- Secret
+- VaultError
+- instant
+- Usage
+- .apply_auth
+- MsgKey
 - Slot
 
 ## God Nodes (most connected - your core abstractions)
-1. `Msg` - 397 edges
-2. `App` - 266 edges
-3. `BackendResult` - 219 edges
-4. `PeerRef` - 141 edges
-5. `c()` - 124 edges
-6. `MockBackend` - 110 edges
-7. `Message` - 98 edges
-8. `MsgId` - 88 edges
-9. `ThreadScope` - 76 edges
-10. `Brasa` - 73 edges
+1. `Msg` - 425 edges
+2. `App` - 283 edges
+3. `BackendResult` - 226 edges
+4. `PeerRef` - 145 edges
+5. `c()` - 132 edges
+6. `MockBackend` - 117 edges
+7. `Message` - 102 edges
+8. `MsgId` - 92 edges
+9. `Brasa` - 80 edges
+10. `ThreadScope` - 78 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `Clean-room (sin código, assets ni marca de Telegram)` --semantically_similar_to--> `Reglas de trabajo (log, ADR, clean-room, credenciales, regenerar grafo)`  [INFERRED] [semantically similar]
   README.md → docs/00-INDEX.md
 - `Dirección Brasa (grafito cálido + acento persimón)` --rationale_for--> `Clean-room (sin código, assets ni marca de Telegram)`  [INFERRED]
   docs/adr/0002-direccion-visual.md → README.md
-- `Cache` --references--> `Topics`  [INFERRED]
-  crates/tc-telegram/src/events.rs → crates/tc-telegram/src/forum.rs
 - `radios_de_union()` --calls--> `bubble_radius()`  [INFERRED]
   crates/tc-ui/src/conv.rs → crates/tc-ui/src/style.rs
-- `Fuera de alcance (red MTProto, marca, llamadas, historias, bots, pagos)` --conceptually_related_to--> `grammers (MTProto en Rust)`  [INFERRED]
-  replica/recon.md → docs/adr/0001-stack.md
+- `display_name_joins_parts()` --references--> `UserId`  [INFERRED]
+  crates/tc-core/src/model.rs → crates/tc-core/src/ids.rs
+- `Cache` --references--> `Topics`  [INFERRED]
+  crates/tc-telegram/src/events.rs → crates/tc-telegram/src/forum.rs
 
 ## Import Cycles
-- 1-file cycle: `crates/tc-stickers/src/anim.rs -> crates/tc-stickers/src/anim.rs`
-- 1-file cycle: `crates/tc-store/src/vault.rs -> crates/tc-store/src/vault.rs`
 - 1-file cycle: `crates/tc-theme/src/tokens.rs -> crates/tc-theme/src/tokens.rs`
+- 1-file cycle: `crates/tc-store/src/vault.rs -> crates/tc-store/src/vault.rs`
+- 1-file cycle: `crates/tc-stickers/src/anim.rs -> crates/tc-stickers/src/anim.rs`
 - 2-file cycle: `crates/tc-secret/src/session.rs -> crates/tc-secret/src/session/snapshot.rs -> crates/tc-secret/src/session.rs`
+- 2-file cycle: `crates/tc-notify/src/lib.rs -> crates/tc-notify/src/null.rs -> crates/tc-notify/src/lib.rs`
 - 2-file cycle: `crates/tc-video/src/decode.rs -> crates/tc-video/src/lib.rs -> crates/tc-video/src/decode.rs`
 - 2-file cycle: `crates/tc-video/src/lib.rs -> crates/tc-video/src/mp4.rs -> crates/tc-video/src/lib.rs`
+- 2-file cycle: `crates/tc-audio/src/decode.rs -> crates/tc-audio/src/lib.rs -> crates/tc-audio/src/decode.rs`
+- 2-file cycle: `crates/tc-audio/src/lib.rs -> crates/tc-audio/src/player.rs -> crates/tc-audio/src/lib.rs`
 - 2-file cycle: `crates/tc-mock/src/forum.rs -> crates/tc-mock/src/lib.rs -> crates/tc-mock/src/forum.rs`
 - 2-file cycle: `crates/tc-mock/src/lib.rs -> crates/tc-mock/src/transfers.rs -> crates/tc-mock/src/lib.rs`
 - 2-file cycle: `crates/tc-telegram/src/auth.rs -> crates/tc-telegram/src/lib.rs -> crates/tc-telegram/src/auth.rs`
 - 2-file cycle: `crates/tc-telegram/src/lib.rs -> crates/tc-telegram/src/secret.rs -> crates/tc-telegram/src/lib.rs`
 - 2-file cycle: `crates/tc-secret/src/dh.rs -> crates/tc-secret/src/testing.rs -> crates/tc-secret/src/dh.rs`
-- 2-file cycle: `crates/tc-audio/src/lib.rs -> crates/tc-audio/src/player.rs -> crates/tc-audio/src/lib.rs`
-- 2-file cycle: `crates/tc-audio/src/decode.rs -> crates/tc-audio/src/lib.rs -> crates/tc-audio/src/decode.rs`
-- 2-file cycle: `crates/tc-ui/src/app.rs -> crates/tc-ui/src/media.rs -> crates/tc-ui/src/app.rs`
 - 2-file cycle: `crates/tc-ui/src/app.rs -> crates/tc-ui/src/login.rs -> crates/tc-ui/src/app.rs`
+- 2-file cycle: `crates/tc-ui/src/app.rs -> crates/tc-ui/src/media.rs -> crates/tc-ui/src/app.rs`
 - 3-file cycle: `crates/tc-video/src/decode.rs -> crates/tc-video/src/mp4.rs -> crates/tc-video/src/lib.rs -> crates/tc-video/src/decode.rs`
 - 3-file cycle: `crates/tc-audio/src/decode.rs -> crates/tc-audio/src/lib.rs -> crates/tc-audio/src/player.rs -> crates/tc-audio/src/decode.rs`
 - 3-file cycle: `crates/tc-audio/src/decode.rs -> crates/tc-audio/src/ogg.rs -> crates/tc-audio/src/lib.rs -> crates/tc-audio/src/decode.rs`
@@ -277,15 +317,15 @@
 - **Implementaciones de ChatBackend (Mock, Cached, Telegram)** — docs_adr_0003_arquitectura_chatbackend, docs_adr_0003_arquitectura_mockbackend, docs_adr_0003_arquitectura_cachedbackend, docs_adr_0001_stack_grammers [INFERRED 0.85]
 - **Pila de chats secretos E2E** — docs_adr_0004_stickers_y_chats_secretos_secret_chats, docs_adr_0003_arquitectura_tc_secret, docs_adr_0001_stack_keyring, docs_adr_0004_stickers_y_chats_secretos_crypto_risk [INFERRED 0.85]
 
-## Communities (344 total, 163 thin omitted)
+## Communities (386 total, 171 thin omitted)
 
 ### Community 0 - "style.rs"
-Cohesion: 0.13
-Nodes (47): app_style(), avatar_ink(), avatar_radius(), badge(), bare_input(), border_fill(), Brasa, bubble() (+39 more)
+Cohesion: 0.12
+Nodes (55): app_style(), avatar_ink(), avatar_radius(), badge(), bare_input(), border_fill(), Brasa, bubble() (+47 more)
 
-### Community 1 - "App"
+### Community 1 - "find.rs"
 Cohesion: 0.06
-Nodes (23): App, Folder, All, Channels, Groups, Personal, Unread, badge_at() (+15 more)
+Nodes (29): COMPOSER_ID, CONV_SCROLL_ID, App, ChatSearch, DEBOUNCE, DEBOUNCE_TICK, esc_captured(), FIELD_ID (+21 more)
 
 ### Community 2 - "tokens.rs"
 Cohesion: 0.03
@@ -293,7 +333,7 @@ Nodes (58): AVATAR_LG, AVATAR_MD, AVATAR_RATIO, AVATAR_SM, AVATAR_XL, AVATAR_XS,
 
 ### Community 3 - "Msg"
 Cohesion: 0.03
-Nodes (73): Msg, AcceptSecret, AskDelete, AskDiscardSecret, Backend, CancelCompose, Chat, ClearSearch (+65 more)
+Nodes (75): Msg, AcceptSecret, AskDelete, AskDiscardSecret, Backend, CancelCompose, Chat, ClearSearch (+67 more)
 
 ### Community 4 - "Msg"
 Cohesion: 0.06
@@ -303,21 +343,21 @@ Nodes (38): Arquitectura de teleClon, ADR-0001 Stack, ADR-0002 Dirección visual
 Cohesion: 0.08
 Nodes (24): Inner, AMPLITUDE, cell_segments(), ContourParams, .DEFAULT, .SECRET, contours(), field() (+16 more)
 
-### Community 6 - "BackendEvent"
-Cohesion: 0.06
-Nodes (27): BackendEvent, Connection, DialogRemoved, DialogUpserted, Download, ForumTopicsChanged, ForumTopicUpserted, HistoryCleared (+19 more)
+### Community 6 - "net.rs"
+Cohesion: 0.09
+Nodes (20): ConnectionState, Connecting, Offline, Online, Updating, ConnTracker, errors_map_to_domain(), flood_wait_policy_sleeps_only_short_waits() (+12 more)
 
 ### Community 7 - "tc-telegram/src/secret.rs"
-Cohesion: 0.06
-Nodes (23): Entity, utf16_to_chars(), now_secs(), Chat, crypto(), EARLY_CAP, entities_from_secret(), entities_round_trip_through_utf16() (+15 more)
+Cohesion: 0.12
+Nodes (7): now_secs(), Chat, history_page(), history_pages_follow_anchors(), Inner, Secrets, validate_dh()
 
 ### Community 8 - "Sistema de diseño de teleClon — dirección «Brasa»"
 Cohesion: 0.15
 Nodes (26): about_thirty_chats_sorted_with_pinned_first(), data_is_deterministic(), delete_updates_last_message_and_emits(), edit_only_own_messages(), forward_creates_messages_with_origin(), grupo_con_muchos_no_leidos_y_lectura_parcial(), history_after_and_around(), long_history_paging_covers_everything_without_gaps() (+18 more)
 
 ### Community 9 - "conv.rs"
-Cohesion: 0.05
-Nodes (44): DATE_H, EDGE_H, emoji_only(), FILE_CARD_H, FILE_CARD_W, FWD_H, GAP_GROUP, GAP_IN_GROUP (+36 more)
+Cohesion: 0.06
+Nodes (35): DATE_H, EDGE_H, FILE_CARD_H, FILE_CARD_W, FWD_H, GAP_GROUP, GAP_IN_GROUP, GROUP_AVATAR (+27 more)
 
 ### Community 10 - "format.rs"
 Cohesion: 0.18
@@ -329,31 +369,31 @@ Nodes (13): INK, WHITE, AA_NORMAL, AA_UI, Alpha, Alphas, Rgb, bubble_out_gradien
 
 ### Community 12 - "tests_files.rs"
 Cohesion: 0.07
-Nodes (50): ALBUM_MAX, CAPTION_COUNTER_FROM, caption_len(), clases_por_extension(), classify(), clipboard_image_to_png(), FILE_WARN_BYTES, FileClass (+42 more)
+Nodes (52): ALBUM_MAX, CAPTION_COUNTER_FROM, CAPTION_ID, caption_len(), clases_por_extension(), classify(), clipboard_image_to_png(), FILE_WARN_BYTES (+44 more)
 
 ### Community 13 - "ci.yml"
 Cohesion: 0.07
 Nodes (29): name, runs-on, steps, strategy, concurrency, cancel-in-progress, group, env (+21 more)
 
 ### Community 14 - "ChatMsg"
-Cohesion: 0.04
-Nodes (51): App, ChatMsg, Archive, ArchivedLoaded, AskBlock, AskClear, AskDeleteChat, AskDeleteSelected (+43 more)
+Cohesion: 0.05
+Nodes (42): ChatMsg, Archive, AskBlock, AskClear, AskDeleteChat, AskDeleteSelected, AskLeave, BlockDone (+34 more)
 
 ### Community 15 - "player.rs"
-Cohesion: 0.11
-Nodes (18): Cmd, Paused, Play, Speed, Stop, Current, fake(), FakeOutput (+10 more)
+Cohesion: 0.13
+Nodes (16): Cmd, Paused, Play, Speed, Stop, Current, fake(), guarded() (+8 more)
 
 ### Community 16 - "BackendResult"
-Cohesion: 0.05
-Nodes (11): DialogsApi, MediaApi, MessagesApi, unsupported(), BackendResult, ThreadScope, PeerRef, Group (+3 more)
+Cohesion: 0.04
+Nodes (7): ChatBackend, DialogsApi, MessagesApi, StickersApi, UNSUPPORTED, BackendResult, ThreadScope
 
 ### Community 17 - ".update"
 Cohesion: 0.11
 Nodes (18): BUNDLED, DISPLAY, DISPLAY_FAMILY, EMOJI_FAMILY, family(), MONO, MONO_FALLBACK, MONO_FAMILY (+10 more)
 
 ### Community 18 - "topics.rs"
-Cohesion: 0.15
-Nodes (22): topic_initial(), preview(), in_column(), body(), forum(), header(), ICON_HEAD, ICON_LIST (+14 more)
+Cohesion: 0.08
+Nodes (32): topic_initial(), now(), preview(), base(), ellipsize_to(), Font_, Paragraph, SHAPING (+24 more)
 
 ### Community 19 - "api.rs"
 Cohesion: 0.16
@@ -364,32 +404,40 @@ Cohesion: 0.21
 Nodes (8): app_png(), decode_png(), icns(), ico(), ico_dib(), _inner(), main(), rasterize()
 
 ### Community 21 - "mp4.rs"
-Cohesion: 0.06
-Nodes (68): basura_o_vacio_es_error(), center(), Clip, Collector, decode_mp4(), decode_track(), decodifica_un_mp4_codificado_con_openh264(), dominant() (+60 more)
+Cohesion: 0.19
+Nodes (28): VideoError, Container, Decode, NoVideo, Unsupported, annex_b(), annex_b_pone_codigos_de_inicio(), bad() (+20 more)
 
 ### Community 22 - "super"
 Cohesion: 0.11
 Nodes (13): key_is_created_once_in_the_vault_and_reused(), roundtrip_and_every_kind_of_tampering_is_rejected(), SEAL_KEY_LEN, Sealed, SealError, BadKey, Entropy, Rejected (+5 more)
 
 ### Community 23 - "transfers/tests.rs"
-Cohesion: 0.09
+Cohesion: 0.10
 Nodes (9): check_dest(), Inner, MAX_STEPS, MockBackend, storage(), terminal(), Transfers, TransferSim (+1 more)
 
 ### Community 24 - "tests/transfers.rs"
-Cohesion: 0.07
-Nodes (52): partial_path(), partial_path_is_a_sibling(), assert_well_formed(), cancelar_una_descarga_a_mitad_borra_el_parcial(), cancelar_una_subida_no_envia_nada(), descarga_a_disco_por_trozos_y_renombra_al_final(), doc(), el_ritmo_lo_marca_el_reloj_de_tokio() (+44 more)
+Cohesion: 0.13
+Nodes (30): ANA, assert_well_formed(), content(), DOC, doc_location(), doc_media(), doc_ref(), download_cancelled_midway_removes_partial_and_keeps_dest() (+22 more)
+
+### Community 25 - ".search_with"
+Cohesion: 0.12
+Nodes (4): messages_of(), filter_to_tl(), GrammersBackend, total_of()
 
 ### Community 26 - "ForumMsg"
 Cohesion: 0.05
 Nodes (33): App, ForumMsg, BackToTopics, ClearQuery, Close, CloseList, CloseMenu, Create (+25 more)
+
+### Community 27 - "tc-telegram/src/secret.rs"
+Cohesion: 0.07
+Nodes (15): Entity, utf16_starts(), crypto(), EARLY_CAP, entities_from_secret(), entities_round_trip_through_utf16(), entities_to_secret(), is_secret_update() (+7 more)
 
 ### Community 28 - "icon"
 Cohesion: 0.19
 Nodes (12): ADR-0001: Stack técnico, grammers (MTProto en Rust), iced (UI en Rust, wgpu + tiny-skia), keyring (claves y sesión), rusqlite bundled con migraciones por PRAGMA user_version, tc-secret: chats secretos sans-IO con RustCrypto, tc-stickers: WebP, TGS con rlottie, WebM aplazado, ADR-0004: Stickers y chats secretos en el alcance (+4 more)
 
 ### Community 29 - "cached.rs"
-Cohesion: 0.07
-Nodes (16): ChatBackend, ProfileApi, SecretChatsApi, SecretChatId, UserId, ChatInfo, display_name_joins_parts(), KeyVisual (+8 more)
+Cohesion: 0.13
+Nodes (5): SecretChatsApi, SecretChatId, KeyVisual, SecretChat, Shared
 
 ### Community 30 - "tc-ui/src/tests.rs"
 Cohesion: 0.24
@@ -405,51 +453,47 @@ Nodes (17): el_foro_tiene_temas_con_general_y_no_leidos_que_suman(), entrante_en
 
 ### Community 34 - "TcSession"
 Cohesion: 0.09
-Nodes (11): changes_mark_dirty_and_reset_forgets_everything(), debug_never_prints_the_auth_key(), MemorySessionStore, rejects_garbage_and_unknown_versions(), roundtrip_keeps_keys_peers_and_state(), sample(), SESSION_FORMAT, SessionError (+3 more)
+Nodes (10): changes_mark_dirty_and_reset_forgets_everything(), debug_never_prints_the_auth_key(), MemorySessionStore, rejects_garbage_and_unknown_versions(), roundtrip_keeps_keys_peers_and_state(), sample(), SESSION_FORMAT, SessionError (+2 more)
 
 ### Community 35 - "MsgLayout"
 Cohesion: 0.21
 Nodes (11): Índice maestro de teleClon, architecture.md (crates, ChatBackend, SQLite, F01-F18), graphify-out (graph.html, GRAPH_REPORT.md, graph.json), Reglas de trabajo (log, ADR, clean-room, credenciales, regenerar grafo), Credenciales api_id/api_hash en .env local gitignored, graphify: instalación y uso, graphifyy en ./.venv local, Registro de skills usadas (+3 more)
 
 ### Community 36 - "send_dialog.rs"
-Cohesion: 0.08
-Nodes (38): AnimKey, ChatSwitch, Overlay, SendButton, COMPOSER_ID, drop_event(), Dropped, Hover (+30 more)
+Cohesion: 0.17
+Nodes (21): Upload, BAR_H, big_preview(), cancel_button(), compress_choice(), dialog(), dialog_notes(), DIALOG_W (+13 more)
 
 ### Community 37 - "dh.rs"
 Cohesion: 0.07
 Nodes (27): dh_matches_independent_vector(), DhParams, DhSecret, exp(), FP, GA, GB, generate_mixes_server_random_and_rejects_bad_peer() (+19 more)
 
 ### Community 38 - "tc-ui/src/gifs.rs"
-Cohesion: 0.07
+Cohesion: 0.08
 Nodes (28): demo_script(), ANIM_BUDGET, ANIM_PX, animates(), CACHE_BYTES, CELL_GAP, CELL_H, CELL_MIN_W (+20 more)
 
 ### Community 39 - "app.rs"
 Cohesion: 0.06
-Nodes (30): Auth, auth_events(), AuthHandle, backend_events(), BackendHandle, Connector, CONV_SCROLL_ID, DemoStep (+22 more)
+Nodes (31): Auth, auth_events(), AuthHandle, backend_events(), BackendHandle, Connector, DemoStep, Do (+23 more)
 
 ### Community 40 - "with"
 Cohesion: 0.20
 Nodes (17): steps, steps, steps, steps, id, if, name, run (+9 more)
 
-### Community 41 - "StickerId"
-Cohesion: 0.25
-Nodes (4): StickerId, DEFAULT_RECENTS, Favorites, Recents
+### Community 41 - "tc-telegram/src/convert.rs"
+Cohesion: 0.09
+Nodes (20): dialog_from_tl(), dialog_stub(), DialogCtx, draft_date(), entities_from_tl(), entities_to_tl(), entity_parts(), forward_name() (+12 more)
 
 ### Community 42 - "tc-ui/src/stickers.rs"
-Cohesion: 0.11
-Nodes (33): StickerSetId, Sticker, StickerSet, ANIMATED_SET_ID, Art, art_index(), ART_PX, CELL_ART (+25 more)
-
-### Community 43 - "tc-telegram/src/auth.rs"
-Cohesion: 0.08
-Nodes (14): AuthInner, code_kind(), code_types_map(), GrammersBackend, Inner, migrate_dc(), next_kind(), phone_validation() (+6 more)
+Cohesion: 0.09
+Nodes (36): StickerId, StickerSetId, Sticker, StickerSet, DEFAULT_RECENTS, Favorites, Recents, ANIMATED_SET_ID (+28 more)
 
 ### Community 45 - "Entropy"
 Cohesion: 0.09
 Nodes (22): Role, Initiator, Responder, Entropy, Message, Abort, nonzero_random_id(), Output (+14 more)
 
 ### Community 46 - "e2e.rs"
-Cohesion: 0.15
-Nodes (38): DecryptedMessage, Service, DecryptedMessageLayer, PlainMessage, chat_n(), concurrent_rekey_converges_on_one_instance(), decreasing_in_seq_aborts_chat(), dh() (+30 more)
+Cohesion: 0.17
+Nodes (35): DecryptedMessageLayer, chat_n(), concurrent_rekey_converges_on_one_instance(), decreasing_in_seq_aborts_chat(), dh(), discard_local_and_remote(), duplicates_are_dropped(), fingerprint_mismatch_discards_chat() (+27 more)
 
 ### Community 47 - "build_items"
 Cohesion: 0.31
@@ -464,128 +508,128 @@ Cohesion: 0.38
 Nodes (11): tc-app, tc-audio, tc-core, tc-mock, tc-secret, tc-stickers, tc-store, tc-telegram (+3 more)
 
 ### Community 50 - "Timestamp"
-Cohesion: 0.06
-Nodes (36): StickersApi, UNSUPPORTED, BackendError, Cancelled, Crypto, FloodWait, Forbidden, Internal (+28 more)
+Cohesion: 0.23
+Nodes (13): EmojiUse, Timestamp, blocking(), EMOJI_KEEP, emoji_usage(), gif(), gifs_guardados_ida_y_vuelta_y_reemplazo(), record_emoji_use() (+5 more)
 
-### Community 51 - "tc-ui/src/media.rs"
-Cohesion: 0.14
-Nodes (13): AVATAR_PX, avatars_are_square_and_downscaled(), bubble_aspect(), BUBBLE_ASPECT, bubble_photos_are_cropped_to_the_layout_ratio(), BUBBLE_PX, CACHE_BYTES, jpeg() (+5 more)
+### Community 51 - "tc-video/src/decode.rs"
+Cohesion: 0.21
+Nodes (9): basura_o_vacio_es_error(), center(), decodifica_un_mp4_codificado_con_openh264(), dominant(), escala_y_reparte_segun_el_plan(), MAX_SAMPLES, encode_mp4(), solid() (+1 more)
 
 ### Community 52 - "crypto.rs"
-Cohesion: 0.07
-Nodes (31): decrypt(), derive(), encrypt(), encrypt_with_padding(), HEADER_LEN, ige_decrypt(), ige_encrypt(), IgeDec (+23 more)
+Cohesion: 0.08
+Nodes (28): decrypt(), derive(), encrypt(), encrypt_with_padding(), HEADER_LEN, ige_decrypt(), ige_encrypt(), IgeDec (+20 more)
 
-### Community 53 - "net.rs"
-Cohesion: 0.09
-Nodes (20): ConnectionState, Connecting, Offline, Online, Updating, ConnTracker, errors_map_to_domain(), flood_wait_policy_sleeps_only_short_waits() (+12 more)
+### Community 53 - "tc-telegram/src/lib.rs"
+Cohesion: 0.08
+Nodes (12): Feed, None, Pool, Source, GrammersBackend, has_login_token(), Inner, persister() (+4 more)
 
 ### Community 54 - "Cache"
-Cohesion: 0.11
-Nodes (17): dialog_from_tl(), dialog_stub(), DialogCtx, draft_date(), draft_from_tl(), is_muted(), Applied, apply_batch() (+9 more)
+Cohesion: 0.12
+Nodes (14): draft_from_tl(), is_muted(), Applied, apply_batch(), apply_update(), Cache, deleted(), DialogList (+6 more)
 
 ### Community 55 - "dialogs.rs"
 Cohesion: 0.06
-Nodes (23): DIALOG_COLS, dialog_from_row(), draft_from_row(), drafts_set_clear_list(), list_orders_pinned_then_activity_and_filters_archived(), mark_read_and_missing_dialog_errors(), notify_scopes(), scope_parts() (+15 more)
+Nodes (25): history_is_servable(), DIALOG_COLS, dialog_from_row(), draft_from_row(), drafts_set_clear_list(), list_orders_pinned_then_activity_and_filters_archived(), mark_read_and_missing_dialog_errors(), notify_scopes() (+17 more)
 
 ### Community 56 - "tc-stickers/src/lib.rs"
 Cohesion: 0.67
 Nodes (3): Disposición (raíl, lista, conversación, panel info), Lista de chats (componente), Barra lateral (raíl de carpetas)
 
-### Community 59 - "tc-telegram/src/forum.rs"
-Cohesion: 0.16
-Nodes (4): flatten_updates(), GrammersBackend, Inner, topic_from_tl()
+### Community 59 - "GrammersBackend"
+Cohesion: 0.11
+Nodes (4): GrammersBackend, in_topic(), Inner, topic_from_tl()
 
 ### Community 60 - "Frame"
 Cohesion: 0.08
 Nodes (20): CacheKey, DEFAULT_CACHE_BYTES, FrameCache, Frame, ByteLru, cache_evicts_least_recently_used_by_bytes(), cache_get_or_insert_computes_once(), gradient() (+12 more)
 
 ### Community 61 - "tc-store/src/lib.rs"
-Cohesion: 0.10
-Nodes (20): account_db_path(), APP_DIR, DATA_DIR_NAME, default_data_dir(), LEGACY_APP_DIR, MIGRATIONS, resolve_data_dir(), SCHEMA_VERSION (+12 more)
+Cohesion: 0.12
+Nodes (16): account_db_path(), APP_DIR, DATA_DIR_NAME, default_data_dir(), LEGACY_APP_DIR, MIGRATIONS, resolve_data_dir(), SCHEMA_VERSION (+8 more)
 
 ### Community 64 - "crate::Inner"
-Cohesion: 0.08
-Nodes (10): crate::Inner, GIF_BOT, gif_from_document(), GifCatalog, input_doc(), CachedSet, crate::Inner, MAX_SETS (+2 more)
+Cohesion: 0.07
+Nodes (13): document_file_ref(), media_from_document(), sticker_from_document(), crate::Inner, GIF_BOT, gif_from_document(), GifCatalog, input_doc() (+5 more)
 
 ### Community 65 - "pack.rs"
 Cohesion: 0.09
 Nodes (27): Def, DEFS, dots(), index_of(), Layer, len(), NATIVE_SIZE, P (+19 more)
 
-### Community 66 - ".get"
-Cohesion: 0.17
-Nodes (10): ChunkedVault<V>, construction_and_validation_do_not_touch_the_system(), KeyringVault, live_roundtrip(), map_err(), VaultError, Backend, InvalidKey (+2 more)
+### Community 66 - "ChatKey"
+Cohesion: 0.07
+Nodes (25): Action, AppInfo, Capabilities, ChatKey, event_channel(), EventSender, Notification, Notifier (+17 more)
 
 ### Community 67 - "App"
 Cohesion: 0.08
-Nodes (33): now(), MsgLayout, body(), bubble(), bubble_max(), build_items(), compose_strip(), composer() (+25 more)
+Nodes (36): AnimKey, ChatSwitch, Overlay, SendButton, App, Conversation, MsgLayout, GroupPos (+28 more)
 
 ### Community 68 - "restored"
-Cohesion: 0.06
-Nodes (74): authorization(), channel(), chat(), dialog(), message(), msg_enum(), notify(), password() (+66 more)
+Cohesion: 0.13
+Nodes (32): peer_user(), updates(), user_enum(), dialogs_page(), dialogs_paginate_with_server_offsets(), edit_delete_react_and_read(), flood_wait_short_is_slept_long_is_returned(), history_anchors_and_ascending_order() (+24 more)
 
-### Community 69 - "tests/forum.rs"
-Cohesion: 0.23
-Nodes (14): peer_channel(), CH, el_canal_con_forum_es_un_foro_y_las_respuestas_al_tema_no_son_respuestas(), envio_en_tema_lleva_top_msg_id_y_actualiza_el_tema(), forum_channel(), group(), header(), is_channel() (+6 more)
+### Community 69 - "mapping.rs"
+Cohesion: 0.13
+Nodes (27): key_visualization_matches_independent_vector(), tl_known_encoding(), dialog(), hex(), message(), msg_enum(), notify(), password() (+19 more)
 
 ### Community 70 - "media_cache.rs"
-Cohesion: 0.09
-Nodes (14): account_cache_lives_next_to_the_database_and_survives_reopen(), check_key(), create_private_dir(), DEFAULT_MEDIA_CACHE_LIMIT, fetch_cached(), io(), keys_depend_on_id_and_size_and_skip_secrets(), MEDIA_DIR (+6 more)
+Cohesion: 0.10
+Nodes (11): account_cache_lives_next_to_the_database_and_survives_reopen(), create_private_dir(), DEFAULT_MEDIA_CACHE_LIMIT, io(), MEDIA_DIR, MediaCache, MediaCacheLayer, now_ms() (+3 more)
 
 ### Community 71 - "view/audio.rs"
-Cohesion: 0.10
-Nodes (14): with_weight(), Bar, BAR_GAP, BAR_W, bubble(), BUTTON, fraction_at(), Ink (+6 more)
+Cohesion: 0.08
+Nodes (22): TrackView, with_weight(), Bar, BAR_GAP, BAR_W, bubble(), BUTTON, fraction_at() (+14 more)
 
 ### Community 72 - "secret.rs"
 Cohesion: 0.11
 Nodes (18): chat(), CHAT_COLS, chat_from_row(), chat_roundtrip_and_fk(), messages_idempotent_blob_roundtrip_and_page(), msg(), MSG_COLS, msg_from_row() (+10 more)
 
 ### Community 73 - "messages.rs"
-Cohesion: 0.14
-Nodes (14): COLS, fill(), from_row(), fts_query(), fts_search_accents_prefix_scope_and_delete(), ids(), pagination_by_anchor(), pending_becomes_confirmed_by_random_id() (+6 more)
+Cohesion: 0.16
+Nodes (15): COLS, fill(), from_row(), fts_query(), fts_search_accents_prefix_scope_and_delete(), ids(), media_msg(), pagination_by_anchor() (+7 more)
 
 ### Community 74 - "FilesMsg"
-Cohesion: 0.12
-Nodes (15): App, FilesMsg, Cancel, Caption, Close, Compress, Inspected, Paste (+7 more)
+Cohesion: 0.08
+Nodes (21): App, drop_event(), FilesMsg, Cancel, Caption, Close, Compress, Dropped (+13 more)
 
 ### Community 75 - "tl.rs"
-Cohesion: 0.07
-Nodes (36): Message, ID_ABORT_KEY, ID_ACCEPT_KEY, ID_COMMIT_KEY, ID_DELETE, ID_FLUSH, ID_LAYER, ID_MEDIA_EMPTY (+28 more)
+Cohesion: 0.04
+Nodes (57): Action, AbortKey, AcceptKey, CommitKey, DeleteMessages, FlushHistory, Noop, NotifyLayer (+49 more)
 
-### Community 76 - "Timestamp"
-Cohesion: 0.11
-Nodes (19): el_tema_como_dialogo_conserva_lectura_y_no_leidos(), fijados_primero_y_luego_por_actividad(), ForumTopic, msg(), sort_topics(), TopicsOffset, TopicsPage, TopicsQuery (+11 more)
+### Community 76 - "rules.rs"
+Cohesion: 0.12
+Nodes (52): ACTION_MARK_READ, ajustes_por_tipo(), APP_NAME, archivado_no_silenciado_depende_del_ajuste(), archivado_y_silenciado_nunca_avisa(), avisa_con_foco_si_el_chat_no_es_el_abierto(), avisa_sin_foco_aunque_el_chat_este_abierto(), away() (+44 more)
 
 ### Community 77 - "decode.rs"
-Cohesion: 0.09
-Nodes (17): check_tone(), copy_out(), decode_all(), decodes_music_formats(), decodes_stereo_opus(), decodes_telegram_style_voice_note(), fixture(), freq() (+9 more)
+Cohesion: 0.10
+Nodes (16): check_tone(), copy_out(), decode_all(), decodes_music_formats(), decodes_stereo_opus(), decodes_telegram_style_voice_note(), fixture(), freq() (+8 more)
 
 ### Community 78 - "tests_audio.rs"
-Cohesion: 0.20
+Cohesion: 0.19
 Nodes (17): AudioBytes, TrackState, Failed, Idle, Loading, Paused, Playing, boot() (+9 more)
 
 ### Community 79 - "tc-ui/src/audio.rs"
-Cohesion: 0.07
-Nodes (30): PlaybackState, Ended, Failed, Paused, Playing, Starting, SPEEDS, App (+22 more)
-
-### Community 80 - "tc-telegram/src/media.rs"
 Cohesion: 0.06
-Nodes (27): BIG_FILE, Cancel, check_dest(), crate::Inner, DownloadError, Backend, FileReference, GrammersBackend (+19 more)
+Nodes (31): PlaybackState, Ended, Failed, Paused, Playing, Starting, SPEEDS, App (+23 more)
+
+### Community 80 - ".download_to_disk"
+Cohesion: 0.14
+Nodes (9): check_dest(), crate::Inner, GrammersBackend, known_total(), LocalFile, media_location(), parts_for(), Progress (+1 more)
 
 ### Community 81 - "CachedBackend<B>"
 Cohesion: 0.07
-Nodes (11): Anchor, After, Around, Before, Latest, Dialog, DialogsPage, Draft (+3 more)
+Nodes (12): PeerRef, Group, Secret, User, Dialog, DialogsPage, Draft, CachedBackend<B> (+4 more)
 
 ### Community 82 - "Store"
 Cohesion: 0.13
-Nodes (12): favorites(), recents_order_dedupe_cap_and_cascade(), seed(), SET_COLS, set_from_row(), sets_and_stickers(), STICKER_COLS, sticker_from_row() (+4 more)
+Nodes (13): favorites(), RECENT_CAP, recents_order_dedupe_cap_and_cascade(), seed(), SET_COLS, set_from_row(), sets_and_stickers(), STICKER_COLS (+5 more)
 
 ### Community 83 - "reading.rs"
 Cohesion: 0.09
-Nodes (22): Message, error_text(), App, Carry, desplazamiento_deja_la_marca_arriba_con_contexto(), first_unread(), FLUSH_EVERY, from_bottom_for() (+14 more)
+Nodes (24): Message, error_text(), Saved, App, Carry, desplazamiento_deja_la_marca_arriba_con_contexto(), first_unread(), FLUSH_EVERY (+16 more)
 
 ### Community 84 - "tc-secret/src/session.rs"
-Cohesion: 0.05
-Nodes (36): &mut E, random_i64(), random_up_to(), Result, SecretError, Entropy, FingerprintMismatch, InvalidDhConfig (+28 more)
+Cohesion: 0.04
+Nodes (46): &mut E, OsEntropy, random_i64(), random_up_to(), Result, SecretError, Entropy, FingerprintMismatch (+38 more)
 
 ### Community 85 - "EntityKind"
 Cohesion: 0.11
@@ -596,16 +640,16 @@ Cohesion: 0.08
 Nodes (19): Queued, MAGIC, Rd, Rd<'a>, read_ready(), RK_ACCEPTED, RK_COMMITTED, RK_IDLE (+11 more)
 
 ### Community 87 - "view/login.rs"
-Cohesion: 0.29
-Nodes (22): card_screen(), CARD_W, code(), connecting(), divider(), field(), field_error(), ghost() (+14 more)
+Cohesion: 0.24
+Nodes (24): dir_panel(), card_screen(), CARD_W, code(), connecting(), divider(), field(), field_error() (+16 more)
 
-### Community 88 - "src/login.rs"
-Cohesion: 0.05
-Nodes (47): App, clean_code(), CODE_ID, code_where(), codigo_solo_cifras_y_recortado(), countdown(), cuentas_atras(), errores_con_texto_propio() (+39 more)
+### Community 88 - "LoginMsg"
+Cohesion: 0.12
+Nodes (19): LoginMsg, CodeChanged, CodeSent, PasswordChanged, PasswordChecked, PhoneChanged, QrReady, Resend (+11 more)
 
 ### Community 89 - "tc-ui/src/tests.rs"
-Cohesion: 0.15
-Nodes (13): boot(), chat_secreto_huella_y_canal_de_solo_lectura(), capturas_de_la_descarga(), settings(), shot(), entrante_en_vivo_reordena_la_lista(), enviar_optimista_confirmar_editar_reaccionar_borrar(), fallo_de_envio_y_reintento() (+5 more)
+Cohesion: 0.13
+Nodes (20): Backend, boot(), chat_secreto_huella_y_canal_de_solo_lectura(), entrante_en_vivo_reordena_la_lista(), enviar_optimista_confirmar_editar_reaccionar_borrar(), fallo_de_envio_y_reintento(), historial_paginado_carga_los_5000_sin_huecos(), lista_fijados_primero_busqueda_y_carpetas() (+12 more)
 
 ### Community 90 - "tc-mock/src/lib.rs"
 Cohesion: 0.06
@@ -624,11 +668,11 @@ Cohesion: 0.08
 Nodes (12): Store, unread_mark_and_clear_history(), Result, COLS, from_row(), COLS, from_row(), group_roundtrip_update_and_lookup() (+4 more)
 
 ### Community 95 - "cached_tests.rs"
-Cohesion: 0.12
-Nodes (25): all(), cache_persists_across_restarts_on_disk(), cached(), cold_cache_offline_is_an_error_and_pagination_works(), dialogs_roundtrip_exactly_and_survive_offline(), downloads_are_cached_on_disk_but_never_for_secret_chats(), edits_deletes_reactions_read_and_failures_write_through(), events_are_persisted_and_searchable_locally() (+17 more)
+Cohesion: 0.08
+Nodes (40): a_user_chat(), all(), cached(), clear_and_delete_reach_the_cache(), offline_list(), removal_events_are_persisted(), unread_mark_read_mute_and_pin_persist(), CachedBackend (+32 more)
 
 ### Community 96 - "tc-mock/src/dialog_actions.rs"
-Cohesion: 0.14
+Cohesion: 0.12
 Nodes (14): Acts, all(), block_info_and_pinned_messages(), check_pin_limit(), clear_history_keeps_the_row_delete_removes_it(), deleting_a_secret_chat_discards_it(), leave_only_groups_and_channels_cannot_be_cleared(), mock() (+6 more)
 
 ### Community 97 - "2. Casos por flujo"
@@ -643,45 +687,41 @@ Nodes (4): Garantías locales, Lo que NO está hecho o NO está verificado, Mód
 Cohesion: 0.10
 Nodes (14): Error, Invalid, Io, NoDataDir, NotFound, SchemaTooNew, Sqlite, UploadRow (+6 more)
 
-### Community 102 - "Output"
-Cohesion: 0.12
-Nodes (3): Output, RodioOutput, NoDevice
-
 ### Community 103 - "StoreError"
-Cohesion: 0.17
-Nodes (10): backend(), decode(), Rd, Rd<'a>, VaultSessionStore, file_store_is_private_and_atomic(), FileSessionStore, StoreError (+2 more)
+Cohesion: 0.16
+Nodes (12): backend(), decode(), Rd, Rd<'a>, VaultSessionStore, file_store_is_private_and_atomic(), FileSessionStore, SessionStore (+4 more)
 
-### Community 104 - "sticker_img.rs"
-Cohesion: 0.12
-Nodes (14): StickerFormat, Lottie, Webm, Webp, LOCAL_SEND_PX, BUBBLE_PX, CELL_PX, decode() (+6 more)
+### Community 104 - "BackendError"
+Cohesion: 0.04
+Nodes (47): BackendError, Cancelled, Crypto, FloodWait, Forbidden, Internal, InvalidInput, Network (+39 more)
 
-### Community 105 - "tests/mod.rs"
-Cohesion: 0.12
-Nodes (10): Transport, backend(), cfg(), Fake, Handler, logged_session(), logged_session_as(), ME_ID (+2 more)
+### Community 105 - "arc"
+Cohesion: 0.08
+Nodes (13): UpdateBatch, UpdateSource, UpdatesReceiver, Transport, Fake, Handler, logged_session(), logged_session_as() (+5 more)
 
 ### Community 106 - "tests/secret.rs"
-Cohesion: 0.12
-Nodes (21): UpdateBatch, ANA, BETO, ChanSource, CHAT, fingerprint(), handler(), handshake() (+13 more)
+Cohesion: 0.13
+Nodes (19): ANA, BETO, CHAT, fingerprint(), handler(), handshake(), HASH, input_chat() (+11 more)
 
 ### Community 107 - "StickerError"
 Cohesion: 0.08
 Nodes (28): ANIM_PX, frame_at(), frame_step(), info_of(), MAX_FPS, next_frames(), render_batch(), Show (+20 more)
 
-### Community 108 - "MockConfig"
-Cohesion: 0.23
-Nodes (9): MockConfig, a_user_chat(), all(), cached(), clear_and_delete_reach_the_cache(), offline_list(), removal_events_are_persisted(), unread_mark_read_mute_and_pin_persist() (+1 more)
+### Community 108 - "sidebar.rs"
+Cohesion: 0.06
+Nodes (30): WRAP, badge(), bubble(), cell(), centered_text(), gm(), view(), badge_at() (+22 more)
 
-### Community 109 - "Backend"
-Cohesion: 0.13
-Nodes (23): Backend, boot_logged_out(), boot_main(), crear_chat_secreto_ttl_y_cerrar(), invitacion_entrante_se_acepta(), lm(), login_por_qr_numero_sin_cuenta_y_escape(), login_telefono_espera_codigo_y_2fa() (+15 more)
+### Community 109 - "tests_m2.rs"
+Cohesion: 0.15
+Nodes (17): Phase, Auth, Connecting, Main, boot_logged_out(), boot_main(), crear_chat_secreto_ttl_y_cerrar(), invitacion_entrante_se_acepta() (+9 more)
 
 ### Community 110 - "UserId"
-Cohesion: 0.12
+Cohesion: 0.10
 Nodes (15): AuthApi, AuthState, Checking, LoggedIn, LoggedOut, SignUpRequired, WaitingCode, WaitingPassword (+7 more)
 
 ### Community 111 - "tests_sticker_anim.rs"
-Cohesion: 0.19
-Nodes (12): ThemeKind, Dark, Light, PAGE, app_with_tgs_bubble(), el_fotograma_animado_llega_a_la_burbuja_y_se_congela_sin_foco(), el_reloj_solo_corre_con_un_tgs_visible_con_foco_y_sin_movimiento_reducido(), en_el_selector_se_anima_el_sticker_bajo_el_raton() (+4 more)
+Cohesion: 0.21
+Nodes (11): ThemeKind, Dark, Light, app_with_tgs_bubble(), el_fotograma_animado_llega_a_la_burbuja_y_se_congela_sin_foco(), el_reloj_solo_corre_con_un_tgs_visible_con_foco_y_sin_movimiento_reducido(), en_el_selector_se_anima_el_sticker_bajo_el_raton(), FILE (+3 more)
 
 ### Community 112 - "folders.rs"
 Cohesion: 0.19
@@ -689,23 +729,23 @@ Nodes (8): COLS, folder(), folder_peers_replace_and_cascade(), folders_crud_orde
 
 ### Community 113 - "files.rs"
 Cohesion: 0.17
-Nodes (7): cache_index_orders_by_last_use(), CacheEntry, media_refs_follow_their_media(), MediaRefRow, peer_photos_roundtrip_and_never_for_secrets(), photo_kind(), Store
+Nodes (6): cache_index_orders_by_last_use(), CacheEntry, media_refs_follow_their_media(), peer_photos_roundtrip_and_never_for_secrets(), photo_kind(), Store
 
 ### Community 115 - "sticker_anim.rs"
-Cohesion: 0.11
+Cohesion: 0.12
 Nodes (20): Playback, carga_una_vez_y_reintenta_tras_fallo(), DATA_CACHE_BYTES, FRAME_CACHE_BYTES, FULL, Job, Load, Render (+12 more)
 
-### Community 116 - "tl_visual_ttl.rs"
-Cohesion: 0.06
-Nodes (24): Action, AbortKey, AcceptKey, CommitKey, DeleteMessages, FlushHistory, Noop, NotifyLayer (+16 more)
+### Community 116 - "KeyVisualization"
+Cohesion: 0.13
+Nodes (4): EMOJI, GRID_SIDE, KeyVisualization, VISUAL_LEN
 
 ### Community 117 - "ThreadRef"
 Cohesion: 0.08
-Nodes (21): ForumApi, ThreadRef, MsgId, RandomId, Message, OutgoingMedia, OutgoingText, TextEntity (+13 more)
+Nodes (24): unsupported(), ForumApi, ThreadRef, Gif, MsgId, RandomId, Anchor, After (+16 more)
 
 ### Community 118 - "GifAnims"
-Cohesion: 0.15
-Nodes (8): GifAnims, GifPanel, la_cache_de_animaciones_respeta_el_tope(), Search, Slot, Failed, Loading, Ready
+Cohesion: 0.20
+Nodes (6): GifAnims, la_cache_de_animaciones_respeta_el_tope(), Slot, Failed, Loading, Ready
 
 ### Community 119 - "jobs"
 Cohesion: 0.18
@@ -715,13 +755,17 @@ Nodes (10): env, CARGO_INCREMENTAL, CARGO_TERM_COLOR, RUST_TOOLCHAIN, jobs, linu
 Cohesion: 0.29
 Nodes (7): message_exists(), my_reaction_moves_between_emojis(), r(), set_get_replace_and_unknown_message(), setup(), Store, ReactionRow
 
-### Community 121 - "EntityKind"
-Cohesion: 0.18
-Nodes (11): EntityKind, Bold, Code, Hashtag, Italic, Mention, Pre, Spoiler (+3 more)
+### Community 121 - "SearchQuery"
+Cohesion: 0.08
+Nodes (24): EntityKind, Bold, Code, Hashtag, Italic, Mention, Pre, Spoiler (+16 more)
 
 ### Community 123 - "Marca propia — Parlo"
 Cohesion: 0.07
-Nodes (25): ADR-0006: Empaquetado multiplataforma (Windows, macOS, Linux), Consecuencias, Decisiones, 1. Criterios de nombre, 2. Candidatos (6-8), 3. Chequeos que debe hacer el usuario, 4. Voz y tono (español), 5. Brief de logo (+17 more)
+Nodes (26): ADR-0006: Empaquetado multiplataforma (Windows, macOS, Linux), Consecuencias, Decisiones, 1. Criterios de nombre, 2. Candidatos (6-8), 3. Chequeos que debe hacer el usuario, 4. Voz y tono (español), 5. Brief de logo (+18 more)
+
+### Community 124 - "tc-core/src/lib.rs"
+Cohesion: 0.11
+Nodes (21): el_tema_como_dialogo_conserva_lectura_y_no_leidos(), fijados_primero_y_luego_por_actividad(), ForumTopic, GENERAL_TOPIC, msg(), sort_topics(), TOPIC_COLORS, TopicIcon (+13 more)
 
 ### Community 125 - "tc-store"
 Cohesion: 0.29
@@ -743,29 +787,37 @@ Nodes (8): release, permissions, contents, if, name, needs, permissions, runs-on
 Cohesion: 0.19
 Nodes (10): apply_mine(), reaction_error_text(), account_stickers_load_in_the_picker_and_in_bubbles(), boot(), decoded(), my_reaction_moves_like_the_server_does(), NOW, own_note() (+2 more)
 
-### Community 131 - "icon_fill"
-Cohesion: 0.26
-Nodes (6): handle(), HANDLES, icon(), icon_fill(), icons!, view()
+### Community 131 - "mapping.rs"
+Cohesion: 0.13
+Nodes (28): channel_group(), chat_group(), group_ids_roundtrip_and_never_collide(), affected_history(), affected_messages(), block_pin_message_and_info_errors(), clear_and_delete_private_chat_repeat_until_done(), is_user() (+20 more)
+
+### Community 133 - "transfers/tests.rs"
+Cohesion: 0.17
+Nodes (21): partial_path(), partial_path_is_a_sibling(), assert_well_formed(), cancelar_una_descarga_a_mitad_borra_el_parcial(), cancelar_una_subida_no_envia_nada(), descarga_a_disco_por_trozos_y_renombra_al_final(), doc(), el_ritmo_lo_marca_el_reloj_de_tokio() (+13 more)
 
 ### Community 134 - "AudioError"
-Cohesion: 0.11
-Nodes (17): AudioStream, open(), OpusStream, AudioError, Corrupt, NoDevice, Unsupported, corrupt() (+9 more)
+Cohesion: 0.10
+Nodes (18): AudioStream, open(), OpusStream, sym_err(), AudioError, Corrupt, NoDevice, Unsupported (+10 more)
 
 ### Community 135 - "ImageKey"
 Cohesion: 0.15
 Nodes (8): cache_tracks_loads_failures_and_evicts_least_recently_used(), ImageKey, Avatar, Full, Sticker, Thumb, Images, img()
 
+### Community 136 - "Track"
+Cohesion: 0.07
+Nodes (6): FakeOutput, NullOutput, Output, RodioOutput, run(), Track
+
 ### Community 138 - "Tone"
-Cohesion: 0.16
-Nodes (10): apply(), Tone, .ALL, Dark, Default, Light, Medium, MediumDark (+2 more)
+Cohesion: 0.22
+Nodes (8): Tone, .ALL, Dark, Default, Light, Medium, MediumDark, MediumLight
 
 ### Community 139 - "stores.rs"
-Cohesion: 0.10
-Nodes (26): aad(), AAD_PREFIX, dh(), disk_bytes(), encode(), existing_session_json_is_migrated_once_and_deleted(), FIXED_LEN, media_cache() (+18 more)
+Cohesion: 0.09
+Nodes (27): aad(), AAD_PREFIX, dh(), disk_bytes(), encode(), existing_session_json_is_migrated_once_and_deleted(), FIXED_LEN, media_cache() (+19 more)
 
 ### Community 140 - "PanelMsg"
-Cohesion: 0.06
-Nodes (32): Category, Activities, .ALL, Animals, Flags, Food, Objects, People (+24 more)
+Cohesion: 0.18
+Nodes (11): PanelMsg, Category, Close, EmojiQuery, EmojiSubmit, Insert, Recorded, Tab (+3 more)
 
 ### Community 141 - "windows"
 Cohesion: 0.29
@@ -780,52 +832,56 @@ Cohesion: 0.10
 Nodes (19): F01 Login con teléfono, F02 Login por QR, F03 Abrir chat y leer, F04 Enviar texto, F05 Responder, F06 Reenviar, F07 Editar, F08 Borrar (+11 more)
 
 ### Community 144 - "emoji.rs"
-Cohesion: 0.12
-Nodes (17): busqueda_en_espanol_ingles_y_por_grupo(), catalog_len(), display_name(), el_catalogo_es_completo_y_por_categorias(), es_index(), FREQUENT_SHOWN, list(), lists() (+9 more)
+Cohesion: 0.13
+Nodes (17): apply(), busqueda_en_espanol_ingles_y_por_grupo(), catalog_len(), display_name(), el_catalogo_es_completo_y_por_categorias(), es_index(), FREQUENT_SHOWN, list() (+9 more)
 
 ### Community 145 - "meta"
 Cohesion: 0.40
 Nodes (5): meta, name, outputs, runs-on, version
 
-### Community 147 - "cached.rs"
+### Community 147 - "MediaVariant"
 Cohesion: 0.04
-Nodes (55): AudioInfo, DEFAULT_REACTIONS, FileKind, Document, Photo, FileRef, Media, MediaKind (+47 more)
+Nodes (56): MediaApi, AudioInfo, ChatInfo, DEFAULT_REACTIONS, display_name_joins_parts(), FileKind, Document, Photo (+48 more)
 
-### Community 149 - "tc-telegram/src/convert.rs"
-Cohesion: 0.06
-Nodes (28): document_file_ref(), entities_from_tl(), entities_to_tl(), entity_parts(), forward_name(), media_from_document(), media_from_tl(), message_from_tl() (+20 more)
+### Community 149 - "linux.rs"
+Cohesion: 0.25
+Nodes (8): aviso_real(), DbusNotifier, DEFAULT_ACTION, DEST, Ids, ids_retira_solo_si_coincide(), lock(), PATH
 
 ### Community 150 - "tc-store/src/convert.rs"
 Cohesion: 0.07
 Nodes (48): voice_notes_and_music_survive_the_cache(), apply_dialogs(), apply_history(), cached_dialogs(), cached_history(), decode_entities(), decode_sticker(), decode_sticker_file() (+40 more)
 
 ### Community 151 - "file_name.rs"
-Cohesion: 0.14
-Nodes (23): assert_safe(), bidi_control(), DEFAULT_FILE_NAME, examples(), forbidden(), is_reserved(), long_names_keep_their_extension_and_char_boundaries(), MAX_EXT_BYTES (+15 more)
-
-### Community 152 - "tc-telegram/src/reactions.rs"
-Cohesion: 0.16
-Nodes (14): av(), Available, chat_allowed(), CHAT_TTL, ChatAllowed, All, None, Some (+6 more)
+Cohesion: 0.07
+Nodes (37): assert_safe(), bidi_control(), DEFAULT_FILE_NAME, examples(), forbidden(), is_reserved(), long_names_keep_their_extension_and_char_boundaries(), MAX_EXT_BYTES (+29 more)
 
 ### Community 153 - "MuteFor"
 Cohesion: 0.20
 Nodes (6): MuteFor, .ALL, EightHours, Forever, Hour, TwoDays
 
 ### Community 154 - "vault.rs"
-Cohesion: 0.13
-Nodes (22): DeadVault, DeadVault, check_key(), CHUNK_HEADER_LEN, CHUNK_MAGIC, chunked_vault_reports_missing_parts_and_keeps_magic_values_intact(), chunked_vault_splits_large_values_and_cleans_up(), clear_session() (+14 more)
+Cohesion: 0.19
+Nodes (17): CHUNK_HEADER_LEN, CHUNK_MAGIC, chunked_vault_reports_missing_parts_and_keeps_magic_values_intact(), chunked_vault_splits_large_values_and_cleans_up(), ChunkedVault, delete_secret_chat_key(), key_ref_is_a_name_not_a_secret(), KEYRING_MAX_ENTRY (+9 more)
 
-### Community 156 - "tc-telegram/src/lib.rs"
-Cohesion: 0.07
-Nodes (15): Feed, None, Pool, Source, GrammersBackend, has_login_token(), Inner, persister() (+7 more)
+### Community 156 - "src/login.rs"
+Cohesion: 0.17
+Nodes (12): clean_code(), CODE_ID, code_where(), codigo_solo_cifras_y_recortado(), countdown(), cuentas_atras(), errores_con_texto_propio(), login_error() (+4 more)
 
-### Community 161 - "view/mod.rs"
-Cohesion: 0.07
-Nodes (34): PANEL_H, card_body(), dir_panel(), dl(), icon_button(), link(), link_color(), CELL (+26 more)
+### Community 157 - "tc-telegram/src/media.rs"
+Cohesion: 0.10
+Nodes (13): BIG_FILE, Cancel, input_media(), is_file_reference_error(), MAX_DOWNLOADS, MAX_FILE, MAX_IN_MEMORY, MAX_PARTS (+5 more)
 
-### Community 162 - "palette.py"
-Cohesion: 0.24
-Nodes (7): build(), enc(), in_gamut(), lum(), pairs_for(), ratio(), to_hex()
+### Community 158 - ".on_chat"
+Cohesion: 0.19
+Nodes (3): App, ArchivedLoaded, Chat
+
+### Community 161 - "find_bar.rs"
+Cohesion: 0.10
+Nodes (27): filter_label(), handle(), HANDLES, icon(), icon_fill(), icon_turned(), icons!, TURNED (+19 more)
+
+### Community 162 - "UserId"
+Cohesion: 0.09
+Nodes (14): ProfileApi, UserId, ProfilePhoto, User, UserStatus, LastSeen, Offline, Online (+6 more)
 
 ### Community 164 - "apply_media_extra"
 Cohesion: 0.23
@@ -839,37 +895,49 @@ Nodes (3): AnimTarget, App, Gif
 Cohesion: 0.39
 Nodes (8): decode(), decodes_known_bit_layout(), encode(), from_samples(), MAX, resample(), resample_and_from_samples(), roundtrip_any_length()
 
-### Community 167 - "tc-telegram/src/forum.rs"
-Cohesion: 0.13
-Nodes (8): apply_update(), current_topic(), in_topic(), is_forum(), route_new_message(), topic_of(), topic_reply_to(), Topics
+### Community 167 - "Event"
+Cohesion: 0.07
+Nodes (31): Event, Deleted, Discarded, Duplicate, HistoryFlushed, KeyChanged, PeerLayer, PeerLayerNewer (+23 more)
 
 ### Community 169 - ".update_inner"
-Cohesion: 0.10
-Nodes (8): BubbleOpacity, BubbleY, Reply, Files, PhotoStep, PickerNav, SetFolder, App
+Cohesion: 0.08
+Nodes (10): BubbleOpacity, BubbleY, Compose, Edit, Normal, Reply, Edit, Key (+2 more)
 
-### Community 170 - "Decoded"
-Cohesion: 0.33
-Nodes (6): decode_avatar(), decode_cover(), decode_fit(), Decoded, load(), off_thread()
+### Community 170 - "NotifySettings"
+Cohesion: 0.13
+Nodes (11): BurstLimit, DoNotDisturb, Off, On, Until, Engine, NotifySettings, Preview (+3 more)
 
-### Community 171 - "sweep.py"
-Cohesion: 0.27
-Nodes (4): classify(), main(), report(), scan()
+### Community 171 - "decode_mp4"
+Cohesion: 0.13
+Nodes (22): Clip, Collector, decode_mp4(), decode_track(), Frame, L, looks_like_mp4(), encoge_y_despues_quita_fotogramas_para_caber() (+14 more)
 
-### Community 172 - "tests_panel.rs"
-Cohesion: 0.17
-Nodes (19): GifMsg, AnimLoaded, More, Query, Results, Retry, Saved, Scrolled (+11 more)
+### Community 172 - "tc-telegram/src/forum.rs"
+Cohesion: 0.18
+Nodes (9): history_params(), reply_to(), apply_update(), current_topic(), is_forum(), route_new_message(), topic_of(), topic_reply_to() (+1 more)
+
+### Community 173 - "Suppress"
+Cohesion: 0.13
+Nodes (19): ChatInfo, ChatKind, Channel, Group, Private, Secret, check(), ok() (+11 more)
 
 ### Community 174 - "tests_qa.rs"
 Cohesion: 0.28
 Nodes (13): boot_open(), f04_doble_enter_no_duplica_el_mensaje(), f04_reintento_conserva_random_id_y_no_duplica_en_el_backend(), f04_texto_con_emoji_acentos_y_saltos_se_envia_integro(), f04_texto_de_mas_de_4096_avisa_y_no_deja_burbuja(), f04_texto_vacio_o_en_blanco_no_se_envia(), f05_borrar_el_citado_cancela_la_respuesta(), f05_responder_lleva_reply_to_y_cancelar_lo_quita() (+5 more)
 
-### Community 179 - "Overlay"
-Cohesion: 0.25
-Nodes (7): Overlay, Delete, DownloadDir, Key, NewSecret, Photo, Ttl
+### Community 175 - "Step"
+Cohesion: 0.33
+Nodes (6): Step, Checking, Code, Password, Phone, SignUp
 
-### Community 183 - "Measurer"
-Cohesion: 0.43
-Nodes (3): Fixed, Measurer, Run
+### Community 179 - "tc-telegram/src/auth.rs"
+Cohesion: 0.11
+Nodes (11): AuthInner, code_kind(), code_types_map(), migrate_dc(), next_kind(), phone_validation(), qr_url(), qr_url_is_unpadded_base64url() (+3 more)
+
+### Community 183 - "tests/media.rs"
+Cohesion: 0.17
+Nodes (16): media_from_tl(), audio_attr(), doc(), full_voice_download_joins_parts_and_reports_progress(), media(), music_round_videos_and_bare_audio_documents(), voice_note_keeps_waveform_duration_mime_and_full_file(), channel_reference_refresh_uses_channels_get_messages_and_long_flood_is_reported() (+8 more)
+
+### Community 184 - "tests/search.rs"
+Cohesion: 0.25
+Nodes (12): busca_en_el_chat_con_texto_offset_y_limite_e_ingiere_usuarios(), cada_filtro_usa_su_input_messages_filter(), CH, chat_secreto_no_soportado_y_error_de_red_se_propaga(), en_un_tema_va_top_msg_id_y_el_scope_lo_aplica(), filter_id(), hit(), pagina_llena_da_next_y_la_ultima_no() (+4 more)
 
 ### Community 185 - "Item"
 Cohesion: 0.29
@@ -877,31 +945,43 @@ Nodes (5): Item, Date, Edge, Msg, UnreadMark
 
 ### Community 186 - "tests_downloads.rs"
 Cohesion: 0.05
-Nodes (70): App, default_dir(), default_dir_in(), dest_in(), DIR_KEY, Dl, DlMsg, Cancel (+62 more)
+Nodes (68): App, default_dir(), default_dir_in(), dest_in(), DIR_KEY, Dl, DlMsg, Cancel (+60 more)
 
-### Community 187 - "doc_media"
-Cohesion: 0.50
-Nodes (3): doc_media(), document(), media_photos_documents_and_stickers()
+### Community 187 - "palette.py"
+Cohesion: 0.24
+Nodes (7): build(), enc(), in_gamut(), lum(), pairs_for(), ratio(), to_hex()
 
-### Community 189 - "measure.rs"
-Cohesion: 0.09
-Nodes (23): BODY, CAPTION, CODE, DISPLAY, EMOJI_ONLY, HEADING, META, TextStyle (+15 more)
+### Community 188 - "sweep.py"
+Cohesion: 0.27
+Nodes (4): classify(), main(), report(), scan()
+
+### Community 189 - "TextStyle"
+Cohesion: 0.13
+Nodes (16): BODY, CAPTION, CODE, DISPLAY, EMOJI_ONLY, HEADING, META, TextStyle (+8 more)
 
 ### Community 191 - "tests_chat_actions.rs"
-Cohesion: 0.25
+Cohesion: 0.27
 Nodes (15): action_error_text(), a_chat_never_appears_twice_after_reloading_the_lists(), a_user(), archive_is_optimistic_reverts_on_error_and_can_be_undone(), boot(), chat_menu_items_depend_on_the_kind_of_chat(), chat_msg(), delete_key_asks_then_removes_and_restores_on_error() (+7 more)
 
 ### Community 194 - "Informe de emprendedor: qué molesta, qué falta y qué plan de mejoras para Parlo"
 Cohesion: 0.20
 Nodes (9): 0. Muestra y límites (leer primero), 1. Lo que MÁS molesta (quejas sobre lo que el original hace), 2. Lo que FALTA (peticiones por nombre), 3. Lo NO resuelto (trabajos o grupos que el original ignora), 4. Cruce con replica/diff-report.md y replica/features.csv, 5. Plan de mejoras priorizado, 6. Ángulo de venta (documentado, NO perseguido: uso personal), 7. Siguientes pasos (+1 more)
 
-### Community 199 - "Body"
-Cohesion: 0.50
-Nodes (4): Body, Bubble, Emoji, Sticker
+### Community 199 - "tc-mock/src/search.rs"
+Cohesion: 0.32
+Nodes (10): filtros_por_tipo(), mock(), paginacion_sin_repetir_y_borrado(), peer(), q(), say(), search(), sin_red_falla() (+2 more)
 
 ### Community 202 - "tc-mock/src/gifs.rs"
-Cohesion: 0.15
+Cohesion: 0.12
 Nodes (17): by_id(), download(), encode_gif(), encode_png(), frame(), FRAMES, GIF_BASE, guardados_busqueda_y_bytes() (+9 more)
+
+### Community 203 - "fetch_cached"
+Cohesion: 0.27
+Nodes (6): check_key(), fetch_cached_goes_to_the_network_once_and_never_for_secrets(), keys_depend_on_id_and_size_and_skip_secrets(), media_key(), photo_ref(), profile_photo_key()
+
+### Community 205 - "chat_actions.rs"
+Cohesion: 0.13
+Nodes (15): ChatActions, Confirm, Block, ClearHistory, DeleteChat, DeleteMessages, Leave, EDIT_WINDOW_SECS (+7 more)
 
 ### Community 207 - "ADR-0007: Audio (notas de voz y música)"
 Cohesion: 0.50
@@ -915,29 +995,85 @@ Nodes (4): on, push, workflow_dispatch, tags
 Cohesion: 0.67
 Nodes (3): GH_TOKEN, VERSION, env
 
+### Community 217 - "tests_find.rs"
+Cohesion: 0.23
+Nodes (19): highlight_ranges(), boot(), counter(), deliver(), deliver_window(), en_un_chat_secreto_no_se_busca(), en_un_tema_de_foro_busca_solo_en_el_tema(), esc_cierra_y_restaura_la_ventana_y_la_posicion() (+11 more)
+
+### Community 220 - "layout_message"
+Cohesion: 0.19
+Nodes (9): emoji_only(), input(), layout_message(), LayoutCache, LayoutInput, maquetacion_meta_en_linea_o_debajo(), meta_width(), runs() (+1 more)
+
+### Community 221 - "Category"
+Cohesion: 0.14
+Nodes (12): Category, Activities, .ALL, Animals, Flags, Food, Objects, People (+4 more)
+
+### Community 222 - "windows.rs"
+Cohesion: 0.07
+Nodes (23): bytes_a_cache_estable(), escapa_marcado(), escape_xml(), extension(), icon_path(), ruta_tal_cual(), Icon, Bytes (+15 more)
+
 ### Community 223 - "anim_tests.rs"
 Cohesion: 0.26
 Nodes (10): fotograma_por_tiempo_a_30_fps_como_mucho(), gzip(), info(), movimiento_reducido_foco_y_visibilidad(), MOVING, ms(), siguientes_fotogramas_en_bucle(), sin_lottie_no_hay_animacion() (+2 more)
 
-### Community 226 - "peers.rs"
-Cohesion: 0.10
-Nodes (30): MAX_TEXT, MAX_DELETE_ROUNDS, channel_group(), channel_of(), CHANNEL_OFFSET, chat_group(), decode_group(), group_ids_roundtrip_and_never_collide() (+22 more)
+### Community 225 - "tests_panel.rs"
+Cohesion: 0.49
+Nodes (9): boot_in_chat(), emoji_en_el_cursor_recientes_busqueda_y_tono(), gifs_guardados_busqueda_envio_y_reintento(), gm(), los_gif_reales_se_animan_con_el_reloj_compartido(), NOW, pestanas_atajos_y_cierre(), pm() (+1 more)
+
+### Community 226 - "tc_core"
+Cohesion: 0.15
+Nodes (12): MAX_TEXT, MessagesApiSearch, MAX_DELETE_ROUNDS, channel_of(), CHANNEL_OFFSET, decode_group(), GroupTarget, Channel (+4 more)
+
+### Community 227 - "sticker_img.rs"
+Cohesion: 0.12
+Nodes (12): StickerFormat, Lottie, Webm, Webp, LOCAL_SEND_PX, BUBBLE_PX, CELL_PX, key() (+4 more)
+
+### Community 232 - "mux"
+Cohesion: 0.44
+Nodes (8): archivos_rotos_dan_error_sin_panico(), lee_la_tabla_de_muestras_y_los_parametros(), sample(), fbox(), full(), mux(), MuxSample, u32s()
+
+### Community 234 - "Login"
+Cohesion: 0.18
+Nodes (8): Field, Code, Password, Phone, left(), Login, Qr, un_logged_out_repetido_no_borra_lo_escrito()
+
+### Community 235 - "CodeKind"
+Cohesion: 0.22
+Nodes (9): CodeKind, App, Call, Email, FlashCall, MissedCall, Other, Sms (+1 more)
 
 ### Community 236 - "tests_panel_shots.rs"
 Cohesion: 0.29
 Nodes (5): App, capturas_del_panel(), colorful(), settings(), shot()
 
 ### Community 237 - "context_menu.rs"
-Cohesion: 0.06
-Nodes (43): ChatActions, EDIT_WINDOW_SECS, ForwardPicker, InfoView, Menu, MenuTarget, message_link(), Undo (+35 more)
+Cohesion: 0.08
+Nodes (30): act(), archive_row(), buttons(), chat(), chat_items(), confirm_panel(), CursorProbe, danger() (+22 more)
+
+### Community 238 - "PanelTab"
+Cohesion: 0.13
+Nodes (11): GifPanel, Search, EMOJI_SEARCH_ID, EmojiPanel, GIF_SEARCH_ID, Panel, PanelTab, .ALL (+3 more)
+
+### Community 239 - "pathbuf"
+Cohesion: 0.16
+Nodes (12): capturas_de_la_descarga(), settings(), shot(), capturas_de_la_busqueda(), deliver(), frames(), settings(), shot() (+4 more)
+
+### Community 240 - "ADR-0012: Búsqueda dentro de un chat"
+Cohesion: 0.50
+Nodes (3): ADR-0012: Búsqueda dentro de un chat, Consecuencias, Decisiones
 
 ### Community 241 - "tc-mock/src/audio.rs"
 Cohesion: 0.46
 Nodes (7): BARS, deterministic_and_well_formed(), mix(), RATE, voice_wav(), wav_len(), waveform()
 
+### Community 242 - "math"
+Cohesion: 0.32
+Nodes (4): oklch_to_linear(), blob(), open_blob(), wobble()
+
 ### Community 243 - "ADR-0008: Stickers animados (TGS con rlottie; WebM estático)"
 Cohesion: 0.33
 Nodes (5): ADR-0008: Stickers animados (TGS con rlottie; WebM estático), Consecuencias, Decisión, TGS (Lottie con gzip): animado con rlottie, por defecto solo en Linux, WebM (vídeo VP9 con alfa): queda estático (miniatura)
+
+### Community 244 - "backend"
+Cohesion: 0.22
+Nodes (14): authorization(), state(), user(), invalid_code_keeps_waiting(), phone_code_and_2fa_login_with_dc_migration(), qr_login_renews_migrates_and_completes(), sent_code(), startup_without_session_is_logged_out_and_secret_chats_need_login() (+6 more)
 
 ### Community 247 - "ADR-0009: Teclado de emojis"
 Cohesion: 0.50
@@ -947,29 +1083,17 @@ Nodes (3): ADR-0009: Teclado de emojis, Consecuencias, Decisiones
 Cohesion: 0.50
 Nodes (3): ADR-0010: GIFs (guardados, búsqueda, envío y animación), Consecuencias, Decisiones
 
-### Community 253 - "media_key"
-Cohesion: 0.14
-Nodes (4): fetch_cached_goes_to_the_network_once_and_never_for_secrets(), layer_passes_disk_downloads_through_without_caching(), media_key(), photo_ref()
-
 ### Community 275 - "tests_forum.rs"
-Cohesion: 0.22
-Nodes (11): abrir_un_foro_muestra_la_lista_de_temas(), abrir_un_tema_en_su_primer_no_leido_y_volver(), boot(), busy(), crear_un_tema_lo_abre(), enviar_dentro_del_tema_y_eventos_de_otros_temas(), marcar_leido_desde_el_menu_y_tema_cerrado(), NOW (+3 more)
+Cohesion: 0.20
+Nodes (12): PAGE, abrir_un_foro_muestra_la_lista_de_temas(), abrir_un_tema_en_su_primer_no_leido_y_volver(), boot(), busy(), crear_un_tema_lo_abre(), enviar_dentro_del_tema_y_eventos_de_otros_temas(), marcar_leido_desde_el_menu_y_tema_cerrado() (+4 more)
 
-### Community 285 - "Event"
-Cohesion: 0.06
-Nodes (38): OsEntropy, DiscardReason, FingerprintMismatch, InvalidPublicValue, Local, RekeyFailure, Remote, ResendUnavailable (+30 more)
+### Community 285 - ".get"
+Cohesion: 0.28
+Nodes (3): ChunkedVault<V>, KeyringVault, without_dbus_degrades_to_unavailable_instead_of_panicking()
 
 ### Community 288 - "Plan de acción: los 5 primeros faltantes del informe de paridad"
 Cohesion: 0.22
 Nodes (8): A. Envío, descarga y guardado de archivos, B. Búsqueda dentro de un chat, C. Notificaciones de escritorio, Fuera de alcance por ahora, Los 5 puntos y dónde se resuelven, Orden y dependencias, Plan de acción: los 5 primeros faltantes del informe de paridad, Reparto sugerido
-
-### Community 297 - "blob"
-Cohesion: 0.32
-Nodes (4): oklch_to_linear(), blob(), open_blob(), wobble()
-
-### Community 300 - "CodeKind"
-Cohesion: 0.22
-Nodes (9): CodeKind, App, Call, Email, FlashCall, MissedCall, Other, Sms (+1 more)
 
 ### Community 304 - "Informe de paridad: Parlo frente al cliente original"
 Cohesion: 0.25
@@ -979,6 +1103,10 @@ Nodes (7): Diferencias de comportamiento (paso 3 de la skill), Filas «partial»
 Cohesion: 0.50
 Nodes (3): ADR-0011: Transferencias (subidas y descargas a disco con progreso y cancelación), Consecuencias, Decisiones
 
+### Community 306 - "tc-ui/src/media.rs"
+Cohesion: 0.17
+Nodes (13): AVATAR_PX, avatars_are_square_and_downscaled(), bubble_aspect(), BUBBLE_ASPECT, bubble_photos_are_cropped_to_the_layout_ratio(), BUBBLE_PX, CACHE_BYTES, jpeg() (+5 more)
+
 ### Community 309 - "Nav"
 Cohesion: 0.15
 Nodes (10): la_rejilla_se_recorre_con_flechas_sin_salirse(), Nav, Activate, Down, Left, NextTab, PrevTab, Right (+2 more)
@@ -987,41 +1115,89 @@ Nodes (10): la_rejilla_se_recorre_con_flechas_sin_salirse(), Nav, Activate, Down
 Cohesion: 0.40
 Nodes (4): B-01 (S3) Texto de más de 4096 caracteres: burbuja condenada y aviso equivocado, Bugs (replica-test, 2026-11-14), Por comprobar (no reproducido), Por severidad
 
-### Community 326 - "tests_media.rs"
-Cohesion: 0.32
-Nodes (11): Event, arrow_event(), boot(), deliver(), el_progreso_de_descarga_se_registra_y_se_limpia(), esc_event(), fotos_de_la_conversacion_y_visor(), key_event() (+3 more)
-
-### Community 335 - "tc-ui/src/anim.rs"
-Cohesion: 0.07
-Nodes (28): ByteLru<K, V>, HIGHLIGHT_FADE_MS, MotionPreference, Full, Reduced, Property, Opacity, Position (+20 more)
+### Community 326 - "Backend"
+Cohesion: 0.16
+Nodes (18): Overlay, Delete, DownloadDir, Key, NewSecret, Photo, Ttl, Event (+10 more)
 
 ### Community 337 - "Easing"
 Cohesion: 0.33
 Nodes (5): Easing, .ESTANDAR, .RAPIDO, .SALIDA, .SUAVE
 
-### Community 342 - "Slot"
+### Community 339 - "map_error"
+Cohesion: 0.23
+Nodes (7): DownloadError, Backend, FileReference, PartReader, storage(), too_large(), map_error()
+
+### Community 343 - "VaultResult"
+Cohesion: 0.24
+Nodes (5): DeadVault, DeadVault, clear_session(), SecretVault, VaultResult
+
+### Community 350 - "Spring"
+Cohesion: 0.18
+Nodes (10): HIGHLIGHT_FADE_MS, REDUCED_OPACITY_MAX_MS, SKELETON_PULSE_PERIOD_MS, Spring, .ESTANDAR, .RAPIDO, .REBOTE, .SUAVE (+2 more)
+
+### Community 356 - "Decoded"
+Cohesion: 0.29
+Nodes (8): decode_avatar(), decode_cover(), decode_fit(), Decoded, load(), off_thread(), decode(), fit()
+
+### Community 366 - "MotionPreference"
+Cohesion: 0.22
+Nodes (7): MotionPreference, Full, Reduced, Property, Opacity, Position, Scale
+
+### Community 367 - ".start"
+Cohesion: 0.40
+Nodes (5): Animator<K>, Curve, interrumpible_hereda_posicion(), movimiento_reducido_salta_posicion_y_limita_opacidad(), muelle_converge_y_termina()
+
+### Community 368 - "ADR-0013: Notificaciones de escritorio (crate `tc-notify`)"
+Cohesion: 0.40
+Nodes (4): ADR-0013: Notificaciones de escritorio (crate `tc-notify`), Consecuencias, Decisiones, Verificación (2026-11-14)
+
+### Community 369 - "GifMsg"
+Cohesion: 0.20
+Nodes (10): GifMsg, AnimLoaded, More, Query, Results, Retry, Saved, Scrolled (+2 more)
+
+### Community 370 - "Body"
+Cohesion: 0.50
+Nodes (4): Body, Bubble, Emoji, Sticker
+
+### Community 371 - "Secret"
+Cohesion: 0.44
+Nodes (3): check_key(), MemoryVault, Secret
+
+### Community 372 - "VaultError"
+Cohesion: 0.31
+Nodes (7): construction_and_validation_do_not_touch_the_system(), live_roundtrip(), map_err(), VaultError, Backend, InvalidKey, Unavailable
+
+### Community 373 - "instant"
+Cohesion: 0.38
+Nodes (5): Anim, Animator, Kind, Linear, Spring
+
+### Community 376 - "MsgKey"
+Cohesion: 0.67
+Nodes (3): MsgKey, Id, Random
+
+### Community 377 - "Slot"
 Cohesion: 0.50
 Nodes (4): Slot, Failed, Loading, Ready
 
 ## Knowledge Gaps
-- **570 isolated node(s):** `First`, `Last`, `Middle`, `Single`, `Channels` (+565 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1951 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **163 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **614 isolated node(s):** `Connecting`, `Auth`, `Main`, `Do`, `Shot` (+609 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 2074 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **171 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Msg` connect `Msg` to `style.rs`, `App`, `tests_reactions.rs`, `tc-telegram/src/secret.rs`, `ImageKey`, `PanelMsg`, `tests_files.rs`, `ChatMsg`, `.sticker_send_task`, `topics.rs`, `tests_forum.rs`, `ForumMsg`, `view/mod.rs`, `send_dialog.rs`, `App`, `app.rs`, `.sticker_send_task`, `.update_inner`, `Decoded`, `tc-ui/src/stickers.rs`, `tests_panel.rs`, `tests_qa.rs`, `Overlay`, `Nav`, `tests_downloads.rs`, `Frame`, `tests_chat_actions.rs`, `pack.rs`, `App`, `restored`, `tests_media.rs`, `view/audio.rs`, `FilesMsg`, `tests_audio.rs`, `tc-ui/src/audio.rs`, `reading.rs`, `view/login.rs`, `src/login.rs`, `tc-ui/src/tests.rs`, `main.rs`, `tests_panel_shots.rs`, `context_menu.rs`, `Backend`, `tests_sticker_anim.rs`, `sticker_anim.rs`?**
-  _High betweenness centrality (0.109) - this node is a cross-community bridge._
-- **Are the 31 inferred relationships involving `Msg` (e.g. with `Message` and `DlMsg`) actually correct?**
-  _`Msg` has 31 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `First`, `Last`, `Middle` to the rest of the system?**
-  _570 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Why does `Msg` connect `Msg` to `style.rs`, `find.rs`, `tests_reactions.rs`, `ImageKey`, `PanelMsg`, `tests_files.rs`, `ChatMsg`, `.sticker_send_task`, `topics.rs`, `tests_forum.rs`, `ForumMsg`, `tc-telegram/src/secret.rs`, `src/login.rs`, `.on_chat`, `find_bar.rs`, `send_dialog.rs`, `App`, `app.rs`, `.sticker_send_task`, `.update_inner`, `tests_qa.rs`, `Nav`, `tests_downloads.rs`, `Frame`, `tests_chat_actions.rs`, `.on_reacted`, `pack.rs`, `App`, `Backend`, `view/audio.rs`, `FilesMsg`, `chat_actions.rs`, `tests_audio.rs`, `tc-ui/src/audio.rs`, `reading.rs`, `view/login.rs`, `LoginMsg`, `tc-ui/src/tests.rs`, `tests_find.rs`, `main.rs`, `tests_panel.rs`, `Decoded`, `tests/secret.rs`, `tests_panel_shots.rs`, `tests_m2.rs`, `context_menu.rs`, `pathbuf`, `tests_sticker_anim.rs`, `sidebar.rs`, `sticker_anim.rs`, `.apply_auth`?**
+  _High betweenness centrality (0.125) - this node is a cross-community bridge._
+- **Are the 33 inferred relationships involving `Msg` (e.g. with `ChatMsg` and `Message`) actually correct?**
+  _`Msg` has 33 INFERRED edges - model-reasoned connections that need verification._
+- **What connects `Connecting`, `Auth`, `Main` to the rest of the system?**
+  _614 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `style.rs` be split into smaller, more focused modules?**
-  _Cohesion score 0.13333333333333333 - nodes in this community are weakly interconnected._
-- **Why does `App` connect `App` to `style.rs`, `tests_reactions.rs`, `Msg`, `ImageKey`, `PanelMsg`, `tests_files.rs`, `ChatMsg`, `.sticker_send_task`, `topics.rs`, `tests_forum.rs`, `ForumMsg`, `tc-mock/src/forum.rs`, `view/mod.rs`, `send_dialog.rs`, `app.rs`, `.sticker_send_task`, `.update_inner`, `tc-ui/src/stickers.rs`, `tests_panel.rs`, `tests_qa.rs`, `Overlay`, `Nav`, `tests_downloads.rs`, `tests_chat_actions.rs`, `App`, `tests_media.rs`, `view/audio.rs`, `tests_audio.rs`, `tc-ui/src/anim.rs`, `tc-ui/src/audio.rs`, `Easing`, `reading.rs`, `view/login.rs`, `src/login.rs`, `tc-ui/src/tests.rs`, `main.rs`, `tests_panel_shots.rs`, `Backend`, `context_menu.rs`, `tests_sticker_anim.rs`, `sticker_anim.rs`, `ThreadRef`?**
-  _High betweenness centrality (0.065) - this node is a cross-community bridge._
-- **Are the 7 inferred relationships involving `App` (e.g. with `ChatActions` and `ForumUi`) actually correct?**
-  _`App` has 7 INFERRED edges - model-reasoned connections that need verification._
-- **Should `App` be split into smaller, more focused modules?**
-  _Cohesion score 0.06384180790960452 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.11529680365296803 - nodes in this community are weakly interconnected._
+- **Why does `App` connect `App` to `style.rs`, `find.rs`, `tests_reactions.rs`, `Msg`, `ImageKey`, `tests_files.rs`, `.sticker_send_task`, `topics.rs`, `tests_forum.rs`, `tc-store/src/convert.rs`, `ForumMsg`, `src/login.rs`, `.on_chat`, `tc-mock/src/forum.rs`, `find_bar.rs`, `send_dialog.rs`, `app.rs`, `.sticker_send_task`, `.update_inner`, `tc-ui/src/stickers.rs`, `tests_qa.rs`, `Nav`, `tests_downloads.rs`, `tests_chat_actions.rs`, `Backend`, `view/audio.rs`, `FilesMsg`, `chat_actions.rs`, `tests_audio.rs`, `tc-ui/src/audio.rs`, `Easing`, `reading.rs`, `view/login.rs`, `tc-ui/src/tests.rs`, `tests_find.rs`, `tests_panel.rs`, `Login`, `tests_panel_shots.rs`, `tests_m2.rs`, `PanelTab`, `pathbuf`, `tests_sticker_anim.rs`, `context_menu.rs`, `sidebar.rs`, `sticker_anim.rs`, `instant`, `tc-core/src/lib.rs`?**
+  _High betweenness centrality (0.057) - this node is a cross-community bridge._
+- **Are the 9 inferred relationships involving `App` (e.g. with `ChatActions` and `Downloads`) actually correct?**
+  _`App` has 9 INFERRED edges - model-reasoned connections that need verification._
+- **Should `find.rs` be split into smaller, more focused modules?**
+  _Cohesion score 0.058823529411764705 - nodes in this community are weakly interconnected._

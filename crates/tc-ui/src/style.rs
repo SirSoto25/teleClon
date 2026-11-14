@@ -534,6 +534,32 @@ pub fn option_row(b: Brasa, active: bool) -> impl Fn(&Theme, button::Status) -> 
     }
 }
 
+/// Chip de filtro (búsqueda en el chat): píldora `surface-raised` con borde `border`; el elegido
+/// `surface-selected` con borde `accent` (además lleva un check: no solo color).
+pub fn filter_chip(b: Brasa, active: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
+    move |_, status| button::Style {
+        background: Some(
+            c(if active {
+                b.p.surface_selected
+            } else if status == button::Status::Hovered {
+                b.p.surface_hover
+            } else {
+                b.p.surface_raised
+            })
+            .into(),
+        ),
+        text_color: c(b.p.text),
+        border: Border { radius: r(radius::PILL), width: border_width::HAIRLINE, color: c(if active { b.p.accent } else { b.p.border }) },
+        shadow: Shadow::default(),
+        snap: true,
+    }
+}
+
+/// Banda del resultado de búsqueda seleccionado (alfa `highlight`, a todo el ancho de la columna).
+pub fn find_band(b: Brasa) -> impl Fn(&Theme) -> container::Style {
+    move |_| container::Style { background: Some(ca(b.a.highlight).into()), border: Border { radius: r(radius::MD), ..Default::default() }, ..Default::default() }
+}
+
 /// Etiqueta «EXPERIMENTAL»: texto `warning` sobre `warning` al 14 %, borde `warning`, píldora.
 pub fn experimental_pill(b: Brasa) -> impl Fn(&Theme) -> container::Style {
     move |_| container::Style {

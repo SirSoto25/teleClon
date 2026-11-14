@@ -1,0 +1,32 @@
+[package]
+name = "tc-notify"
+description = "Notificaciones de escritorio de Parlo: interfaz Notifier, implementaciones por SO (D-Bus, toasts WinRT, NSUserNotification) y reglas puras de cuándo y cómo avisar (ADR-0013)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+tracing.workspace = true
+# Canal de eventos de vuelta (clic, acción) que la UI consume como Stream.
+futures.workspace = true
+
+# Linux y BSD: org.freedesktop.Notifications por D-Bus con zbus (Rust puro, sin libdbus; ya está en el
+# árbol por el llavero Secret Service). API bloqueante con su ejecutor interno (async-io).
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+zbus = { workspace = true }
+
+# Windows: toasts WinRT con el crate oficial `windows` (sin C; tag/grupo por chat y retirada).
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true, features = [
+    "Data_Xml_Dom",
+    "Foundation",
+    "UI_Notifications",
+    "Win32_UI_Shell",
+] }
+
+# macOS: NSUserNotification vía mac-notification-sys (compila un .m con clang de Xcode).
+[target.'cfg(target_os = "macos")'.dependencies]
+mac-notification-sys = { workspace = true }

@@ -35,6 +35,11 @@
   <true/>
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
+  <!-- Notificaciones (ADR-0013): NSUserNotification no pide permiso con un diálogo; macOS registra la app en
+       Ajustes > Notificaciones la primera vez que avisa. «alert» hace que los avisos se queden en pantalla
+       con sus botones («Marcar como leído»); el usuario puede cambiarlo a «banner» en Ajustes. -->
+  <key>NSUserNotificationAlertStyle</key>
+  <string>alert</string>
   <key>NSHumanReadableCopyright</key>
   <string>Parlo · MIT OR Apache-2.0</string>
 </dict>

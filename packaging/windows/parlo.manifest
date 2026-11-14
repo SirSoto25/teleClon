@@ -3,6 +3,10 @@
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0" xmlns:asmv3="urn:schemas-microsoft-com:asm.v3">
   <assemblyIdentity type="win32" name="app.parlo.Parlo" version="0.0.1.0" processorArchitecture="*"/>
   <description>Parlo</description>
+  <!-- AppUserModelID (notificaciones, ADR-0013): un manifiesto Win32 no puede declararlo (solo los paquetes
+       MSIX). Lo fijan el acceso directo del instalador (parlo.iss, AppUserModelID "app.parlo.Parlo") y el
+       propio proceso al arrancar (tc-notify: SetCurrentProcessExplicitAppUserModelID). El zip portable no
+       crea acceso directo: sin él Windows no muestra los toasts. -->
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
     <security>
       <requestedPrivileges>

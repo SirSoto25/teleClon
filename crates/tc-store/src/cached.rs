@@ -29,7 +29,7 @@ use tc_core::{
     Anchor, BackendError, BackendEvent, BackendResult, ChatBackend, Dialog, DialogsApi, DialogsPage, Draft, FileRef, Group, GroupId,
     KeyVisual, MediaApi, MediaVariant, Message, MessagesApi, MsgId, OutgoingMedia, OutgoingText, PeerRef, PhotoSize, ProfileApi,
     ProfilePhoto, RandomId, SecretChat, SecretChatId, SecretChatsApi, SendState, StickerId, StickerSet, StickersApi, TextEntity,
-    Timestamp, User, UserId,
+    SearchPage, SearchQuery, ThreadRef, Timestamp, User, UserId,
 };
 use tokio::sync::broadcast;
 
@@ -260,6 +260,66 @@ impl<B: ChatBackend> CachedBackend<B> {
                 Ok(out)
             })
             .await
+    }
+
+    /// Búsqueda en un chat o tema (ADR-0012). `trust_local`: el almacén local es completo (historial
+    /// completo) y basta para responder sin red. Si no, se pide al servidor y se fusiona con lo local
+    /// sin duplicar por id; sin red (o sin soporte) se sirve lo local. No guarda los resultados del
+    /// servidor en la caché de historial (dejarían huecos que `history` tomaría por contiguos).
+    pub(crate) async fn search_merged(
+        &self,
+        peer: PeerRef,
+        topic: Option<ThreadRef>,
+        query: SearchQuery,
+        trust_local: bool,
+    ) -> BackendResult<SearchPage> {
+        if query.limit == 0 || query.is_empty() {
+            return Ok(SearchPage::default());
+        }
+        let local = {
+            let q = query.clone();
+            self.shared
+                .db(move |s| {
+                    let Some(ck) = cv::find_chat_key(s, peer)? else { return Ok((Vec::new(), 0, false)) };
+                    let (rows, total) =
+                        s.search_chat(ck, topic.map(|t| i64::from(t.topic.0)), &q.text, q.filter, q.offset.map(|o| i64::from(o.0)), q.limit + 1)?;
+                    let complete = trust_local && s.get_dialog(ck)?.is_some_and(|d| d.history_complete);
+                    let msgs = rows.iter().map(|r| cv::load_message(s, peer, r)).collect::<StoreResult<Vec<_>>>()?;
+                    Ok((msgs, total, complete))
+                })
+                .await?
+        };
+        let (mut rows, total, complete) = local;
+        let more = rows.len() > query.limit;
+        rows.truncate(query.limit);
+        let local_page = |rows: Vec<Message>, more: bool| {
+            let next = if more { rows.last().map(|m| m.id) } else { None };
+            SearchPage { hits: rows, total: u32::try_from(total).ok(), next }
+        };
+        if complete {
+            return Ok(local_page(rows, more));
+        }
+        let remote = match topic {
+            Some(t) => self.shared.inner.search_in_topic(t, query.clone()).await,
+            None => self.shared.inner.search_in_chat(peer, query.clone()).await,
+        };
+        match remote {
+            Ok(mut page) => {
+                // Dentro del tramo que cubre el servidor se añade lo local que él no devolvió.
+                let floor = if page.next.is_some() { page.hits.last().map(|m| m.id) } else { None };
+                for m in rows {
+                    if floor.is_none_or(|f| m.id >= f) && page.hits.iter().all(|h| h.id != m.id) {
+                        page.hits.push(m);
+                    }
+                }
+                page.hits.sort_by_key(|m| std::cmp::Reverse(m.id));
+                let merged = u32::try_from(page.hits.len()).unwrap_or(u32::MAX);
+                page.total = page.total.map(|t| t.max(merged));
+                Ok(page)
+            }
+            Err(e) if is_transient(&e) || e == BackendError::Forbidden(tc_core::UNSUPPORTED.into()) => Ok(local_page(rows, more)),
+            Err(e) => Err(e),
+        }
     }
 
     /// Mensajes locales sin confirmar (pendientes o fallidos) de un chat, para ofrecer «reintentar».
@@ -626,6 +686,13 @@ impl<B: ChatBackend> MessagesApi for CachedBackend<B> {
 
     async fn pin_message(&self, peer: PeerRef, id: MsgId, pinned: bool) -> BackendResult<()> {
         self.shared.inner.pin_message(peer, id, pinned).await
+    }
+
+    async fn search_in_chat(&self, peer: PeerRef, query: SearchQuery) -> BackendResult<SearchPage> {
+        if cv::is_secret(peer) {
+            return self.shared.inner.search_in_chat(peer, query).await;
+        }
+        self.search_merged(peer, None, query, true).await
     }
 }
 

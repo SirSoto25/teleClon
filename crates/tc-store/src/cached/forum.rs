@@ -4,7 +4,7 @@
 use async_trait::async_trait;
 use tc_core::{
     Anchor, BackendResult, ChatBackend, ForumApi, ForumTopic, Gif, GroupId, Message, MsgId, OutgoingMedia, OutgoingText, PeerRef, RandomId,
-    StickerId, ThreadRef, Timestamp, TopicIcon, TopicsPage, TopicsQuery, sort_topics,
+    SearchPage, SearchQuery, StickerId, ThreadRef, Timestamp, TopicIcon, TopicsPage, TopicsQuery, sort_topics,
 };
 
 use super::{CachedBackend, is_transient};
@@ -168,6 +168,12 @@ impl<B: ChatBackend> ForumApi for CachedBackend<B> {
             }
             Err(e) => Err(e),
         }
+    }
+
+    /// Servidor primero (el almacén solo conoce los mensajes de tema que ya pasaron por la caché);
+    /// sin red, lo guardado con su tema.
+    async fn search_in_topic(&self, thread: ThreadRef, query: SearchQuery) -> BackendResult<SearchPage> {
+        self.search_merged(thread.peer(), Some(thread), query, false).await
     }
 
     async fn send_topic_text(&self, thread: ThreadRef, msg: OutgoingText) -> BackendResult<Message> {

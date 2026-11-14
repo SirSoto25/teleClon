@@ -217,6 +217,11 @@ pub trait ForumApi: Send + Sync {
         let _ = (thread, typing);
         Ok(())
     }
+    /// Busca dentro de un tema (`messages.search` con `top_msg_id`), como `MessagesApi::search_in_chat`.
+    async fn search_in_topic(&self, thread: ThreadRef, query: crate::search::SearchQuery) -> BackendResult<crate::search::SearchPage> {
+        let _ = (thread, query);
+        Err(unsupported())
+    }
     /// Crea un tema (hace falta permiso de gestionar temas, o que el grupo lo permita a todos).
     async fn create_topic(&self, group: GroupId, title: String, icon_color: Option<u32>, random_id: RandomId) -> BackendResult<ForumTopic> {
         let _ = (group, title, icon_color, random_id);
@@ -375,6 +380,13 @@ impl MessagesApi for ThreadScope {
     async fn pin_message(&self, peer: PeerRef, id: MsgId, pinned: bool) -> BackendResult<()> {
         self.inner.pin_message(peer, id, pinned).await
     }
+    async fn search_in_chat(&self, peer: PeerRef, query: crate::search::SearchQuery) -> BackendResult<crate::search::SearchPage> {
+        if self.mine(peer) {
+            let r = self.inner.search_in_topic(self.thread, query).await;
+            return self.unless_stale(r).await;
+        }
+        self.inner.search_in_chat(peer, query).await
+    }
 }
 
 #[async_trait]
@@ -475,6 +487,9 @@ impl ForumApi for ThreadScope {
     }
     async fn topic_history(&self, thread: ThreadRef, anchor: Anchor, limit: usize) -> BackendResult<Vec<Message>> {
         self.inner.topic_history(thread, anchor, limit).await
+    }
+    async fn search_in_topic(&self, thread: ThreadRef, query: crate::search::SearchQuery) -> BackendResult<crate::search::SearchPage> {
+        self.inner.search_in_topic(thread, query).await
     }
     async fn send_topic_text(&self, thread: ThreadRef, msg: OutgoingText) -> BackendResult<Message> {
         self.inner.send_topic_text(thread, msg).await

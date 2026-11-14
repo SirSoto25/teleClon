@@ -67,3 +67,7 @@ mod tests_send_shots;
 mod tests_downloads;
 #[cfg(test)]
 mod tests_download_shots;
+#[cfg(test)]
+mod tests_find;
+#[cfg(test)]
+mod tests_find_shots;

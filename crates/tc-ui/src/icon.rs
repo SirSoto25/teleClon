@@ -101,6 +101,33 @@ pub fn icon_fill<'a, M: 'a>(icon: Icon, size: f32, color: Color) -> Element<'a, 
     view(icon, true, size, color)
 }
 
+/// Variante *regular* girada media vuelta (p. ej. `caret-down` → flecha arriba). El giro va dentro
+/// del SVG (grupo `rotate(180)`), así se ve igual en todos los renderizadores.
+static TURNED: LazyLock<Vec<svg::Handle>> = LazyLock::new(|| {
+    Icon::ALL
+        .iter()
+        .map(|i| {
+            let src = String::from_utf8_lossy(i.bytes(false));
+            let svg = match (src.find('>'), src.rfind("</svg>")) {
+                (Some(a), Some(z)) if a < z => format!("{}<g transform=\"rotate(180 128 128)\">{}</g></svg>", &src[..=a], &src[a + 1..z]),
+                _ => src.into_owned(),
+            };
+            svg::Handle::from_memory(svg.into_bytes())
+        })
+        .collect()
+});
+
+/// Icono girado `half_turns` medias vueltas, sin cambiar su caja.
+pub fn icon_turned<'a, M: 'a>(icon: Icon, size: f32, color: Color, half_turns: u8) -> Element<'a, M> {
+    let h = if half_turns % 2 == 1 {
+        let idx = Icon::ALL.iter().position(|i| *i == icon).unwrap_or(0);
+        TURNED[idx].clone()
+    } else {
+        handle(icon, false)
+    };
+    svg(h).width(Length::Fixed(size)).height(Length::Fixed(size)).style(move |_, _| svg::Style { color: Some(color) }).into()
+}
+
 fn view<'a, M: 'a>(i: Icon, filled: bool, size: f32, color: Color) -> Element<'a, M> {
     svg(handle(i, filled))
         .width(Length::Fixed(size))

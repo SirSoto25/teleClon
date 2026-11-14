@@ -275,7 +275,7 @@ pub fn topic_header<'a>(app: &'a App, cv: &'a Conversation, _narrow: bool) -> Op
         },
     };
     left = left.push(column![crumb, t1(status, ts::META, color)].spacing(0));
-    let mut actions = row![].spacing(space::S1).align_y(Alignment::Center);
+    let mut actions = row![super::conversation::find_button(app)].spacing(space::S1).align_y(Alignment::Center);
     if let Some(t) = tp {
         let pin: Element<'_, Msg> = if t.pinned { icon_fill(Icon::Pin, layout::ICON_MD, c(b.p.accent_text)) } else { icon(Icon::Pin, layout::ICON_MD, c(b.p.text)) };
         actions = actions.push(button(pin).padding(8).style(style::ghost(b, radius::SM)).on_press(forum(ForumMsg::Pin(th, !t.pinned))));

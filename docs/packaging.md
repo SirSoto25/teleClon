@@ -126,6 +126,19 @@ Sin secretos todo se construye **sin firmar** y el workflow no falla.
   derecho → *Abrir*, o en macOS 15+ *Ajustes del Sistema → Privacidad y seguridad → Abrir igualmente*. Desde
   terminal: `xattr -dr com.apple.quarantine /Applications/Parlo.app`.
 
+## Notificaciones de escritorio (ADR-0013)
+
+`crates/tc-notify` avisa con el sistema de cada SO. Lo que el empaquetado debe aportar:
+
+| SO | Requisito | Dónde |
+| --- | --- | --- |
+| Linux | `parlo.desktop` instalado (`Icon=parlo`, `X-GNOME-UsesNotifications=true`): el aviso lleva la pista `desktop-entry=parlo` y el servidor toma de ahí nombre e icono; GNOME lista Parlo en *Ajustes → Notificaciones*. Sin `.desktop` el aviso sale igual, con icono genérico. Funciona sin sandbox por D-Bus (`org.freedesktop.Notifications`) con `zbus` (Rust puro): ni `libdbus` ni cabeceras. | `build-linux.sh` (tar.gz) e `install-user.sh` ya lo instalan |
+| Windows | AppUserModelID **`app.parlo.Parlo`** en el acceso directo del menú Inicio: sin él Windows 10/11 no muestra los toasts de una app de escritorio sin MSIX. El proceso declara el mismo AUMID al arrancar. Un manifiesto Win32 no puede declararlo (comentario en `parlo.manifest`). El **zip portable no tiene toasts** salvo que el usuario cree un acceso directo con ese AUMID. | `parlo.iss` (`[Icons] … AppUserModelID: "app.parlo.Parlo"`) |
+| macOS | Nada que firmar ni declarar: `NSUserNotification` no muestra diálogo de permiso; macOS añade Parlo a *Ajustes del Sistema → Notificaciones* la primera vez que avisa (ahí se puede desactivar). `NSUserNotificationAlertStyle=alert` deja los avisos en pantalla con sus botones. El remitente es el bundle id `app.parlo.Parlo`; con el binario suelto (`cargo run`) se usa el de la app instalada o el del Finder. | `Info.plist.in` |
+
+No cambiar el AUMID ni el bundle id entre versiones: Windows y macOS asocian a ellos los ajustes de
+notificaciones del usuario. Verificado solo en Linux (aviso real por D-Bus); en Windows y macOS solo compila.
+
 ## Qué está verificado y qué no (2026-11-07)
 
 Verificado en Linux (CachyOS, Rust 1.99.1): `cargo build/test/clippy -D warnings` del workspace;

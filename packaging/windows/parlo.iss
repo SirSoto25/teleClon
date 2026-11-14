@@ -52,8 +52,11 @@ Source: "{#SourceDir}\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\licenses\*"; DestDir: "{app}\licenses"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autoprograms}\Parlo"; Filename: "{app}\parlo.exe"
-Name: "{autodesktop}\Parlo"; Filename: "{app}\parlo.exe"; Tasks: desktopicon
+; AppUserModelID: Windows solo muestra toasts de una app de escritorio sin MSIX si un acceso directo del menú
+; Inicio lleva su AUMID. Debe coincidir con tc_notify::AppInfo::parlo().app_id (ADR-0013); parlo.exe declara el
+; mismo al arrancar (SetCurrentProcessExplicitAppUserModelID). No cambiarlo entre versiones.
+Name: "{autoprograms}\Parlo"; Filename: "{app}\parlo.exe"; AppUserModelID: "app.parlo.Parlo"
+Name: "{autodesktop}\Parlo"; Filename: "{app}\parlo.exe"; AppUserModelID: "app.parlo.Parlo"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\parlo.exe"; Description: "{cm:LaunchProgram,Parlo}"; Flags: nowait postinstall skipifsilent

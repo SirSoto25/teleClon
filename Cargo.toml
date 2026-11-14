@@ -16,6 +16,7 @@ members = [
     "crates/tc-telegram",
     "crates/tc-audio",
     "crates/tc-video",
+    "crates/tc-notify",
 ]
 
 [workspace.package]
@@ -37,6 +38,7 @@ tc-ui = { path = "crates/tc-ui" }
 tc-telegram = { path = "crates/tc-telegram" }
 tc-audio = { path = "crates/tc-audio" }
 tc-video = { path = "crates/tc-video" }
+tc-notify = { path = "crates/tc-notify" }
 
 # Async y utilidades
 tokio = { version = "1.54.1", default-features = false }
@@ -101,6 +103,13 @@ arboard = { version = "3.7.0", default-features = false, features = ["image-data
 
 # Descarga de archivos (fase A3, ADR-0011): carpeta de descargas del sistema (XDG, Known Folders, macOS).
 dirs = "7.0.0"
+
+# Notificaciones de escritorio (crate tc-notify, ADR-0013). Linux: D-Bus con zbus (Rust puro, ya en el
+# árbol por el llavero); Windows: toasts WinRT con `windows` (misma serie 0.62 que ya arrastra el árbol);
+# macOS: NSUserNotification con mac-notification-sys (compila un .m con clang de Xcode, solo en macOS).
+zbus = "5.19.0"
+windows = "0.62.2"
+mac-notification-sys = "0.6.15"
 
 # Teclado de emojis (ADR-0009): catálogo Unicode/CLDR empaquetado, sin dependencias ni red.
 emojis = "0.9.1"

@@ -165,6 +165,58 @@ impl Store {
         })?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
+
+    /// Búsqueda dentro de un chat (ADR-0012): mensajes confirmados que cumplen el texto (FTS5, sin
+    /// acentos ni mayúsculas, prefijo en la última palabra; vacío = sin condición de texto) y el
+    /// filtro por tipo, **del más reciente al más antiguo**. `topic` limita a un tema de foro,
+    /// `before` a ids menores (paginación). Devuelve los `limit` primeros y el total de coincidencias
+    /// (sin contar `before`).
+    pub fn search_chat(
+        &self,
+        chat_key: i64,
+        topic: Option<i64>,
+        text: &str,
+        filter: tc_core::SearchFilter,
+        before: Option<i64>,
+        limit: usize,
+    ) -> Result<(Vec<MessageRow>, usize)> {
+        use tc_core::SearchFilter as F;
+        let fts = fts_query(text);
+        if fts.is_none() && !filter.lists_without_text() {
+            return Ok((Vec::new(), 0));
+        }
+        let cond = match filter {
+            F::All => "1",
+            F::Photos => "md.kind = 'photo'",
+            F::Videos => "md.kind = 'video' AND NOT EXISTS (SELECT 1 FROM media_extra e WHERE e.media_id = md.id AND e.round = 1)",
+            F::Files => "md.kind = 'document'",
+            F::Voice => "md.kind = 'voice'",
+            F::Links => "(m.entities LIKE '%\"url\"%' OR m.text LIKE '%http://%' OR m.text LIKE '%https://%' OR m.text LIKE '%www.%')",
+        };
+        let from = if fts.is_some() {
+            "messages_fts JOIN messages m ON m.rowid = messages_fts.rowid"
+        } else {
+            "messages m"
+        };
+        let mut wher = format!(
+            "m.chat_key = ?1 AND m.msg_id > 0 AND (?3 IS NULL OR mt.topic_id = ?3) AND {cond}"
+        );
+        if fts.is_some() {
+            wher.push_str(" AND messages_fts MATCH ?2");
+        }
+        let joins = "LEFT JOIN media md ON md.id = m.media_id LEFT JOIN message_topics mt ON mt.chat_key = m.chat_key AND mt.msg_id = m.msg_id";
+        let total: i64 = self.conn.query_row(
+            &format!("SELECT COUNT(*) FROM {from} {joins} WHERE {wher}"),
+            params![chat_key, fts, topic],
+            |r| r.get(0),
+        )?;
+        let cols = COLS.split(", ").map(|c| format!("m.{c}")).collect::<Vec<_>>().join(", ");
+        let mut st = self.conn.prepare(&format!(
+            "SELECT {cols} FROM {from} {joins} WHERE {wher} AND (?4 IS NULL OR m.msg_id < ?4) ORDER BY m.msg_id DESC LIMIT ?5"
+        ))?;
+        let rows = st.query_map(params![chat_key, fts, topic, before, limit as i64], from_row)?;
+        Ok((rows.collect::<rusqlite::Result<_>>()?, usize::try_from(total).unwrap_or(0)))
+    }
 }
 
 fn upsert_in(tx: &rusqlite::Connection, m: &MessageRow) -> Result<()> {
@@ -293,6 +345,74 @@ mod tests {
         s.upsert_message(&c2).unwrap();
         let total: i64 = s.conn.query_row("SELECT COUNT(*) FROM messages", [], |r| r.get(0)).unwrap();
         assert_eq!(total, 2);
+    }
+
+    fn media_msg(s: &Store, k: i64, id: i64, media: i64, kind: &str, caption: &str) {
+        s.upsert_media(&MediaRow { id: media, kind: kind.into(), ..Default::default() }).unwrap();
+        let mut m = MessageRow::text(k, id, 100 + id, false, caption);
+        m.kind = MessageKind::Media;
+        m.media_id = Some(media);
+        s.upsert_message(&m).unwrap();
+    }
+
+    #[test]
+    fn search_chat_text_filters_pages_topics_and_deletes() {
+        use tc_core::SearchFilter as F;
+        let (s, k) = setup();
+        let k2 = s.upsert_dialog(&DialogRow::new(PeerKind::User, 2, 0)).unwrap();
+        s.upsert_messages(&[
+            MessageRow::text(k, 1, 10, false, "Reunión en la CAFETERÍA"),
+            MessageRow::text(k, 2, 11, true, "nada que ver"),
+            MessageRow::text(k, 3, 12, false, "otra cafetería más"),
+            MessageRow::text(k2, 1, 13, false, "cafetería de otro chat"),
+        ])
+        .unwrap();
+        let ids = |v: &[MessageRow]| v.iter().map(|m| m.msg_id).collect::<Vec<_>>();
+        let (h, total) = s.search_chat(k, None, "cafeteria", F::All, None, 10).unwrap();
+        assert_eq!((ids(&h), total), (vec![3, 1], 2), "acentos, mayúsculas y más reciente primero; solo ese chat");
+        assert_eq!(ids(&s.search_chat(k, None, "CAFE", F::All, None, 10).unwrap().0), [3, 1], "prefijo");
+        assert!(s.search_chat(k, None, "xyzqw", F::All, None, 10).unwrap().0.is_empty());
+        assert_eq!(s.search_chat(k, None, "  ", F::All, None, 10).unwrap(), (vec![], 0));
+        for q in ["\"", "a OR", "NEAR(", "-"] {
+            s.search_chat(k, None, q, F::All, None, 10).unwrap();
+        }
+        // paginación: límite y `before`
+        let (p1, t) = s.search_chat(k, None, "cafeteria", F::All, None, 1).unwrap();
+        assert_eq!((ids(&p1), t), (vec![3], 2));
+        assert_eq!(ids(&s.search_chat(k, None, "cafeteria", F::All, Some(3), 1).unwrap().0), [1]);
+        // filtros por tipo
+        media_msg(&s, k, 10, 501, "photo", "foto de la cafetería");
+        media_msg(&s, k, 11, 502, "document", "");
+        media_msg(&s, k, 12, 503, "voice", "");
+        media_msg(&s, k, 13, 504, "video", "");
+        s.upsert_message(&MessageRow::text(k, 14, 120, false, "mira https://example.org/x")).unwrap();
+        let mut with_entity = MessageRow::text(k, 15, 121, false, "enlace sin esquema");
+        with_entity.entities = Some("[[\"url\",0,6]]".into());
+        s.upsert_message(&with_entity).unwrap();
+        let f = |flt, text: &str| ids(&s.search_chat(k, None, text, flt, None, 20).unwrap().0);
+        assert_eq!(f(F::Photos, ""), [10]);
+        assert_eq!(f(F::Photos, "cafeteria"), [10]);
+        assert_eq!(f(F::Files, ""), [11]);
+        assert_eq!(f(F::Voice, ""), [12]);
+        assert_eq!(f(F::Videos, ""), [13]);
+        assert_eq!(f(F::Links, ""), [15, 14]);
+        assert_eq!(f(F::All, "cafeteria"), [10, 3, 1]);
+        // vídeo redondo: no es «vídeo»
+        s.conn.execute("INSERT INTO media_extra (media_id, round) VALUES (504, 1)", []).unwrap();
+        assert!(f(F::Videos, "").is_empty());
+        // temas de foro
+        s.set_message_topic(k, 1, 7).unwrap();
+        s.set_message_topic(k, 3, 8).unwrap();
+        assert_eq!(ids(&s.search_chat(k, Some(7), "cafeteria", F::All, None, 10).unwrap().0), [1]);
+        assert_eq!(s.search_chat(k, Some(8), "cafeteria", F::All, None, 10).unwrap().1, 1);
+        // un mensaje borrado desaparece de los resultados (y de su índice)
+        s.delete_messages(k, &[3]).unwrap();
+        assert_eq!(ids(&s.search_chat(k, None, "cafeteria", F::All, None, 10).unwrap().0), [10, 1]);
+        // un pendiente local no sale
+        let mut p = MessageRow::text(k, -5, 500, true, "cafeteria pendiente");
+        p.send_state = SendState::Pending;
+        s.upsert_message(&p).unwrap();
+        assert_eq!(s.search_chat(k, None, "pendiente", F::All, None, 10).unwrap().1, 0);
     }
 
     #[test]

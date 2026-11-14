@@ -118,6 +118,12 @@ pub trait MessagesApi: Send + Sync {
         let _ = (peer, id, pinned);
         Err(unsupported())
     }
+    /// Busca mensajes dentro de un chat (ADR-0012), del más reciente al más antiguo. En un
+    /// `ThreadScope` se limita al tema. Por defecto, no soportado.
+    async fn search_in_chat(&self, peer: PeerRef, query: crate::search::SearchQuery) -> BackendResult<crate::search::SearchPage> {
+        let _ = (peer, query);
+        Err(unsupported())
+    }
 }
 
 #[async_trait]

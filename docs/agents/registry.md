@@ -53,3 +53,19 @@ Criterio: investigación/redacción estructurada → Sonnet (esfuerzo medio); de
 | # | Agente | Modelo | Esfuerzo | Tarea | Salida | Estado |
 | --- | --- | --- | --- | --- | --- | --- |
 | 15 | logo | opus | low | icono definitivo «Brasa» según el brief (brand.md §5): símbolo, logotipo horizontal, claro/oscuro/mono, bandeja, formatos de paquete | assets/brand/*.svg, tools/packaging/make_logo.py, tools/packaging/make_icons.py, packaging/icons/*, packaging/windows/parlo.ico, packaging/macos/Parlo.icns, packaging/linux/{build-linux,install-user}.sh, docs/brand/brand.md, docs/packaging.md | HECHO (miniaturas 16-1024 revisadas a ojo; .ico/.icns decodificados de vuelta; contraste 7,26 y 4,43; sin búsqueda inversa de imágenes; crates/ sin tocar; sin commit) |
+
+## 2026-11-14 — fase B1 (búsqueda en el chat)
+| # | Agente | Modelo | Esfuerzo | Tarea | Salida | Estado |
+| --- | --- | --- | --- | --- | --- | --- |
+| 17 | B1 búsqueda backend | sonnet | medium | `search_in_chat` (FTS5 local + `messages.search`, filtros por tipo, temas de foro, paginación, fusión sin duplicados en CachedBackend) con mock y pruebas | crates/tc-core (search.rs, api.rs, forum.rs), crates/tc-store (messages.rs, cached.rs, cached/forum.rs, cached_tests.rs), crates/tc-telegram (search.rs, tests/search.rs), crates/tc-mock (search.rs), docs/adr/0012-busqueda-en-chat.md, docs/architecture.md | HECHO (ver log; Telegram real y UI sin hacer; sin commit) |
+
+## 2026-11-14 — fases C1 + C3 (notificaciones)
+| # | Agente | Modelo | Esfuerzo | Tarea | Salida | Estado |
+| --- | --- | --- | --- | --- | --- | --- |
+| 18 | C1 tc-notify + C3 empaquetado | opus | medium | crate `tc-notify`: trait `Notifier`, eventos de clic/acción, `NullNotifier`/`RecordingNotifier`, backends D-Bus (zbus), WinRT (windows) y macOS (mac-notification-sys); reglas puras en `rules` (foco, silenciado, tipo, archivado, vista previa, secretos, No molestar, ráfagas, agrupar); AUMID/Info.plist/.desktop | crates/tc-notify/*, Cargo.toml, packaging/windows/{parlo.iss,parlo.manifest}, packaging/macos/Info.plist.in, packaging/linux/parlo.desktop, docs/adr/0013-notificaciones.md, docs/packaging.md, docs/architecture.md | HECHO (43 pruebas + aviso real por D-Bus; Windows/macOS solo `cargo check`; clic real sin probar; sin integrar en UI; sin commit) |
+
+## 2026-11-14 — fase B2 (UI de búsqueda en el chat)
+| # | Agente | Modelo | Esfuerzo | Tarea | Salida | Estado |
+| --- | --- | --- | --- | --- | --- | --- |
+| 19 | B2 búsqueda UI | opus | medium | barra de búsqueda en el chat: lupa/Ctrl+F, contador, ↑/↓/Enter, chips de tipo, resaltado, espera, salto con `Anchor::Around`, Esc restaura, borrados, temas, secretos desactivados | crates/tc-ui (app/find.rs, view/find_bar.rs, view/conversation.rs, view/topics.rs, app.rs, style.rs, icon.rs, tests_find.rs, tests_find_shots.rs), docs/design/system.md §8.13, docs/design/screens/b2-*.png | HECHO (tests+clippy tc-ui; sin Telegram real; sin commit) |
+

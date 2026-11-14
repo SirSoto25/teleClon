@@ -33,6 +33,7 @@ mod media;
 mod net;
 mod peers;
 mod reactions;
+mod search;
 mod secret;
 pub mod session;
 mod stickers;

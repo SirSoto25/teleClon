@@ -535,6 +535,31 @@ Fotos, vídeos y audios no tienen tarjeta: menú contextual del mensaje «Guarda
 
 **Carpeta de destino.** Predeterminada: `<Descargas>/Telegram Desktop` si ya existe; si no, `<Descargas>/Telegram`, que se crea al primer uso (no al arrancar); sin carpeta Descargas, la personal. Se puede elegir otra: botón del raíl «Descargas» (`download-simple` + etiqueta caption, entre el espacio flexible y el tema) que abre el diálogo de §8.6 «Carpeta de descargas»: texto explicativo (UI, `text_muted`), la ruta en una caja `surface_hover` con tipografía CODE y, a la derecha, «Restablecer» (ghost; desactivado si no hay carpeta elegida), «Elegir carpeta…» (ghost, selector nativo) y «Cerrar» (primario). La carpeta elegida se guarda en los ajustes de la cuenta (`ui.download_dir`) y «Guardar como…» empieza en ella. Si la elegida deja de existir o de poder escribirse se avisa con un toast de error, se olvida y se vuelve a la predeterminada; una carpeta no válida se rechaza al elegirla.
 
+### 8.13 Búsqueda dentro del chat (fase B2, ADR-0012)
+- **Entrada**: lupa (`magnifying-glass` 20, fantasma) primera de las acciones de la cabecera del chat y de la de un tema,
+  con tooltip «Buscar en el chat (Ctrl+F)»; `Ctrl+F` desde cualquier sitio con un chat abierto. En los chats secretos no
+  hay lupa y `Ctrl+F` explica con un toast que sus mensajes solo están en este dispositivo.
+- **Barra** (sustituye a la cabecera, misma columna §7): fila de 56 px con campo hundido 36 (`sunken_field` con anillo,
+  lupa 16 `text-placeholder`, placeholder «Buscar en este chat» / «Buscar en este tema»), estado, flechas
+  anterior/siguiente (`caret-down` 20, la de arriba girada en el propio SVG; apagadas en `text-placeholder` si no hay a
+  dónde ir; tooltips «Anterior (↑ o Enter)», «Siguiente (↓ o Mayús+Enter)») y cerrar (`x`, «Cerrar (Esc)»). Debajo, fila
+  de chips de tipo: Todo · Fotos · Vídeos · Archivos · Enlaces · Voz (píldora 28, `caption`; elegido `surface-selected`,
+  borde `accent`, peso 600 y check: no solo color; tooltip `Alt+1`…`Alt+6`). Borde inferior `border`.
+- **Estados** (texto `ui` junto al campo): vacío y «Todo» = nada; «Buscando…» `text-muted`; «Sin resultados»
+  `text-muted`; contador «3 de 17» `ui-strong` (posición en lo cargado, total del servidor; «50+» si no lo da); error
+  en `danger` («Sin conexión: no se puede buscar ahora.», «Demasiadas búsquedas seguidas; espera N s.») + «Reintentar».
+- **Comportamiento**: espera de 280 ms sin teclear antes de buscar; un chip busca en el acto (sin texto lista todo ese
+  tipo). El primer resultado (el más reciente) queda seleccionado y la vista se coloca con él hacia el centro; si no está
+  cargado se carga la ventana de alrededor (`Anchor::Around`, como la marca de no leídos) y «ir al final» y la paginación
+  siguen desde ahí. Al llegar al último cargado se pide la página siguiente y se avanza. `Esc` cierra y devuelve la
+  ventana y el desplazamiento de antes. Un resultado borrado sale de la lista y del total.
+- **Resaltado**: en las burbujas a la vista que coinciden, el término (sin acentos ni mayúsculas; de la última palabra
+  solo el prefijo) lleva fondo alfa `selection` radio `xs`, sin cambiar la maqueta. El resultado seleccionado lleva una
+  banda alfa `highlight` radio `md` detrás de toda su fila; es estática (sin animación: respeta movimiento reducido).
+- Capturas: `screens/b2-busqueda-resaltado.png`, `b2-busqueda-resaltado-claro.png`, `b2-busqueda-sin-resultados.png`,
+  `b2-busqueda-filtro-fotos.png` (`TC_FIND_SHOTS=$PWD/docs/design/screens cargo test -p tc-ui capturas_de_la_busqueda
+  -- --ignored`; sin runtime no se ejecuta el desplazamiento, así que se ven con la vista al final).
+
 ## 9. Anti-«aspecto IA» (prohibido)
 1. Degradados violeta→azul o arcoíris; texto con degradado.
 2. Glassmorphism por defecto, brillos, «sparkles» ✨ como icono de nada.
@@ -564,6 +589,7 @@ del portal XDG), densidad (cómoda | compacta), escala de texto, fondo del chat 
 | --- | --- | --- |
 | 2026-11-06 | 1.0.0 | Creación: dirección Brasa, paletas OKLCH, escalas, muelles, componentes. |
 | 2026-11-09 | 1.0.2 | Alineación tras la prueba real: columna de conversación compartida por cabecera, mensajes, «ir al final», aviso y compositor (§7); rejilla fija de la fila de lista con columna derecha de 60 px, líneas de 20 px, elipsis por ancho medido y check delante de la vista previa (§8.2); hora en línea a la línea de base del texto y reglas de avatar de grupo (§8.4); marca provisional «P» (§8.1); plegado de letras «de estilo» Unicode en nombres y vistas previas (§3). Sin cambios de tokens de color. |
+| 2026-11-14 | 1.0.7 | §8.13 búsqueda dentro del chat: lupa y `Ctrl+F`, barra en lugar de la cabecera con contador y flechas, chips de tipo, estados, resaltado del término (alfa `selection`) y banda del resultado (alfa `highlight`). Flecha arriba = `caret-down` girado; sin tokens nuevos. |
 | 2026-11-14 | 1.0.6 | §8.12 carpeta de destino de las descargas: predeterminada (`Telegram Desktop`/`Telegram`), botón «Descargas» en el raíl y diálogo para elegirla o restablecerla. Reutiliza el icono `download-simple`; sin tokens nuevos. |
 | 2026-11-14 | 1.0.5 | §8.12 descarga y guardado de archivos: estados de la tarjeta de documento (descargar, progreso con cancelar, abrir/mostrar en carpeta, reintentar), «Guardar»/«Guardar como…» en menús y visor. Sin iconos ni tokens nuevos. |
 | 2026-11-14 | 1.0.4 | §8.11 envío de archivos: clip y zona de soltar, diálogo de envío (vista previa, comprimir/archivo, pie con límite de 1024), burbuja subiéndose con barra y cancelar, tarjeta de archivo 280 × 56. Icono `paperclip`. Sin cambios de tokens. |

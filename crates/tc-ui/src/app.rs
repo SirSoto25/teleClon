@@ -28,6 +28,8 @@ use crate::stickers::{self, Art, Nav, Picker};
 use crate::style::Brasa;
 
 pub mod chat_actions;
+/// Búsqueda dentro del chat abierto: barra, contador, saltos y filtros (fase B2).
+pub mod find;
 /// Grupos con temas: lista de temas y conversación de un tema.
 pub mod forum;
 mod net_stickers;
@@ -347,6 +349,8 @@ pub enum Msg {
     Files(uploads::FilesMsg),
     /// Descarga de archivos a disco: clic, «Guardar como…», abrir y cancelar (ver `app/downloads.rs`).
     Dl(downloads::DlMsg),
+    /// Búsqueda dentro del chat (ver `app/find.rs`).
+    Find(find::FindMsg),
 }
 
 pub struct App {
@@ -423,6 +427,8 @@ pub struct App {
     pub uploads: uploads::Uploads,
     /// Descargas a disco de la sesión (ver `app/downloads.rs`).
     pub dl: downloads::Downloads,
+    /// Barra de búsqueda dentro del chat (`app/find.rs`).
+    pub find: Option<find::ChatSearch>,
     pub dots: u8,
     demo: std::collections::VecDeque<(Duration, DemoStep)>,
     demo_start: Option<Instant>,
@@ -529,6 +535,7 @@ impl App {
             panel: crate::panel::Panel::default(),
             uploads: uploads::Uploads::default(),
             dl: downloads::Downloads::default(),
+            find: None,
             dots: 0,
             demo: flags.demo.into_iter().collect(),
             demo_start: None,
@@ -601,6 +608,7 @@ impl App {
         self.downloads.clear();
         self.uploads = uploads::Uploads::default();
         self.dl = downloads::Downloads::default();
+        self.find = None;
         self.toast("La sesión se ha cerrado. Vuelve a entrar.".into(), true);
         operation::focus(Id::new(login::PHONE_ID))
     }
@@ -654,6 +662,7 @@ impl App {
         if self.read_flush_due() {
             subs.push(iced::time::every(crate::reading::FLUSH_EVERY).map(|t| Msg::Reading(crate::reading::ReadMsg::Flush(t))));
         }
+        subs.extend(self.find_subscriptions());
         if self.audio.needs_tick() {
             subs.push(iced::time::every(Duration::from_millis(100)).map(|_| Msg::Audio(crate::audio::AudioMsg::Tick)));
         }
@@ -1032,7 +1041,7 @@ impl App {
     pub fn update(&mut self, msg: Msg) -> Task<Msg> {
         // Los mensajes de cada frame, reloj, ratón y tecleo no cambian lo que hay que cargar.
         let pump = !matches!(msg, Msg::Frame(_) | Msg::Tick(_) | Msg::Hover(_) | Msg::Edit(_) | Msg::DemoTick(_) | Msg::Audio(crate::audio::AudioMsg::Tick) | Msg::StickerAnim(_))
-            && !matches!(msg, Msg::Chat(chat_actions::ChatMsg::HoverChat(_)));
+            && !matches!(msg, Msg::Chat(chat_actions::ChatMsg::HoverChat(_)) | Msg::Find(find::FindMsg::Tick(_) | find::FindMsg::Input(_)));
         let task = self.update_inner(msg);
         if pump { Task::batch([task, self.pump_images(), self.pump_gif_anims()]) } else { task }
     }
@@ -1251,6 +1260,7 @@ impl App {
             Msg::CloseChat => {
                 let t = self.save_draft_task();
                 self.conv = None;
+                self.find = None;
                 self.compose = Compose::Normal;
                 self.composer = text_editor::Content::new();
                 t
@@ -1477,6 +1487,7 @@ impl App {
             Msg::Panel(m) => self.on_panel(m),
             Msg::Files(m) => self.on_files(m),
             Msg::Dl(m) => self.on_dl(m),
+            Msg::Find(m) => self.on_find(m),
         }
     }
 
@@ -1512,6 +1523,7 @@ impl App {
         let save = self.save_draft_task();
         let carry = self.conv.as_ref().map(crate::reading::Carry::of);
         self.conv = Some(Conversation::new(peer));
+        self.find = None;
         // Con no leídos: ventana alrededor del último leído (abre en «Sin leer desde aquí»).
         let anchor = self.start_reading(carry);
         self.compose = Compose::Normal;
@@ -1599,6 +1611,7 @@ impl App {
             tasks.push(self.mark_read_task());
         }
         tasks.push(self.reading_on_scroll(vh));
+        tasks.push(self.find_on_scroll());
         Task::batch(tasks)
     }
 
@@ -1654,6 +1667,7 @@ impl App {
                 Task::none()
             }
             BackendEvent::MessagesDeleted { peer, ids } => {
+                self.find_deleted(peer, &ids);
                 if let Some(c) = self.conv.as_mut().filter(|c| c.peer == peer) {
                     c.remove(&ids);
                     if self.hover.is_some_and(|h| ids.contains(&h)) {
@@ -1887,6 +1901,9 @@ impl App {
         if self.reactions_for.take().is_some() {
             return Task::none();
         }
+        if self.find_active().is_some() {
+            return self.find_close();
+        }
         if self.compose != Compose::Normal {
             return self.update(Msg::CancelCompose);
         }
@@ -1919,6 +1936,11 @@ impl App {
             Key::Named(Named::Enter) if self.uploads.dialog.is_some() && !modifiers.shift() => self.update(Msg::Files(uploads::FilesMsg::Send)),
             _ if self.uploads.dialog.is_some() => Task::none(),
             Key::Character("o") if modifiers.command() => self.update(Msg::Files(uploads::FilesMsg::Pick)),
+            Key::Character("f") if modifiers.command() && self.conv.is_some() => self.update(Msg::Find(find::FindMsg::Open)),
+            // Alt+1…6: filtros de la búsqueda del chat (con el panel del compositor cerrado).
+            Key::Character(d) if !self.picker.open && modifiers.alt() && self.find_active().is_some() && find::filter_from_digit(d).is_some() => {
+                self.update(Msg::Find(find::FindMsg::Filter(find::filter_from_digit(d).unwrap_or_default())))
+            }
             Key::Character("e") if modifiers.command() => self.update(Msg::TogglePicker),
             // Alt+1/2/3: pestañas Emojis | GIFs | Stickers del panel.
             Key::Character(d) if self.picker.open && modifiers.alt() && crate::panel::PanelTab::from_digit(d).is_some() => {
@@ -1938,6 +1960,15 @@ impl App {
                 self.update(Msg::PickerNav(nav))
             }
             Key::Named(Named::Enter) if matches!(self.overlay, Some(Overlay::NewSecret { .. })) => self.update(Msg::ConfirmNewSecret),
+            // Barra de búsqueda del chat: ↑/Enter al resultado anterior, ↓/Mayús+Enter al siguiente.
+            Key::Named(n @ (Named::ArrowUp | Named::ArrowDown | Named::Enter)) if self.find_active().is_some() && self.overlay.is_none() && !modifiers.alt() => {
+                let older = match n {
+                    Named::ArrowUp => true,
+                    Named::ArrowDown => false,
+                    _ => !modifiers.shift(),
+                };
+                self.update(Msg::Find(if older { find::FindMsg::Older } else { find::FindMsg::Newer }))
+            }
             Key::Character("k") if modifiers.command() => operation::focus(Id::new(SEARCH_ID)),
             Key::Character(c) if modifiers.command() && c.len() == 1 && ("1"..="5").contains(&c) => {
                 let i = c.parse::<usize>().unwrap_or(1) - 1;

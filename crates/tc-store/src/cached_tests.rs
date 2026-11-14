@@ -465,3 +465,127 @@ async fn transfers_pass_through_with_their_events() {
     c.cancel_transfer(id).await.unwrap();
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+// ---- búsqueda en el chat (ADR-0012) ---------------------------------------------------------
+
+fn q(t: &str) -> SearchQuery {
+    SearchQuery::new(t, 50)
+}
+
+fn ids(p: &SearchPage) -> Vec<MsgId> {
+    p.hits.iter().map(|m| m.id).collect()
+}
+
+#[tokio::test]
+async fn la_busqueda_fusiona_servidor_y_local_sin_duplicados_y_sin_red_usa_lo_local() {
+    let c = cached();
+    c.dialogs(all(false)).await.unwrap();
+    let peer = PeerRef::User(UserId(1012));
+    c.history(peer, Anchor::Latest, 20).await.unwrap();
+    // Dos solo en el servidor y uno enviado por la caché (está en las dos partes).
+    let s1 = c.inner().send_text(peer, text("zanahoria del servidor", 1)).await.unwrap();
+    let mine = c.send_text(peer, text("Zanahoria enviada aquí", 2)).await.unwrap();
+    let s2 = c.inner().send_text(peer, text("otra ZANAHORIA", 3)).await.unwrap();
+    let page = c.search_in_chat(peer, q("zanahoria")).await.unwrap();
+    assert_eq!(ids(&page), [s2.id, mine.id, s1.id], "más reciente primero y sin repetir el que está en las dos partes");
+    assert_eq!(page.total, Some(3));
+    assert_eq!(page.next, None);
+    // Paginación: el servidor manda y lo local se funde sin repetir.
+    let mut seen = Vec::new();
+    let mut query = SearchQuery::new("zanahoria", 2);
+    loop {
+        let p = c.search_in_chat(peer, query.clone()).await.unwrap();
+        seen.extend(ids(&p));
+        match p.next {
+            Some(n) => query = query.after(n),
+            None => break,
+        }
+    }
+    assert_eq!(seen, [s2.id, mine.id, s1.id]);
+    // Sin red: solo lo que hay guardado.
+    c.inner().set_offline(true);
+    let off = c.search_in_chat(peer, q("zanahoria")).await.unwrap();
+    assert_eq!(ids(&off), [mine.id]);
+    assert_eq!(off.total, Some(1));
+    let acc = c.search_in_chat(peer, q("ZANAHORIA ENVIADA aqui")).await.unwrap();
+    assert_eq!(ids(&acc), [mine.id], "acentos y mayúsculas locales");
+}
+
+#[tokio::test]
+async fn con_el_historial_completo_se_responde_en_local_sin_preguntar_al_servidor() {
+    let c = cached();
+    c.dialogs(all(false)).await.unwrap();
+    let peer = PeerRef::User(UserId(1012));
+    let first = c.history(peer, Anchor::Latest, 30).await.unwrap();
+    let mine = c.send_text(peer, text("alcachofa local", 1)).await.unwrap();
+    c.with_store(move |s| {
+        let ck = crate::convert::find_chat_key(s, peer)?.unwrap();
+        s.set_history_complete(ck, true)
+    })
+    .await
+    .unwrap();
+    assert!(!first.is_empty());
+    // Un mensaje que solo conoce el servidor no aparece: no se le ha preguntado.
+    c.inner().send_text(peer, text("alcachofa remota", 2)).await.unwrap();
+    let page = c.search_in_chat(peer, q("alcachofa")).await.unwrap();
+    assert_eq!(ids(&page), [mine.id]);
+    // Y un mensaje borrado desaparece de los resultados.
+    c.delete_messages(peer, vec![mine.id], true).await.unwrap();
+    assert!(c.search_in_chat(peer, q("alcachofa")).await.unwrap().hits.is_empty());
+    assert!(c.search_in_chat(peer, q("xyzqw")).await.unwrap().hits.is_empty());
+    assert_eq!(c.search_in_chat(peer, q("  ")).await.unwrap(), SearchPage::default());
+}
+
+#[tokio::test]
+async fn la_busqueda_filtra_por_tipo_en_la_cache() {
+    let c = cached();
+    c.dialogs(all(false)).await.unwrap();
+    let peer = PeerRef::User(UserId(1012));
+    let item = |kind, n: &str| OutgoingMediaItem { kind, path: "/tmp/x".into(), file_name: n.into(), size_bytes: 10, width: 4, height: 4 };
+    let sent = c
+        .send_media(
+            peer,
+            OutgoingMedia { items: vec![item(MediaKind::Photo, "a.jpg"), item(MediaKind::File, "b.pdf")], caption: "adjuntos".into(), reply_to: None, random_ids: vec![RandomId(5), RandomId(6)] },
+        )
+        .await
+        .unwrap();
+    let link = c.send_text(peer, text("mira https://example.org/x", 7)).await.unwrap();
+    c.inner().set_offline(true);
+    let f = |flt| SearchQuery::new("", 50).with_filter(flt);
+    let has = |p: &SearchPage, id| p.hits.iter().any(|m| m.id == id);
+    let photos = c.search_in_chat(peer, f(SearchFilter::Photos)).await.unwrap();
+    assert!(has(&photos, sent[0].id) && !has(&photos, sent[1].id));
+    let files = c.search_in_chat(peer, f(SearchFilter::Files)).await.unwrap();
+    assert!(has(&files, sent[1].id) && !has(&files, sent[0].id));
+    assert_eq!(ids(&c.search_in_chat(peer, SearchQuery::new("example", 5).with_filter(SearchFilter::Links)).await.unwrap()), [link.id]);
+}
+
+#[tokio::test]
+async fn la_busqueda_en_un_tema_usa_el_servidor_y_sin_red_lo_guardado_con_su_tema() {
+    use tc_mock::FORUM_GROUP;
+    let c = cached();
+    c.dialogs(all(false)).await.unwrap();
+    let topics = c.forum_topics(FORUM_GROUP, TopicsQuery::first(50)).await.unwrap().topics;
+    let open: Vec<_> = topics.iter().filter(|t| !t.closed).collect();
+    let (t1, t2) = (open[0].thread(), open[1].thread());
+    let m1 = c.send_topic_text(t1, text("pelota roja", 1)).await.unwrap();
+    let m2 = c.send_topic_text(t2, text("pelota azul", 2)).await.unwrap();
+    // Solo en el servidor.
+    let only = c.inner().send_topic_text(t1, text("pelota verde", 3)).await.unwrap();
+    let online = c.search_in_topic(t1, q("pelota")).await.unwrap();
+    assert_eq!(ids(&online), [only.id, m1.id]);
+    let scope = ThreadScope::new(std::sync::Arc::new(c.clone()), t2, std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)));
+    assert_eq!(ids(&scope.search_in_chat(PeerRef::Group(FORUM_GROUP), q("pelota")).await.unwrap()), [m2.id]);
+    c.inner().set_offline(true);
+    assert_eq!(ids(&c.search_in_topic(t1, q("pelota")).await.unwrap()), [m1.id], "sin red: lo guardado de ese tema");
+}
+
+#[tokio::test]
+async fn chats_secretos_se_buscan_en_el_backend_sin_tocar_la_base() {
+    let c = cached();
+    c.dialogs(all(false)).await.unwrap();
+    let peer = PeerRef::Secret(SECRET_ID);
+    let direct = c.inner().search_in_chat(peer, q("a")).await;
+    assert_eq!(c.search_in_chat(peer, q("a")).await, direct);
+    assert!(c.search_local("a", Some(peer), 5).await.unwrap().is_empty());
+}

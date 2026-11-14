@@ -58,10 +58,19 @@ Sobre `grammers-session`: su feature por defecto `sqlite-storage` arrastra `libs
 | `tc-ui` | lib | app iced: estado, mensajes, pantallas, widgets, estilos | `tc-core`, `tc-theme`, `tc-stickers`, `tc-audio`, `tc-video`, `iced` |
 | `tc-audio` | lib | notas de voz y audios: decodificado (Opus en Rust puro, symphonia) y reproductor en su hilo (rodio/cpal), ADR-0007 | `tc-core`, `opus-decoder`, `symphonia`, `rodio` |
 | `tc-video` | lib | GIFs de Telegram (MP4/H.264 sin sonido) a fotogramas RGBA: demultiplexor MP4 propio, OpenH264 y plan de memoria, ADR-0010 | `openh264`, `image` |
+| `tc-notify` | lib | notificaciones de escritorio: trait `Notifier` + backends por SO (D-Bus, toasts WinRT, NSUserNotification) y reglas puras `rules` (foco, silenciado, tipo, vista previa, ráfagas), ADR-0013 | `zbus` (Linux), `windows` (Windows), `mac-notification-sys` (macOS), `futures` |
 | `tc-app` | bin | config, elección de backend, arranque | todos |
 | `tc-telegram` | lib (M2.1, creado; sin probar contra la red) | `GrammersBackend: ChatBackend + AuthApi`; chats secretos pendientes (M2.7, `tc-secret`) | `grammers-*`, `tc-core` |
 
 Reglas: `tc-ui` solo conoce `tc-core` (y `tc-audio`/`tc-video`, que no saben de red; nunca `tc-store`, `tc-mock` ni grammers). `tc-core` no hace E/S. `tc-secret` no hace E/S. Un único binario.
+
+**Notificaciones** (2026-11-14, ADR-0013, crate `tc-notify`, fase C1; aún sin integrar en `tc-ui`/`tc-app`, eso es C2).
+No depende de `tc-core`: recibe sus propios structs (`rules::ChatInfo`, `IncomingMessage`, `WindowState`,
+`NotifySettings`) y una `ChatKey` opaca que la app forma con su `PeerRef`. `tc_notify::system(&AppInfo::parlo())`
+devuelve `(Box<dyn Notifier>, NotifyEvents)`; `NotifyEvents` es un `Stream` de `NotifyEvent::{Clicked(chat),
+Action(chat, id)}` pensado para una suscripción de iced. `rules::Engine::on_message` decide (y agrupa por chat,
+limita ráfagas y reparte el sonido) y `on_chat_read` indica cuándo llamar a `Notifier::withdraw`. Pruebas con
+`RecordingNotifier`/`NullNotifier`.
 
 ## 3. Dominio y trait `ChatBackend` (tc-core)
 
@@ -110,7 +119,8 @@ Operaciones ("rutas" del cliente). Cada fila es una operación del backend; en e
 | Media | `download_profile_photo` / `download_media` (implementado 2026-11-09) | descarga a memoria | peer, `ProfilePhoto`, `PhotoSize` / peer, msg, `FileRef`, `MediaVariant{Thumb,Full}` → bytes | F10/S19 |
 | Media | `download_media_to` (contrato 2026-11-14, ADR-0011) | descarga **a disco** por trozos (`<dest>.part` + renombrado atómico) | peer, msg, `FileRef`, `MediaVariant`, `dest: PathBuf` → `TransferId` (vuelve al arrancar; progreso por `TransferProgress`) | F10 |
 | Media | `cancel_transfer` (ADR-0011) | cancela subida o descarga (idempotente) | `TransferId` → () | F10 |
-| Search | `search_global` / `search_in_chat` | búsqueda servidor | query, filtro, offset → `SearchPage` | F11 |
+| Search | `search_in_chat` (implementado 2026-11-14, ADR-0012) | busca en un chat o, con `ThreadScope`/`ForumApi::search_in_topic`, en un tema; más reciente primero; local (FTS5) + servidor (`messages.search`) | peer, `SearchQuery{text, filter: All\|Photos\|Videos\|Files\|Links\|Voice, offset: Option<MsgId>, limit}` → `SearchPage{hits, total: Option<u32>, next: Option<MsgId>}` | S23 |
+| Search | `search_global` | búsqueda entre chats (pendiente) | query, filtro, offset → `SearchPage` | F11 |
 | Profile | `user_full` / `group_full` | info | id → `UserFull` / `GroupFull` | F13 |
 | Profile | `set_blocked` / `update_profile` / `set_username` / `set_profile_photo` | perfil | … → () | F13/S27 |
 | Settings | `notify_settings` / `set_notify_settings` | avisos | scope → `NotifySettings` | F14 |
@@ -136,6 +146,8 @@ Total: 78 operaciones (contando por separado las agrupadas con `/`; 12 de foros)
 `BackendEvent` (entrada a la UI): `Connection(Connecting|Online|Updating|Offline)`, `Auth(QrAccepted|LoggedOut|PasswordNeeded)`, `DialogUpserted`, `MessageNew`, `MessageEdited`, `MessagesDeleted`, `MessageSent{random_id, msg}`, `MessageFailed{random_id, err}`, `ReadInbox`, `ReadOutbox`, `Typing`, `UserStatus`, `Reactions`, `FoldersChanged`, `NotifyChanged`, `StickerSetsChanged`, `SecretChat(Requested|Accepted|KeyChanged|TtlChanged|Discarded|Screenshot)`, `SecretMessage`, `SecretMessagesDeleted`, `TransferProgress(Transfer)` (ADR-0011; `Download{file_id, done, total}` sigue para `download_media` a memoria), `Resync{reason}`.
 
 **Grupos con temas** (2026-11-13, `tc-core/src/forum.rs`): `Group::is_forum`; `ForumTopic{group, id (= mensaje superior; General = 1), title, icon{color, emoji, custom_emoji_id}, last_message, unread_count, read_inbox_max_id, pinned, closed, hidden, my}`; sub-trait `ForumApi` (supertrait de `ChatBackend`, todo con implementación por defecto). Eventos: `TopicMessageNew{topic, msg}` (en un foro sustituye a `MessageNew`), `ForumTopicUpserted(ForumTopic)`, `ForumTopicsChanged{group}`. `ThreadScope` envuelve un backend y lleva historial, envíos, lectura y «escribiendo…» del grupo a un tema: la UI lo usa para reutilizar la conversación normal dentro de un tema. tc-store guarda los temas y el tema de cada mensaje (migración 0008: `groups.is_forum`, `forum_topics`, `message_topics`) y los sirve sin red.
+
+**Búsqueda en el chat** (2026-11-14, ADR-0012, `tc-core/src/search.rs`). `MessagesApi::search_in_chat(peer, SearchQuery) -> SearchPage` (por defecto `Err(unsupported())`); orden más reciente primero y paginación por `offset` («ids menores que»), `SearchPage::next` es el `offset` siguiente. `tc-store`: `Store::search_chat` sobre FTS5 + `media` + `message_topics`; `CachedBackend` responde en local con `history_complete` o sin red y si no fusiona con el servidor sin duplicar por id (sin guardar sus resultados en el historial); `tc-telegram`: `messages.search` con filtros `InputMessagesFilter*`, `top_msg_id` para temas y `offset_id`; `tc-mock` busca sobre sus mensajes (también temas). `ThreadScope` aplica el tema vía `ForumApi::search_in_topic`.
 
 **Transferencias** (2026-11-14, ADR-0011, `tc-core/src/transfer.rs` y `file_name.rs`). Contrato:
 

@@ -321,6 +321,15 @@ impl ForumApi for MockBackend {
         Ok(page_by_anchor(&list, anchor, limit))
     }
 
+    async fn search_in_topic(&self, thread: ThreadRef, query: SearchQuery) -> BackendResult<SearchPage> {
+        self.inner.gate().await?;
+        let st = self.inner.lock();
+        st.ensure_peer(thread.peer())?;
+        st.topic(thread)?;
+        let list = st.messages.get(&thread.peer()).into_iter().flatten();
+        Ok(crate::search::search(list.filter(|m| st.forums.msg_topic.get(&(thread.group, m.id)) == Some(&thread.topic)), &query))
+    }
+
     async fn send_topic_text(&self, thread: ThreadRef, msg: OutgoingText) -> BackendResult<Message> {
         self.check_topic(thread)?;
         let m = self.send_text(thread.peer(), msg).await?;

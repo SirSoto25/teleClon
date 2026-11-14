@@ -4,6 +4,8 @@ pub mod audio;
 pub mod context_menu;
 pub mod conversation;
 pub mod emoji_panel;
+/// Barra de búsqueda dentro del chat (fase B2).
+pub mod find_bar;
 pub mod gif_panel;
 pub mod login;
 pub mod panel;

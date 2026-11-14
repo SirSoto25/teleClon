@@ -8,6 +8,7 @@ mod forum;
 mod gifs;
 mod mapping;
 mod media;
+mod search;
 mod secret;
 mod stickers_reactions;
 mod transfers;
