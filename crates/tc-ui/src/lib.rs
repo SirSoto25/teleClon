@@ -14,6 +14,7 @@ pub mod app;
 pub mod audio;
 pub mod conv;
 pub mod emoji;
+pub mod files;
 mod emoji_es;
 pub mod format;
 pub mod gifs;
@@ -57,3 +58,7 @@ mod tests_forum;
 mod tests_sticker_anim;
 #[cfg(test)]
 mod tests_qa;
+#[cfg(test)]
+mod tests_files;
+#[cfg(test)]
+mod tests_send_shots;

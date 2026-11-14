@@ -10,6 +10,7 @@ mod mapping;
 mod media;
 mod secret;
 mod stickers_reactions;
+mod transfers;
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};

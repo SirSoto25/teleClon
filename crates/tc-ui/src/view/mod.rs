@@ -7,6 +7,8 @@ pub mod emoji_panel;
 pub mod gif_panel;
 pub mod login;
 pub mod panel;
+/// Envío de archivos: diálogo, zona de soltar y burbujas de subida.
+pub mod send_dialog;
 pub mod sidebar;
 pub mod stickers;
 /// Grupos con temas: lista de temas, cabecera de un tema y su menú.
@@ -62,6 +64,7 @@ impl App {
             // Menús contextuales, confirmaciones y «Deshacer» (ver `context_menu.rs`).
             layers.extend(context_menu::layers(self, size));
             layers.extend(topics::layers(self, size));
+            layers.extend(send_dialog::layers(self));
             context_menu::probe(self, stack(layers).width(Length::Fill).height(Length::Fill).into())
         })
         .into()

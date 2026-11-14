@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 use iced::Size;
-use tc_core::{EntityKind, Message, MsgId, PeerRef, RandomId, SendState, UserId};
+use tc_core::{EntityKind, MediaKind, Message, MsgId, PeerRef, RandomId, SendState, UserId};
 use tc_theme::TextStyle;
 use tc_theme::tokens::{layout, space, text as ts};
 
@@ -29,6 +29,9 @@ pub const REPLY_GAP: f32 = space::S1;
 pub const REPLY_MIN_W: f32 = 220.0;
 pub const MEDIA_GAP: f32 = space::S1_5;
 pub const MEDIA_MAX_W: f32 = 320.0;
+/// Tarjeta de documento (y de un audio que aún se está subiendo): icono, nombre y tamaño en una fila.
+pub const FILE_CARD_W: f32 = 280.0;
+pub const FILE_CARD_H: f32 = 56.0;
 pub const META_H: f32 = 16.0;
 /// Elevación de la hora en línea para alinear su línea de base con la del texto del mensaje.
 pub const META_BASELINE: f32 = 2.0;
@@ -208,6 +211,10 @@ pub fn layout_message(m: &Message, input: &LayoutInput<'_>, meas: &impl Measurer
         content_w = content_w.max(REPLY_MIN_W.min(inner_max));
     }
     let media = m.media.as_ref().map(|md| {
+        // Documentos (y audios aún subiéndose: sin forma de onda ni duración) van en una tarjeta.
+        if md.kind == MediaKind::File || (is_local(m) && crate::audio::is_audio(md)) {
+            return Size::new(FILE_CARD_W.min(inner_max), FILE_CARD_H);
+        }
         // Notas de voz, audios y vídeos redondos tienen su propio tamaño.
         if let Some(sz) = crate::audio::layout_size(md, inner_max) {
             return sz;

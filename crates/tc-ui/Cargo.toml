@@ -24,6 +24,9 @@ image = { workspace = true, features = ["gif"] }
 # Catálogo de emojis del panel del compositor (ADR-0009).
 emojis.workspace = true
 tokio = { workspace = true, features = ["rt"] }
+# Envío de archivos (A2): selector nativo y pegar imágenes del portapapeles.
+rfd.workspace = true
+arboard.workspace = true
 jiff.workspace = true
 tracing.workspace = true
 
@@ -31,7 +34,8 @@ tracing.workspace = true
 tc-mock.workspace = true
 # Capturas sin ventana del panel del compositor (`tests_panel_shots.rs`, ignorada por defecto).
 iced_test = "0.14.0"
-tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
+# `test-util`: reloj virtual (`start_paused`) para ver el progreso simulado de las subidas.
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "test-util"] }
 
 # Stickers TGS animados (rlottie) activados por defecto SOLO en Linux (ADR-0008): rlottie-sys clona
 # rlottie con git, lo compila con cmake + C++ y genera los enlaces con bindgen (libclang). En Windows

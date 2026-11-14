@@ -34,6 +34,8 @@ mod net_stickers;
 mod panel;
 mod sticker_anims;
 mod reacts;
+/// Envío de archivos: selector, arrastrar y soltar, pegar, diálogo y subidas (fase A2).
+pub mod uploads;
 pub use reacts::{apply_mine, reaction_error_text};
 
 pub type Backend = Arc<dyn ChatBackend>;
@@ -335,6 +337,8 @@ pub enum Msg {
     Forum(forum::ForumMsg),
     /// Panel del compositor: pestañas, emojis y GIFs (ver `panel.rs`, `app/panel.rs`).
     Panel(crate::panel::PanelMsg),
+    /// Envío de archivos: selector, soltar, pegar, diálogo y subidas (ver `app/uploads.rs`).
+    Files(uploads::FilesMsg),
 }
 
 pub struct App {
@@ -407,6 +411,8 @@ pub struct App {
     pub forum: forum::ForumUi,
     /// Pestaña del panel del compositor y estado de emojis y GIFs (`picker.open` = panel abierto).
     pub panel: crate::panel::Panel,
+    /// Diálogo de envío de archivos y subidas en curso (`app/uploads.rs`).
+    pub uploads: uploads::Uploads,
     pub dots: u8,
     demo: std::collections::VecDeque<(Duration, DemoStep)>,
     demo_start: Option<Instant>,
@@ -511,6 +517,7 @@ impl App {
             sticker_anims: crate::sticker_anim::StickerAnims::default(),
             forum: forum::ForumUi::default(),
             panel: crate::panel::Panel::default(),
+            uploads: uploads::Uploads::default(),
             dots: 0,
             demo: flags.demo.into_iter().collect(),
             demo_start: None,
@@ -579,6 +586,7 @@ impl App {
         self.me = None;
         self.images.clear();
         self.downloads.clear();
+        self.uploads = uploads::Uploads::default();
         self.toast("La sesión se ha cerrado. Vuelve a entrar.".into(), true);
         operation::focus(Id::new(login::PHONE_ID))
     }
@@ -621,6 +629,8 @@ impl App {
             subs.push(iced::time::every(crate::sticker_anim::TICK).map(|t| Msg::StickerAnim(crate::sticker_anim::AnimMsg::Tick(t))));
         }
         subs.push(iced::event::listen_with(crate::sticker_anim::focus_event));
+        // Arrastrar y soltar archivos sobre la ventana (`app/uploads.rs`).
+        subs.push(iced::event::listen_with(uploads::drop_event));
         if !self.demo.is_empty() {
             subs.push(iced::time::every(Duration::from_millis(250)).map(Msg::DemoTick));
         }
@@ -1451,6 +1461,7 @@ impl App {
             Msg::StickerAnim(m) => self.on_sticker_anim(m),
             Msg::Forum(m) => self.on_forum(m),
             Msg::Panel(m) => self.on_panel(m),
+            Msg::Files(m) => self.on_files(m),
         }
     }
 
@@ -1682,8 +1693,8 @@ impl App {
                 self.downloads.insert(file_id, (done, total));
                 Task::none()
             }
-            // Subidas y descargas a disco (ADR-0011): las pintarán las fases A2/A3.
-            BackendEvent::TransferProgress(_) => Task::none(),
+            // Subidas (A2, `app/uploads.rs`); las descargas a disco las pintará la fase A3.
+            BackendEvent::TransferProgress(t) => self.on_transfer(t),
             BackendEvent::DialogRemoved { peer } => self.on_dialog_removed(peer),
             BackendEvent::HistoryCleared { peer } => self.on_history_cleared(peer),
             // Ya tratados en `forum_event`.
@@ -1822,6 +1833,9 @@ impl App {
         if let Some(t) = self.retry_gif(rid) {
             return t;
         }
+        if let Some(t) = self.retry_upload(rid) {
+            return t;
+        }
         let Some(c) = self.conv.as_mut() else { return Task::none() };
         let Some(m) = c.messages.iter_mut().find(|m| m.random_id == Some(rid) && conv::is_local(m)) else {
             return Task::none();
@@ -1841,6 +1855,9 @@ impl App {
     fn escape(&mut self) -> Task<Msg> {
         if self.phase == Phase::Auth {
             return self.login_escape();
+        }
+        if self.uploads.dialog.is_some() {
+            return self.update(Msg::Files(uploads::FilesMsg::Close));
         }
         if self.chat_actions_escape() {
             return Task::none();
@@ -1883,6 +1900,10 @@ impl App {
             Key::Named(Named::Tab) if modifiers.shift() => operation::focus_previous(),
             Key::Named(Named::Tab) => operation::focus_next(),
             _ if self.phase != Phase::Main => Task::none(),
+            // Diálogo de envío abierto: Enter envía y el resto de atajos esperan a que se cierre.
+            Key::Named(Named::Enter) if self.uploads.dialog.is_some() && !modifiers.shift() => self.update(Msg::Files(uploads::FilesMsg::Send)),
+            _ if self.uploads.dialog.is_some() => Task::none(),
+            Key::Character("o") if modifiers.command() => self.update(Msg::Files(uploads::FilesMsg::Pick)),
             Key::Character("e") if modifiers.command() => self.update(Msg::TogglePicker),
             // Alt+1/2/3: pestañas Emojis | GIFs | Stickers del panel.
             Key::Character(d) if self.picker.open && modifiers.alt() && crate::panel::PanelTab::from_digit(d).is_some() => {

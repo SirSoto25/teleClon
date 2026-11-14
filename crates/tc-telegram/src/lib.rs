@@ -13,7 +13,8 @@
 //!   `SecretStateStore` inyectable (el cifrado con clave del llavero, `SealedSecretStateStore`,
 //!   está en tc-app). Solo texto. Ver `secret.rs`.
 //! - Descargas de fotos de perfil y de medios con `upload.getFile` (DC del archivo, copia de la
-//!   autorización, `FILE_MIGRATE`, referencias caducadas, máximo 4 a la vez). Ver `media.rs`.
+//!   autorización, `FILE_MIGRATE`, referencias caducadas, máximo 4 a la vez), descargas a disco y
+//!   subidas con progreso y cancelación (ADR-0011). Ver `media.rs`.
 //!
 //! Nada de esto se ha probado contra los servidores reales: ver docs/logs/log.md.
 #![forbid(unsafe_code)]
@@ -106,6 +107,8 @@ pub(crate) struct Inner {
     pub(crate) secret: secret::SecretRuntime,
     /// Límite de descargas simultáneas.
     pub(crate) downloads: tokio::sync::Semaphore,
+    /// Subidas y descargas a disco en curso, con su cancelación (ADR-0011, ver `media.rs`).
+    pub(crate) transfers: media::Transfers,
     /// Generación de la autorización copiada a cada DC ajeno (ver `media.rs`).
     pub(crate) dc_auth: tokio::sync::Mutex<std::collections::HashMap<i32, u64>>,
     /// Packs, recientes y favoritos de stickers ya bajados (ver `stickers.rs`).
@@ -273,6 +276,7 @@ impl GrammersBackend {
             logged_in,
             secret: secret::SecretRuntime::new(Arc::new(MemorySecretStateStore::default())),
             downloads: tokio::sync::Semaphore::new(media::MAX_DOWNLOADS),
+            transfers: media::Transfers::default(),
             dc_auth: tokio::sync::Mutex::new(std::collections::HashMap::new()),
             stickers: Mutex::new(stickers::StickerCatalog::default()),
             reactions: Mutex::new(reactions::ReactionCatalog::default()),

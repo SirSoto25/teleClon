@@ -93,6 +93,12 @@ opus-decoder = "0.1.1"
 # crate (`source`: C++ con `cc`, MSVC/clang/g++; nasm opcional y, si falta, sin ensamblador).
 openh264 = { version = "0.9.10", default-features = false, features = ["source"] }
 
+# Envío de archivos (fase A2, ADR-0011): selector nativo (portal XDG en Linux, también en Wayland;
+# diálogos propios del SO en Windows y macOS) e imágenes del portapapeles (iced solo lee texto). En
+# Wayland, `wayland-data-control` lee el portapapeles sin XWayland donde el compositor lo admite.
+rfd = "0.18.0"
+arboard = { version = "3.7.0", default-features = false, features = ["image-data", "wayland-data-control"] }
+
 # Teclado de emojis (ADR-0009): catálogo Unicode/CLDR empaquetado, sin dependencias ni red.
 emojis = "0.9.1"
 

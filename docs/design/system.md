@@ -494,6 +494,35 @@ panel intermedio dejaría la conversación por debajo de su ancho cómodo en por
 - Capturas: `screens/m6-foro-temas.png`, `m6-foro-busqueda.png`, `m6-tema-primer-no-leido.png`, `m6-tema-envio.png`,
   `m6-menu-tema.png`.
 
+### 8.11 Envío de archivos (fase A2, ADR-0011)
+- **Entrada**: clip (`paperclip` 20, `text-muted`, fantasma redondo) a la izquierda del emoji en el compositor, con tooltip
+  «Adjuntar archivos (Ctrl+O)»; oculto al editar. `Ctrl+O` abre el selector nativo (portal XDG en Linux). Arrastrar
+  archivos sobre la ventana muestra la **zona de soltar**: velo `scrim` y tarjeta md (480) radio `xl` con borde 2 px
+  `accent-text`, `paperclip` 40, «Suelta para enviar» `title` y «Los archivos irán a {chat}» `ui` `text-muted`; si no se
+  puede escribir ahí, borde e icono `danger` y el motivo. `Ctrl+V` en el compositor pega texto como siempre, pero si el
+  portapapeles trae rutas/URI `file://` de archivos o una imagen, abre el diálogo.
+- **Diálogo de envío** (md 480, §8.6): título según el contenido («Enviar una foto», «Enviar 3 fotos y vídeos», «Enviar 4
+  archivos»). Una foto: vista previa ajustada (≤ 300 alto) sobre `surface-sunken` radio `md` y «nombre · tamaño» `caption`.
+  Varios: lista de filas con miniatura 48 radio `sm` (o icono por tipo sobre `surface-sunken`), nombre `ui-strong`,
+  «tamaño · foto/vídeo/audio/archivo» `meta` y quitar (x, tooltip «Quitar»). Si hay imágenes: dos opciones lado a lado
+  con el aspecto de `option_row` — «Comprimir foto / Más ligera, se ve al momento» y «Enviar como archivo / Calidad
+  original» — la elegida con check (no solo color). Pie: campo multilínea como el compositor (≤ 5 líneas), placeholder
+  «Añade un pie de foto…»; lo escrito en el compositor pasa al pie y vuelve si se cierra sin enviar. Contador
+  «n / 1024» `caption` desde 900; por encima de 1024, aviso `danger` y «Enviar» apagado. Avisos `warning` (> 2 GB, imágenes
+  que irán como archivo, envío partido en grupos). Acciones: «+ Añadir» (fantasma, izquierda) · «Cancelar» · «Enviar» /
+  «Enviar N» (primario). Pista final: «Enter envía · Mayús+Enter, nueva línea · Esc cierra».
+- **Reparto**: un álbum por cada 10 fotos/vídeos; documentos y audios en su propio grupo (Telegram no los mezcla con
+  fotos); el pie y la respuesta van en el primer elemento del primer envío.
+- **Burbuja subiéndose**: una por elemento. Fotos: la vista previa local con un chip abajo (negro al 60 %, radio `sm`):
+  «39 % · 29,8 KB de 74,6 KB» `caption` blanco, botón x («Cancelar el envío») y barra de 4 px (pista blanca al 30 %).
+  Documentos y audios: **tarjeta de archivo** (280 × 56): círculo 40 `accent` con el icono del tipo, nombre `ui` 600 con
+  elipsis por ancho, estado `caption` y barra `accent` sobre `meta` al 25 %, x a la derecha. Sin eventos de progreso:
+  «Enviando… · tamaño» y un tramo fijo del 12 %. Cancelar → «Cancelando…» y la burbuja desaparece (no es un error). Fallo →
+  «No se envió», icono `danger` y el «Reintentar» de siempre al lado (reenvía solo lo que no llegó).
+- La tarjeta de archivo es también la de los documentos recibidos (icono, nombre, tamaño): base para la fase A3.
+- Capturas: `screens/a2-envio-foto.png`, `a2-envio-varios-pie-largo.png`, `a2-subida-progreso.png`, `a2-soltar.png`
+  (`TC_SEND_SHOTS=$PWD/docs/design/screens cargo test -p tc-ui capturas_del_envio -- --ignored`).
+
 ---
 
 ## 9. Anti-«aspecto IA» (prohibido)
@@ -525,5 +554,6 @@ del portal XDG), densidad (cómoda | compacta), escala de texto, fondo del chat 
 | --- | --- | --- |
 | 2026-11-06 | 1.0.0 | Creación: dirección Brasa, paletas OKLCH, escalas, muelles, componentes. |
 | 2026-11-09 | 1.0.2 | Alineación tras la prueba real: columna de conversación compartida por cabecera, mensajes, «ir al final», aviso y compositor (§7); rejilla fija de la fila de lista con columna derecha de 60 px, líneas de 20 px, elipsis por ancho medido y check delante de la vista previa (§8.2); hora en línea a la línea de base del texto y reglas de avatar de grupo (§8.4); marca provisional «P» (§8.1); plegado de letras «de estilo» Unicode en nombres y vistas previas (§3). Sin cambios de tokens de color. |
+| 2026-11-14 | 1.0.4 | §8.11 envío de archivos: clip y zona de soltar, diálogo de envío (vista previa, comprimir/archivo, pie con límite de 1024), burbuja subiéndose con barra y cancelar, tarjeta de archivo 280 × 56. Icono `paperclip`. Sin cambios de tokens. |
 | 2026-11-13 | 1.0.3 | §8.10 grupos con temas: la lista de temas ocupa el panel de la conversación (sin panel intermedio), fila de tema, cabecera «Grupo › Tema», insignia `hash` en la lista de chats. Icono `hash` de dibujo propio. Sin cambios de tokens. |
 | 2026-11-06 | 1.0.1 | Implementación M1 en `tc-ui` (sin cambiar tokens). Adaptaciones por iced 0.14: la entrada de chat (opacidad 0 → 1) se pinta como capa `bg` que se desvanece; hover de filas/botones sin animar; sin anillo de foco en botones (iced no da foco de teclado a botones) ni en el buscador; vista previa de la lista recortada por caracteres (no hay elipsis); el «menú contextual» de mensaje es una barra de acciones al pasar el ratón + selector de 6 reacciones (clic derecho). Capturas en `screens/`. |

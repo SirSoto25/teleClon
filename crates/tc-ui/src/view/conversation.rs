@@ -3,12 +3,13 @@
 use iced::alignment::{Horizontal, Vertical};
 use iced::keyboard::{Key, key::Named};
 use iced::widget::text::LineHeight;
-use iced::widget::{Space, button, column, container, image, mouse_area, responsive, rich_text, row, scrollable, stack, text_editor};
+use iced::widget::{Space, button, column, container, image, mouse_area, responsive, rich_text, row, scrollable, stack, text_editor, tooltip};
 use iced::{Alignment, Color, ContentFit, Element, Length, Padding, Pixels};
 use tc_core::{GroupKind, Message, PeerRef, SecretChatState, SendState};
 use tc_theme::tokens::{layout, radius, space, text as ts};
 use tc_theme::{TextStyle, tokens};
 
+use crate::app::uploads::FilesMsg;
 use crate::app::{AnimKey, App, COMPOSER_ID, CONV_SCROLL_ID, Compose, Msg};
 use crate::stickers::Nav;
 use crate::conv::{self, Body, Conversation, Item, LayoutInput, MsgKey, MsgLayout};
@@ -643,6 +644,13 @@ fn bubble<'a>(app: &'a App, cv: &'a Conversation, m: &'a Message, l: &MsgLayout,
 /// Las fotos abren el visor al pulsarlas.
 fn media_box<'a>(app: &'a App, peer: PeerRef, m: &'a Message, md: &'a tc_core::Media, sz: iced::Size, opacity: f32, meta_c: Color) -> Element<'a, Msg> {
     use tc_core::MediaKind;
+    // Subiéndose: vista previa local o tarjeta, con progreso y cancelar (`send_dialog.rs`).
+    if let Some(el) = super::send_dialog::upload_box(app, m, md, sz, opacity, meta_c) {
+        return el;
+    }
+    if md.kind == MediaKind::File {
+        return super::send_dialog::file_card(app, m, md, sz, opacity, meta_c, None);
+    }
     if md.kind == tc_core::MediaKind::Gif {
         return super::gif_panel::bubble(app, peer, m, md, sz, opacity, meta_c);
     }
@@ -750,6 +758,9 @@ fn composer<'a>(app: &'a App, cv: &'a Conversation) -> Element<'a, Msg> {
             let nav = |n: Nav| Some(text_editor::Binding::Custom(Msg::PickerNav(n)));
             match kp.key.as_ref() {
                 Key::Character("e") if kp.modifiers.command() => Some(text_editor::Binding::Custom(Msg::TogglePicker)),
+                // Adjuntar (Ctrl+O) y pegar (Ctrl+V: texto, rutas copiadas o una imagen; `app/uploads.rs`).
+                Key::Character("o") if kp.modifiers.command() => Some(text_editor::Binding::Custom(Msg::Files(FilesMsg::Pick))),
+                Key::Character("v") if kp.modifiers.command() && !kp.modifiers.shift() => Some(text_editor::Binding::Custom(Msg::Files(FilesMsg::Paste))),
                 // Con el selector abierto, las flechas, Enter y Tab mueven el cursor de la rejilla.
                 // Alt+1/2/3: pestañas Emojis | GIFs | Stickers del panel.
                 Key::Character(d) if picker_open && kp.modifiers.alt() && crate::panel::PanelTab::from_digit(d).is_some() => {
@@ -796,7 +807,15 @@ fn composer<'a>(app: &'a App, cv: &'a Conversation) -> Element<'a, Msg> {
         };
         container(button(ic).padding(8).style(style::ghost(b, radius::PILL)).on_press(Msg::TogglePicker)).center(Length::Fixed(40.0)).into()
     };
-    col = col.push(row![sticker_btn, editor, send].spacing(space::S2).align_y(Alignment::End));
+    let clip_btn: Element<'_, Msg> = if editing {
+        Space::new().width(Length::Fixed(0.0)).into()
+    } else {
+        // Adjuntar archivos con el selector nativo (Ctrl+O).
+        let btn = button(icon(Icon::Paperclip, layout::ICON_MD, c(b.p.text_muted))).padding(8).style(style::ghost(b, radius::PILL)).on_press(Msg::Files(FilesMsg::Pick));
+        let tip = container(t1("Adjuntar archivos (Ctrl+O)", ts::CAPTION, c(b.p.text))).padding([4, 8]).style(style::raised(b, 2, radius::SM));
+        container(tooltip(btn, tip, tooltip::Position::Top)).center(Length::Fixed(40.0)).into()
+    };
+    col = col.push(row![clip_btn, sticker_btn, editor, send].spacing(space::S1).align_y(Alignment::End));
     let bar = container(col.spacing(space::S2).max_width(layout::CHAT_COLUMN_MAX))
         .padding(Padding::from([space::S2, space::S4]))
         .center_x(Length::Fill)

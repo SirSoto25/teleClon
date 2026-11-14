@@ -73,6 +73,8 @@ icons! {
     Hash => "hash",
     Plus => "plus",
     Lock => "lock",
+    // Envío de archivos (`view/send_dialog.rs`).
+    Paperclip => "paperclip",
 }
 
 /// Handles creados una vez (el id del handle es un hash de los bytes; evitamos rehacerlo cada frame).

@@ -26,3 +26,14 @@ Criterio: investigación/redacción estructurada → Sonnet (esfuerzo medio); de
 | # | Agente | Modelo | Esfuerzo | Tarea | Salida | Estado |
 | --- | --- | --- | --- | --- | --- | --- |
 | 12 | A0 contratos | opus | high | contrato de transferencias (progreso, cancelación, descarga a disco) y saneado de nombres; mock y *passthrough* | crates/tc-core (transfer.rs, file_name.rs, api.rs, event.rs, error.rs, forum.rs), crates/tc-mock (transfers.rs), crates/tc-store (cached.rs, media_cache.rs), 2 líneas en crates/tc-ui/src/app.rs, docs/adr/0011-transferencias.md, docs/architecture.md | HECHO (tests de propiedades + 8 de contrato en mock + 2 de passthrough; cargo test --workspace y clippy -D warnings limpios; tc-telegram con la implementación por defecto, la hace A1; sin commit) |
+
+## 2026-11-14 — fase A1 (archivos)
+| # | Agente | Modelo | Esfuerzo | Tarea | Salida | Estado |
+| --- | --- | --- | --- | --- | --- | --- |
+| 13 | A1 Telegram | opus | high | `download_media_to` real (partes a `.part` + renombrado, `FILE_REFERENCE_*`, `FILE_MIGRATE`, reanudación), progreso ≤ 10 Hz y cancelación en `send_media`, `cancel_transfer`, límite de 2000 MiB con aviso, validación sin eventos, nombres saneados | crates/tc-telegram (media.rs, lib.rs, net.rs, tests/transfers.rs, tests/mod.rs) | HECHO (9 tests nuevos con transporte falso y reloj virtual; cargo test --workspace y clippy -D warnings limpios; NADA probado contra Telegram real; sin commit) |
+
+## 2026-11-14 — fase A2 (archivos)
+| # | Agente | Modelo | Esfuerzo | Tarea | Salida | Estado |
+| --- | --- | --- | --- | --- | --- | --- |
+| 14 | A2 envío UI | opus | medium | clip + Ctrl+O (rfd), soltar, pegar (rutas e imagen con arboard), diálogo de envío (vista previa, comprimir/archivo, pie ≤ 1024, álbum), burbuja con progreso, cancelar y reintentar; foros y `write_block` | crates/tc-ui (files.rs, app/uploads.rs, view/send_dialog.rs, tests_files.rs, tests_send_shots.rs, app.rs, conv.rs, view/conversation.rs, view/mod.rs, icon.rs, lib.rs, Cargo.toml), Cargo.toml, docs/design/system.md §8.11, docs/design/screens/a2-*.png | HECHO (18 tests nuevos con mock y reloj virtual + capturas; cargo test --workspace y clippy -D warnings limpios; NADA contra Telegram real ni en Windows/macOS; sin commit) |
+

@@ -175,6 +175,11 @@ impl ConnTracker {
     pub(crate) fn is_online(&self) -> bool {
         self.state.load(Ordering::Acquire) == 1
     }
+
+    /// ¿Se sabe que no hay red? (el estado inicial, aún sin llamadas, no cuenta).
+    pub(crate) fn is_offline(&self) -> bool {
+        self.state.load(Ordering::Acquire) == 3
+    }
 }
 
 /// Cliente RPC: serializa, envía, reintenta y deserializa.
