@@ -1,5 +1,10 @@
 # Informe de paridad: Parlo frente al cliente original
 
+> **Actualización 2026-11-14 (tras los 5 puntos del plan):** paridad **58,2 / 100** (antes 45,0). Must-haves hechos: **23 de 54** (antes 16). Sigue **no distribuible**: faltan 31 must-haves (registro de cuenta, crear chat privado, carpetas de chats, editar perfil propio y varios `partial` sin probar contra Telegram real).
+> Subieron a `yes` con prueba real del usuario: enviar archivo, pegar imagen, diálogo de envío, progreso/cancelar, descargar/guardar, archivos como tipo de mensaje, GIFs, notificaciones de escritorio, ajustes por tipo y vista previa. `partial` `[sin real]`: búsqueda en el chat (+ filtros), arrastrar y soltar (no en Wayland nativo), álbum, sonido, atajos, descarga (solo carpeta).
+> Áreas más débiles ahora: carpetas 20,0; grupos 25,0; ajustes 29,4; perfil 38,9; seguridad 41,7; composición 42,9; búsqueda 44,4. Mejor: attachments 74,0 (antes 12,0), notifications 57,7 (antes 11,5).
+> Las cifras y tablas siguientes son del informe anterior (45,0) y se conservan como historial.
+
 Fecha: 2026-11-14. Herramienta: `replica-skill:replica-diff` (`parity.py` sobre `replica/features.csv`).
 
 ## Resumen

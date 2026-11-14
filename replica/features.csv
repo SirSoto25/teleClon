@@ -33,13 +33,13 @@ Detección de enlaces y menciones,message types,should,yes,partial,[incompleto] 
 Vista previa de enlaces,message types,could,yes,no,
 Fotos,message types,must,yes,partial,"[sin real] descarga y miniatura/vista completa reales, visor con zoom/navegación (tc-ui media.rs, tc-telegram media.rs, tests_media.rs); sin envío de fotos desde la UI"
 Vídeos,message types,must,yes,partial,[incompleto] solo miniatura con icono de reproducir y visor de miniatura; sin reproducción ni envío
-Archivos/documentos,message types,must,yes,no,mapeados como MediaKind::File; sin descarga a disco ni envío desde la UI
+Archivos/documentos,message types,must,yes,yes,"VERIFICADO REAL (2026-11-14); tarjeta con progreso, abrir, Guardar como"
 Notas de voz,message types,should,yes,partial,"[incompleto][sin real] recibir y reproducir con forma de onda (tc-audio, tc-ui audio.rs, tests_audio.rs, ADR-0007); sin grabar; sin sonido real probado"
 Audio/música (reproductor),message types,could,yes,partial,"[sin real] reproductor con título/intérprete, velocidad, salto (tc-audio Player, ADR-0007); sin altavoces probados en ningún SO"
 Stickers (enviar y recibir; WebP estático),message types,must,yes,partial,"[sin real] packs reales por getAllStickers/getStickerSet, envío con InputMediaDocument, selector con Recientes/Favoritos/packs (tc-telegram stickers.rs, tc-ui stickers.rs/sticker_img.rs, tests/stickers_reactions.rs); tras la prueba real que falló no se reprobó"
 Emoji,message types,must,yes,yes,"selector propio: catálogo completo del crate emojis, búsqueda en español, tonos de piel, recientes (tc-ui emoji.rs, view/emoji_panel.rs, tests_panel.rs, ADR-0009); limitación: emojis monocromos en texto mezclado"
-GIFs,message types,could,yes,partial,"[sin real] panel con guardados/búsqueda @gif/envío, GIF y MP4 H.264 animados (tc-video openh264, tc-telegram gifs.rs, tests/gifs.rs, tc-ui gifs.rs, ADR-0010); bot @gif y sendInlineBotResult sin probar"
-Álbumes de varias fotos (grouped),message types,should,yes,no,
+GIFs,message types,could,yes,yes,VERIFICADO REAL (2026-11-13): GIF y MP4 H.264 animados (tc-video); HEVC/AV1 siguen estáticos
+Álbumes de varias fotos (grouped),message types,should,yes,partial,"[sin real] álbum en la UI; envío como mensajes sueltos, sin sendMultiMedia real"
 Ubicación,message types,could,yes,no,
 Mensajes de servicio (se unió salió fijó),message types,should,yes,partial,[incompleto] solo textos de crear/editar tema (tc-telegram forum.rs); sin unirse/salir/fijó
 Encuestas,message types,could,yes,no,
@@ -58,37 +58,37 @@ Menú contextual de mensaje,message actions,must,yes,yes,"clic derecho/⋯: reac
 Reacciones con emoji (poner y quitar),reactions,must,yes,partial,"[sin real] reacciones permitidas por chat (getAvailableReactions ∩ ChatFull), sin Premium, optimista con reversión (tc-telegram reactions.rs, tc-ui app/reacts.rs, tests_reactions.rs); el arreglo tras PREMIUM_ACCOUNT_REQUIRED no se reprobó"
 Reacciones personalizadas premium,reactions,could,yes,skip,Premium fuera del alcance
 Búsqueda global (chats contactos mensajes),search,must,yes,partial,[incompleto] solo filtra la lista de chats por nombre (tc-ui Msg::SearchChanged); FTS5 en tc-store/messages.rs sin UI; sin búsqueda en servidor
-Búsqueda dentro de un chat,search,must,yes,no,S23
-Filtros de búsqueda por tipo de medio,search,should,yes,no,
+Búsqueda dentro de un chat,search,must,yes,partial,"[sin real] Ctrl+F, messages.search, filtros, resaltado y salto; tc-ui app/find.rs; ADR-0012"
+Filtros de búsqueda por tipo de medio,search,should,yes,partial,[sin real] fotos/vídeos/archivos/enlaces/audio en la barra de búsqueda del chat
 Búsqueda por fecha,search,could,yes,no,
 Info de usuario/perfil,profile,must,yes,partial,"[incompleto][sin real] «Información» del menú con about/usuario/teléfono/bloqueado (ChatInfo, getFullUser); sin pantalla S24 completa"
 Info de grupo/canal con miembros,profile,should,yes,partial,[incompleto][sin real] ChatInfo con descripción y número de miembros; sin lista de miembros
 Medios compartidos del chat,profile,should,yes,no,
 Bloquear usuario,profile,should,yes,partial,"[sin real] contacts.block/unblock con deshacer (tc-telegram dialog_actions.rs, tests/dialog_actions.rs)"
 Editar perfil propio (nombre foto bio usuario),settings,must,yes,no,S27
-Ajustes de notificaciones por tipo de chat,settings,must,yes,no,S28
+Ajustes de notificaciones por tipo de chat,settings,must,yes,yes,"VERIFICADO REAL (2026-11-14); overlay Avisos, persistido en tc-store"
 Notificaciones por chat (silenciar hasta),notifications,must,yes,partial,[incompleto][sin real] silenciar con plazo (mute_until); sin ajustes por tipo ni S28
-Notificaciones de escritorio del SO,notifications,must,yes,no,S34; libnotify/portal
-Vista previa en notificación on/off,notifications,should,yes,no,
+Notificaciones de escritorio del SO,notifications,must,yes,yes,"VERIFICADO REAL (2026-11-14): aviso, clic abre el chat; tc-notify (zbus/windows/macOS); Wayland/Windows/macOS solo compilado en CI"
+Vista previa en notificación on/off,notifications,should,yes,yes,VERIFICADO REAL (2026-11-14); completa/solo nombre/nada
 Icono de bandeja con contador,notifications,should,yes,no,S35
-Responder desde la notificación,notifications,could,yes,no,
-Sonido de notificación,notifications,should,yes,no,sonidos propios
+Responder desde la notificación,notifications,could,yes,no,"solo hay acción «Marcar como leído», no respuesta"
+Sonido de notificación,notifications,should,yes,partial,[sin real] interruptor de sonido del sistema; sonidos propios no
 Ajustes de privacidad básicos (visto por última vez),settings,could,yes,no,S29
 Sesiones activas y cierre remoto,settings,should,yes,no,S33
 Tema claro/oscuro,settings,must,yes,partial,conmutador en el raíl (tc-ui app.rs ThemeKind); no se persiste ni sigue al portal XDG
 Tamaño de texto y fondo de chat,settings,should,yes,no,
 Idioma de la interfaz,settings,should,yes,no,S32
-Ajustes de descarga automática y caché,settings,could,yes,no,S31
-Enviar archivo con selector,attachments,must,yes,no,S20
-Arrastrar y soltar archivos,attachments,must,yes,no,
-Pegar imagen desde portapapeles,attachments,should,yes,no,
-Diálogo de envío con pie de foto y comprimir/archivo,attachments,must,yes,no,S21
-Progreso de subida y descarga con cancelar,attachments,must,yes,no,
+Ajustes de descarga automática y caché,settings,could,yes,partial,solo carpeta de descargas elegible; sin descarga automática ni gestión de caché
+Enviar archivo con selector,attachments,must,yes,yes,VERIFICADO REAL (2026-11-14); rfd + tc-ui app/uploads.rs; ADR-0011
+Arrastrar y soltar archivos,attachments,must,yes,partial,[sin real] funciona en X11/Windows/macOS; no en Wayland nativo (winit 0.30)
+Pegar imagen desde portapapeles,attachments,should,yes,yes,VERIFICADO REAL (2026-11-14); arboard; tc-ui app/uploads.rs
+Diálogo de envío con pie de foto y comprimir/archivo,attachments,must,yes,yes,VERIFICADO REAL (2026-11-14); tc-ui view/send_dialog.rs
+Progreso de subida y descarga con cancelar,attachments,must,yes,yes,"VERIFICADO REAL (2026-11-14); TransferProgress, cancel_transfer; ADR-0011"
 Subida por partes reanudable,attachments,should,yes,no,parte difícil
 Visor de medios con zoom y navegación,attachments,must,yes,partial,"[sin real] Overlay::Photo con ←/→, rueda/doble clic 100 %, Esc/X/clic fuera (tc-ui view/, tests_media.rs); solo fotos, sin zoom con desplazamiento ni vídeo"
-Descargar/guardar archivo,attachments,must,yes,no,
+Descargar/guardar archivo,attachments,must,yes,yes,VERIFICADO REAL (2026-11-14); .part + rename atómico; carpeta configurable (Descargas/Telegram Desktop o Telegram)
 Miniaturas y caché de medios,attachments,must,yes,partial,"[sin real] caché LRU en memoria (tc-ui media.rs, 96 MiB) y de disco (tc-store media_cache.rs, MediaCacheLayer); sin stripped_thumb como placeholder"
-Atajos de teclado básicos,ux,should,yes,no,
+Atajos de teclado básicos,ux,should,yes,partial,"Ctrl+F buscar, Ctrl+O archivo, Ctrl+K lista, Ctrl+E emojis, Ctrl+1-5 filtros"
 Soporte Wayland/X11 y portal de archivos,platform,must,yes,partial,ejecutada en Wayland (wgpu) y X11/XWayland (tiny-skia) según el log; sin portal de archivos (no hay selector de archivos)
 Chats secretos (E2E): crear chat y claves DH,security,must,yes,partial,"[sin real] EXPERIMENTAL: DH validado y creación de chat (tc-secret dh.rs/key.rs, tc-telegram secret.rs, tc-ui panel secreto); solo entre instancias propias, sin cuenta secundaria para probar real (log 2026-11-09)"
 Llamadas de voz y vídeo,calls,could,yes,skip,fuera del slice; WebRTC/red

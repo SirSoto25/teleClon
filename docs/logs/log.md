@@ -383,3 +383,9 @@
 - `tc-app`: con Telegram, `tc_notify::system(&AppInfo::parlo())`; con el mock, `RecordingNotifier` (no muestra nada).
 - Pruebas `tests_notify.rs` (20) + 2 unitarias: cada regla, ráfaga y sonido único, carga inicial, secreto sin texto, foro, propio, abierto con/sin foco, clic, acción, retirada, icono, persistencia.
 - NO verificado: aviso real desde la app (clic en un aviso de verdad, foco en Wayland), Windows/macOS, Telegram real (menciones con `MentionName` sin @ no se detectan; tc-core no trae `mute_until` ni el tipo de servicio: el plazo solo se conoce si se silenció en esta sesión). Sin commit.
+
+
+## 2026-11-14 — CI macOS y paridad recalculada
+- CI fallaba solo en macOS (Linux y Windows pasaban) desde 9c3bed1: tests propios, no la app. `tests_find` usaba `Modifiers::CTRL` (en macOS el atajo es Cmd → ahora `Modifiers::COMMAND`); `abrir_es_un_solo_argumento_sin_shell` esperaba 1 argumento al señalar un archivo, pero `open -R` lleva 2 en macOS. Corregido en 256e694; CI relanzado (pendiente de resultado).
+- Usuario confirma: notificaciones de escritorio correctas. `replica/features.csv` actualizado (18 filas) y `parity.py`: 45,0 → 58,2; must-haves 16 → 23 de 54. `replica/diff-report.md` con nota de actualización.
+- Pendiente de prueba del usuario: carpeta de descargas, búsqueda en el chat (Ctrl+F), icono nuevo (`packaging/linux/install-user.sh`).
