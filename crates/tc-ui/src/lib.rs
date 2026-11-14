@@ -33,6 +33,7 @@ pub mod widgets;
 
 pub use app::{App, Auth, Backend, Connector, DemoStep, Flags, Folder, Msg, Phase, Session};
 pub use app::downloads::Prefs;
+pub use app::notify::NotifyHandle;
 pub use login::LoginMsg;
 
 #[cfg(test)]
@@ -71,3 +72,7 @@ mod tests_download_shots;
 mod tests_find;
 #[cfg(test)]
 mod tests_find_shots;
+#[cfg(test)]
+mod tests_notify;
+#[cfg(test)]
+mod tests_notify_shots;

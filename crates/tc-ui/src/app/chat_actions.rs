@@ -494,6 +494,7 @@ impl App {
                 Task::none()
             }
             ChatMsg::MarkRead(peer) => {
+                self.notify_read_peer(peer);
                 let prev = self.optimistic(peer, |d| {
                     d.unread_count = 0;
                     d.unread_mentions = 0;
@@ -523,6 +524,7 @@ impl App {
                 self.dialog_op(peer, prev, None, move |b| async move { b.set_pinned(peer, pin).await })
             }
             ChatMsg::Mute(peer, None) => {
+                self.notifs.set_mute_until(peer, None);
                 let prev = self.optimistic(peer, |d| d.muted = false);
                 let ok = Some(("Sonido activado.".to_string(), None));
                 self.dialog_op(peer, prev, ok, move |b| async move { b.set_muted(peer, false).await })
@@ -530,6 +532,8 @@ impl App {
             ChatMsg::Mute(peer, Some(f)) => {
                 let prev = self.optimistic(peer, |d| d.muted = true);
                 let until = f.until(now());
+                // Mismo plazo en el reloj de los avisos (el del sistema salvo en pruebas).
+                self.notifs.set_mute_until(peer, f.until(Timestamp(self.notifs.now())).map(|t| t.0));
                 let text = if f == MuteFor::Forever { "Chat silenciado.".to_string() } else { format!("Chat silenciado durante {}.", f.short()) };
                 let ok = Some((text, Some(Box::new(ChatMsg::Mute(peer, None)))));
                 self.dialog_op(peer, prev, ok, move |b| async move { b.mute_until(peer, until).await })

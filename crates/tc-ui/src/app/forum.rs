@@ -324,6 +324,7 @@ impl App {
             }
             ForumMsg::MarkRead(th) => {
                 self.forum.menu = None;
+                self.notify_read(&super::notify::topic_key(th));
                 let Some(max) = self.topic(th).and_then(|t| t.last_message.as_ref()).map(|m| m.id) else { return Task::none() };
                 if let Some(t) = self.forum.topics.get_mut(&th.group).and_then(|l| l.items.iter_mut().find(|t| t.id == th.topic)) {
                     t.unread_count = 0;

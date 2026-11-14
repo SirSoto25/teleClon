@@ -14,6 +14,8 @@ path = "src/main.rs"
 [dependencies]
 tc-core.workspace = true
 tc-mock.workspace = true
+# Notificaciones de escritorio (ADR-0013): el notificador del SO solo con la red real.
+tc-notify.workspace = true
 tc-store.workspace = true
 tc-stickers.workspace = true
 tc-telegram.workspace = true

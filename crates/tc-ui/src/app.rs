@@ -39,6 +39,8 @@ mod reacts;
 /// Envío de archivos: selector, arrastrar y soltar, pegar, diálogo y subidas (fase A2).
 pub mod uploads;
 pub mod downloads;
+/// Notificaciones de escritorio: reglas, avisos, clics y ajustes (fase C2, ADR-0013).
+pub mod notify;
 pub use reacts::{apply_mine, reaction_error_text};
 
 pub type Backend = Arc<dyn ChatBackend>;
@@ -86,6 +88,8 @@ pub struct Flags {
     pub notice: Option<String>,
     /// Ajustes persistentes del usuario (carpeta de descargas). `None`: solo duran la sesión.
     pub prefs: Option<Arc<dyn downloads::Prefs>>,
+    /// Notificador de escritorio y su canal de clics (`tc-app`). `None`: sin avisos.
+    pub notify: Option<notify::NotifyHandle>,
 }
 
 impl Flags {
@@ -113,6 +117,7 @@ impl Flags {
             login_hint: None,
             notice: None,
             prefs: None,
+            notify: None,
         }
     }
 }
@@ -225,6 +230,8 @@ pub enum Overlay {
     Photo { peer: PeerRef, msg: MsgId },
     /// Carpeta de descargas: ver la actual, elegir otra o restablecerla (`app/downloads.rs`).
     DownloadDir,
+    /// Ajustes de notificaciones (S28, `app/notify.rs`).
+    Notifications,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -351,6 +358,8 @@ pub enum Msg {
     Dl(downloads::DlMsg),
     /// Búsqueda dentro del chat (ver `app/find.rs`).
     Find(find::FindMsg),
+    /// Notificaciones de escritorio: clics del SO y ajustes (ver `app/notify.rs`).
+    Notify(notify::NotifyMsg),
 }
 
 pub struct App {
@@ -429,6 +438,8 @@ pub struct App {
     pub dl: downloads::Downloads,
     /// Barra de búsqueda dentro del chat (`app/find.rs`).
     pub find: Option<find::ChatSearch>,
+    /// Avisos de escritorio y sus ajustes (`app/notify.rs`).
+    pub notifs: notify::Notifs,
     pub dots: u8,
     demo: std::collections::VecDeque<(Duration, DemoStep)>,
     demo_start: Option<Instant>,
@@ -536,6 +547,7 @@ impl App {
             uploads: uploads::Uploads::default(),
             dl: downloads::Downloads::default(),
             find: None,
+            notifs: notify::Notifs::new(flags.notify, flags.prefs.clone()),
             dots: 0,
             demo: flags.demo.into_iter().collect(),
             demo_start: None,
@@ -609,6 +621,8 @@ impl App {
         self.uploads = uploads::Uploads::default();
         self.dl = downloads::Downloads::default();
         self.find = None;
+        // Hasta la próxima carga inicial no se avisa.
+        self.notifs.armed_at = None;
         self.toast("La sesión se ha cerrado. Vuelve a entrar.".into(), true);
         operation::focus(Id::new(login::PHONE_ID))
     }
@@ -636,6 +650,7 @@ impl App {
         if let Some(b) = &self.backend {
             subs.push(Subscription::run_with(BackendHandle(b.clone()), backend_events).map(Msg::Backend));
         }
+        subs.extend(self.notify_subscription());
         if let Some(a) = &self.auth {
             subs.push(Subscription::run_with(AuthHandle(a.clone()), auth_events).map(|s| Msg::Login(LoginMsg::Event(s))));
         }
@@ -1203,6 +1218,8 @@ impl App {
                 self.dialogs.extend(list.into_iter().filter(|d| seen.insert(d.peer)));
                 sort_dialogs(&mut self.dialogs);
                 self.dialogs_state = LoadState::Ready;
+                // Carga inicial hecha: desde aquí, los mensajes nuevos pueden avisar.
+                self.notify_arm();
                 let peers: Vec<PeerRef> = self.dialogs.iter().map(|d| d.peer).collect();
                 Task::batch(peers.into_iter().map(|p| self.want_group(p)).collect::<Vec<_>>())
             }
@@ -1488,6 +1505,7 @@ impl App {
             Msg::Files(m) => self.on_files(m),
             Msg::Dl(m) => self.on_dl(m),
             Msg::Find(m) => self.on_find(m),
+            Msg::Notify(m) => self.on_notify(m),
         }
     }
 
@@ -1549,6 +1567,10 @@ impl App {
         };
         let want = self.want_user(user);
         let reactions = self.load_reactions(peer);
+        // Abrir el chat (o el tema) es leerlo: fuera su aviso.
+        if let Some(k) = self.open_key() {
+            self.notify_read(&k);
+        }
         Task::batch([save, load, want, reactions, Self::scroll_bottom()])
     }
 
@@ -1616,6 +1638,13 @@ impl App {
     }
 
     fn on_event(&mut self, ev: BackendEvent) -> Task<Msg> {
+        // Avisos de escritorio, antes de que el foro reparta el evento (`app/notify.rs`).
+        match &ev {
+            BackendEvent::MessageNew(m) => self.notify_on_message(m, None),
+            BackendEvent::TopicMessageNew { topic, msg } => self.notify_on_message(msg, Some(*topic)),
+            BackendEvent::ReadInbox { peer, max_id } => self.notify_read_inbox(*peer, *max_id),
+            _ => {}
+        }
         // Temas de los foros (y filtro de la conversación de un tema): `app/forum.rs`.
         let ev = match self.forum_event(ev) {
             Ok(t) => return t,

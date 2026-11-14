@@ -87,6 +87,8 @@ impl App {
             }
             AnimMsg::Focus(f) => {
                 self.sticker_anims.focused = f;
+                // Volver a la ventana con un chat abierto es leerlo (`app/notify.rs`).
+                self.notify_focus(f);
                 Task::none()
             }
             AnimMsg::Hover(id) => {

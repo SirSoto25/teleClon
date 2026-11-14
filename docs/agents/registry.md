@@ -69,3 +69,8 @@ Criterio: investigación/redacción estructurada → Sonnet (esfuerzo medio); de
 | --- | --- | --- | --- | --- | --- | --- |
 | 19 | B2 búsqueda UI | opus | medium | barra de búsqueda en el chat: lupa/Ctrl+F, contador, ↑/↓/Enter, chips de tipo, resaltado, espera, salto con `Anchor::Around`, Esc restaura, borrados, temas, secretos desactivados | crates/tc-ui (app/find.rs, view/find_bar.rs, view/conversation.rs, view/topics.rs, app.rs, style.rs, icon.rs, tests_find.rs, tests_find_shots.rs), docs/design/system.md §8.13, docs/design/screens/b2-*.png | HECHO (tests+clippy tc-ui; sin Telegram real; sin commit) |
 
+
+## 2026-11-14 — fase C2 (notificaciones en la UI)
+| # | Agente | Modelo | Esfuerzo | Tarea | Salida | Estado |
+| --- | --- | --- | --- | --- | --- | --- |
+| 20 | C2 notificaciones UI | opus | medium | integrar `tc-notify`: notificador por `Flags`, reglas con foco y chat abierto, temas, retirada al leer, clic/acción, ajustes S28 persistidos y diálogo desde el raíl | crates/tc-ui (app/notify.rs, view/notify.rs, app.rs, app/chat_actions.rs, app/forum.rs, app/sticker_anims.rs, view/sidebar.rs, view/mod.rs, tests_notify.rs, tests_notify_shots.rs, Cargo.toml), crates/tc-app (main.rs, Cargo.toml), docs/design/system.md §8.14, docs/design/screens/c2-*.png | HECHO (tests+clippy; sin aviso real ni Telegram real; sin commit) |

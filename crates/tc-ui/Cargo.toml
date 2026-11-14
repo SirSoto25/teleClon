@@ -15,6 +15,8 @@ tc-stickers.workspace = true
 tc-audio.workspace = true
 # GIFs de Telegram (MP4/H.264) a fotogramas, fuera del hilo de la UI (ADR-0010).
 tc-video.workspace = true
+# Notificaciones de escritorio (fase C2, ADR-0013): reglas, Notifier y eventos de clic.
+tc-notify.workspace = true
 # `canvas`: fondo de curvas de nivel y celdas de la huella de clave (aditivo sobre las features del workspace).
 iced = { workspace = true, features = ["canvas"] }
 futures.workspace = true

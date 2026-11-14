@@ -165,7 +165,8 @@ fn main() -> iced::Result {
             };
             tracing::info!(cuenta = %paths.account, "backend: red real (sesión en el llavero; respaldo {})", paths.session_file.display());
             let prefs = stores::StorePrefs::open(paths.data_dir.as_deref(), &paths.account);
-            tc_ui::Flags { theme, reduced_motion, on_screenshot: Some(on_screenshot), prefs, ..tc_ui::Flags::with_connector(telegram_connector(cfg, paths)) }
+            let notify = Some(system_notifier());
+            tc_ui::Flags { theme, reduced_motion, on_screenshot: Some(on_screenshot), prefs, notify, ..tc_ui::Flags::with_connector(telegram_connector(cfg, paths)) }
         }
         Choice::Mock { notice } => {
             if let Some(n) = &notice {
@@ -198,6 +199,7 @@ fn main() -> iced::Result {
                      en 0 no tienen cuenta y en 9 simulan el límite de intentos."
                 )),
                 notice,
+                notify: Some(mock_notifier()),
                 ..tc_ui::Flags::new(backend)
             }
         }
@@ -243,6 +245,19 @@ fn window_settings() -> iced::window::Settings {
         platform_specific: iced::window::settings::PlatformSpecific { application_id: "parlo".into(), ..Default::default() },
         ..Default::default()
     }
+}
+
+/// Notificador del SO (D-Bus, toasts o NSUserNotification). Sin servicio, `NullNotifier` y un aviso
+/// en el registro: la app nunca falla por no poder avisar (ADR-0013).
+fn system_notifier() -> tc_ui::NotifyHandle {
+    let (n, events) = tc_notify::system(&tc_notify::AppInfo::parlo());
+    tc_ui::NotifyHandle::new(Arc::from(n), events)
+}
+
+/// Con el mock no salen avisos reales (los datos son de prueba): se registran sin mostrarlos.
+fn mock_notifier() -> tc_ui::NotifyHandle {
+    let (rec, events) = tc_notify::RecordingNotifier::new();
+    tc_ui::NotifyHandle::new(Arc::new(rec), events)
 }
 
 fn save_png(path: &str, w: u32, h: u32, rgba: &[u8]) {

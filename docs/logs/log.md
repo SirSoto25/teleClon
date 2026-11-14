@@ -373,3 +373,13 @@
 - Pruebas `tests_find.rs` (8) con MockBackend: acentos/mayúsculas, espera, respuestas obsoletas, sin resultados, error y reintento, filtro sin texto, navegación por teclado, paginación, salto a no cargado, Esc restaura, borrado, tema, secreto. Capturas `docs/design/screens/b2-*.png` revisadas a ojo (claro y oscuro).
 - Verificado: `cargo test -p tc-ui` y `cargo clippy -p tc-ui --all-targets -D warnings` (toolchain 1.99.1). Sin probar contra Telegram real ni en ventana real (desplazamiento al resultado solo comprobado por cálculo). Sin commit.
 
+
+## 2026-11-14 — Fase C2: notificaciones integradas en tc-ui y tc-app (agente C2, Opus)
+- `tc-ui/src/app/notify.rs`: `NotifyHandle` (notificador + canal de clics, por `Flags::notify`), `Notifs` (`Engine`, ajustes, claves con aviso, último avisado por chat, plazos de silencio de la sesión). `MessageNew`/`TopicMessageNew` → `ChatInfo`/`IncomingMessage` (tipo por `PeerRef`/`GroupKind`, `muted` + plazo de «Silenciar durante…», archivado, propio por `outgoing` o remitente = yo, mención por `@usuario` o respuesta a un mensaje mío, «se unió» por el texto `Se ha unido a la red` de tc-telegram) → `Engine::on_message` con foco real (`StickerAnims::focused`) y chat/tema abierto → `notify` con la foto en caché codificada a PNG. Temas: clave `g:<id>/t:<tema>` y título «Tema · Grupo».
+- Retirada (`withdraw`): abrir chat/tema, «Marcar como leído» (chat con sus temas, o tema), foco de vuelta con el chat abierto, `ReadInbox` que llega hasta el último avisado.
+- Suscripción a `NotifyEvents`: `Clicked` enfoca (`window::latest().and_then(gain_focus)`), cierra diálogos y abre el chat o tema; `Action("mark-read")` marca como leído sin abrir.
+- Sin avisos antes de `DialogsLoaded`, con la conexión no `Online`, ni de mensajes 120 s anteriores al arranque de los avisos; ráfagas con el límite del `Engine`.
+- Ajustes S28 en `Prefs` (`notify.enabled|private|groups|channels|archived|ignore_joined|preview|secret_preview|sound|dnd`), solo se escribe lo que cambia. Diálogo `view/notify.rs` desde el raíl («Avisos»). §8.14 en `docs/design/system.md`; capturas `c2-ajustes-avisos*.png` revisadas a ojo.
+- `tc-app`: con Telegram, `tc_notify::system(&AppInfo::parlo())`; con el mock, `RecordingNotifier` (no muestra nada).
+- Pruebas `tests_notify.rs` (20) + 2 unitarias: cada regla, ráfaga y sonido único, carga inicial, secreto sin texto, foro, propio, abierto con/sin foco, clic, acción, retirada, icono, persistencia.
+- NO verificado: aviso real desde la app (clic en un aviso de verdad, foco en Wayland), Windows/macOS, Telegram real (menciones con `MentionName` sin @ no se detectan; tc-core no trae `mute_until` ni el tipo de servicio: el plazo solo se conoce si se silenció en esta sesión). Sin commit.
