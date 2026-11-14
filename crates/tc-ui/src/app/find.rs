@@ -192,36 +192,60 @@ pub fn find_error_text(e: &BackendError) -> String {
 /// Tramos (en bytes de `text`) que coinciden con la consulta, con la misma regla que la búsqueda:
 /// sin acentos ni mayúsculas; las palabras completas, y la última también como prefijo (solo se
 /// resalta la parte que coincide).
+///
+/// Si la consulta tiene varias palabras y aparecen seguidas y en orden (la frase), se resalta solo
+/// esa frase. Si no, se resalta cada palabra suelta (el servidor busca mensajes que las contengan
+/// todas, en cualquier sitio).
 pub fn highlight_ranges(query: &str, text: &str) -> Vec<Range<usize>> {
     let parts = |w: &str| -> Vec<String> { fold(w).split(|c: char| !c.is_alphanumeric()).filter(|t| !t.is_empty()).map(str::to_owned).collect() };
-    let words: Vec<&str> = query.split_whitespace().collect();
-    let Some((last, init)) = words.split_last() else { return Vec::new() };
-    let exact: Vec<String> = init.iter().flat_map(|w| parts(w)).collect();
-    let prefix: Vec<String> = parts(last);
-    let mut out = Vec::new();
+    let toks: Vec<String> = query.split_whitespace().flat_map(parts).collect();
+    let Some((last, init)) = toks.split_last() else { return Vec::new() };
+    // Palabras del texto: (inicio, fin, plegada).
+    let mut words: Vec<(usize, usize, String)> = Vec::new();
     let mut start: Option<usize> = None;
     let ends = text.char_indices().map(|(i, c)| (i, c.is_alphanumeric())).chain(std::iter::once((text.len(), false)));
     for (i, alnum) in ends {
         if alnum {
             start.get_or_insert(i);
-            continue;
+        } else if let Some(s) = start.take() {
+            words.push((s, i, fold(&text[s..i])));
         }
-        let Some(s) = start.take() else { continue };
-        let word = &text[s..i];
-        let f = fold(word);
-        if exact.contains(&f) || prefix.contains(&f) {
-            out.push(s..i);
-        } else if let Some(n) = prefix.iter().filter(|p| f.starts_with(p.as_str())).map(|p| p.chars().count()).max() {
-            // Caracteres originales que cubren los `n` primeros plegados.
-            let (mut got, mut end) = (0, s);
-            for (j, c) in word.char_indices() {
-                if got >= n {
-                    break;
-                }
-                got += fold(c.encode_utf8(&mut [0; 4])).chars().count();
-                end = s + j + c.len_utf8();
+    }
+    // Fin (en bytes) de los `n` primeros caracteres plegados de la palabra `s..`.
+    let prefix_end = |s: usize, e: usize, n: usize| -> usize {
+        let (mut got, mut end) = (0, s);
+        for (j, c) in text[s..e].char_indices() {
+            if got >= n {
+                break;
             }
-            out.push(s..end);
+            got += fold(c.encode_utf8(&mut [0; 4])).chars().count();
+            end = s + j + c.len_utf8();
+        }
+        end
+    };
+    let last_n = last.chars().count();
+    // Frase seguida: las anteriores exactas y la última como prefijo.
+    let k = init.len();
+    if k >= 1 {
+        let mut phrase = Vec::new();
+        for w in 0..words.len().saturating_sub(k) {
+            if init.iter().enumerate().all(|(d, t)| words[w + d].2 == *t) && words[w + k].2.starts_with(last.as_str()) {
+                let (s, e, _) = &words[w + k];
+                phrase.extend(words[w..w + k].iter().map(|(s, e, _)| *s..*e));
+                phrase.push(*s..prefix_end(*s, *e, last_n));
+            }
+        }
+        if !phrase.is_empty() {
+            return phrase;
+        }
+    }
+    // Sin frase: cada palabra suelta.
+    let mut out = Vec::new();
+    for (s, e, f) in &words {
+        if init.contains(f) || f == last {
+            out.push(*s..*e);
+        } else if f.starts_with(last.as_str()) {
+            out.push(*s..prefix_end(*s, *e, last_n));
         }
     }
     out

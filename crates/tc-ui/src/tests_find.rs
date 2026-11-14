@@ -102,6 +102,16 @@ fn resaltado_sin_acentos_y_con_prefijo() {
     assert!(words("union").is_empty(), "no resalta en medio de una palabra");
 }
 
+#[test]
+fn con_varias_palabras_resalta_la_frase_y_no_cada_palabra_suelta() {
+    let t = "Ut enim ad minim veniam. Lorem ut labore. Ut enim ad minim otra vez, ut y enim.";
+    let words = |q: &str| highlight_ranges(q, t).into_iter().map(|r| &t[r]).collect::<Vec<_>>();
+    assert_eq!(words("ut enim ad minim"), ["Ut", "enim", "ad", "minim", "Ut", "enim", "ad", "minim"], "solo la frase, dos veces");
+    assert_eq!(words("enim ad mi"), ["enim", "ad", "mi", "enim", "ad", "mi"], "la última, como prefijo");
+    // Sin la frase seguida se resaltan las palabras sueltas (el servidor las busca todas).
+    assert_eq!(words("minim lorem"), ["minim", "Lorem", "minim"]);
+}
+
 #[tokio::test]
 async fn espera_al_teclear_acentos_y_salto_al_mas_reciente() {
     let (mut app, mock) = boot().await;

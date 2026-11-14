@@ -391,3 +391,4 @@
 - Pendiente de prueba del usuario: carpeta de descargas, búsqueda en el chat (Ctrl+F), icono nuevo (`packaging/linux/install-user.sh`).
 - Usuario confirma: carpeta de descargas correcta (creación por defecto y selección de otra).
 - Bug de búsqueda (informado por el usuario: «En este chat no se puede buscar» en cualquier chat): `MediaCacheLayer` no reenviaba `search_in_chat` ni `search_in_topic` y caía en el «no soportado» por defecto. Reenviados + prueba `layer_forwards_in_chat_search`. Lección: toda capa que envuelve un backend debe reenviar los métodos con implementación por defecto.
+- Búsqueda: con varias palabras se resalta solo la frase seguida (antes cada palabra suelta, p. ej. «ut», llenaba la burbuja); sin frase, palabras sueltas. Prueba con_varias_palabras_resalta_la_frase_y_no_cada_palabra_suelta.
