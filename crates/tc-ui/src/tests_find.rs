@@ -107,7 +107,7 @@ async fn espera_al_teclear_acentos_y_salto_al_mas_reciente() {
     let (mut app, mock) = boot().await;
     let m = mock.inject_incoming(BIG_CHAT, "Reunión en la CAFETERÍA a las cinco").unwrap();
     open(&mut app, BIG_CHAT).await;
-    let _ = app.update(key(Key::Character("f".into()), Modifiers::CTRL));
+    let _ = app.update(key(Key::Character("f".into()), Modifiers::COMMAND));
     let f = app.find_active().expect("Ctrl+F abre la barra");
     assert_eq!(f.state, FindState::Idle);
     assert!(f.thread.is_none());
@@ -336,7 +336,7 @@ async fn en_un_chat_secreto_no_se_busca() {
     let peer = PeerRef::Secret(SECRET_ID);
     let _ = app.update(Msg::Open(peer));
     assert!(!app.can_find(peer));
-    let _ = app.update(key(Key::Character("f".into()), Modifiers::CTRL));
+    let _ = app.update(key(Key::Character("f".into()), Modifiers::COMMAND));
     assert!(app.find.is_none());
     assert!(app.toasts.iter().any(|t| t.text.contains("secretos")), "se explica por qué");
 }

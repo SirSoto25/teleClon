@@ -108,7 +108,8 @@ fn abrir_es_un_solo_argumento_sin_shell() {
     assert_eq!(args.len(), 1);
     assert_eq!(args[0], path.as_os_str());
     let (_, args) = open_command(path, true);
-    assert_eq!(args.len(), 1);
+    // En macOS señalar el archivo añade la opción `-R`; el camino sigue siendo un único argumento.
+    assert_eq!(args.len(), if cfg!(target_os = "macos") { 2 } else { 1 });
     if cfg!(target_os = "linux") {
         assert_eq!(args[0], Path::new("/home/ana/Descargas").as_os_str(), "Linux abre la carpeta");
     }
