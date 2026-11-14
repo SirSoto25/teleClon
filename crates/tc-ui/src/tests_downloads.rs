@@ -370,3 +370,164 @@ async fn funciona_dentro_de_un_tema_del_foro() {
     assert!(dir.join("plano.pdf").exists());
     std::fs::remove_dir_all(dir).ok();
 }
+
+// --- Carpeta de descargas: predeterminada, elegida y persistencia -------------------------------
+
+use crate::app::downloads::{DIR_KEY, Prefs, default_dir_in, is_writable_dir};
+
+#[derive(Default)]
+struct MemPrefs(std::sync::Mutex<std::collections::HashMap<String, String>>);
+impl Prefs for MemPrefs {
+    fn get(&self, key: &str) -> Option<String> {
+        self.0.lock().unwrap().get(key).cloned()
+    }
+    fn set(&self, key: &str, value: Option<&str>) {
+        let mut m = self.0.lock().unwrap();
+        match value {
+            Some(v) => m.insert(key.into(), v.into()),
+            None => m.remove(key),
+        };
+    }
+}
+
+#[test]
+fn predeterminada_usa_telegram_desktop_si_existe() {
+    let home = tmp("pd-home");
+    let down = home.join("Descargas");
+    std::fs::create_dir_all(down.join("Telegram Desktop")).unwrap();
+    assert_eq!(default_dir_in(Some(down.clone()), Some(home.clone())), Some(down.join("Telegram Desktop")));
+    std::fs::remove_dir_all(home).ok();
+}
+
+#[test]
+fn predeterminada_sin_telegram_desktop_es_telegram_y_no_se_crea_al_resolver() {
+    let home = tmp("pd-solo");
+    let down = home.join("Descargas");
+    std::fs::create_dir_all(&down).unwrap();
+    assert_eq!(default_dir_in(Some(down.clone()), Some(home.clone())), Some(down.join("Telegram")));
+    assert!(!down.join("Telegram").exists(), "se crea al primer uso, no al resolver");
+    std::fs::remove_dir_all(home).ok();
+}
+
+#[test]
+fn predeterminada_sin_descargas_cae_a_la_personal() {
+    let home = tmp("pd-sin");
+    assert_eq!(default_dir_in(None, Some(home.clone())), Some(home.clone()));
+    // Una carpeta Descargas que no existe cuenta como ausente.
+    assert_eq!(default_dir_in(Some(home.join("no-hay")), Some(home.clone())), Some(home.clone()));
+    assert_eq!(default_dir_in(None, None), None);
+    std::fs::remove_dir_all(home).ok();
+}
+
+#[tokio::test(start_paused = true)]
+async fn la_primera_descarga_crea_la_carpeta_telegram() {
+    let (mut app, _) = boot().await;
+    let base = tmp("crea");
+    let target = base.join("Telegram");
+    app.dl.default_override = Some(target.clone());
+    let m = find_media(&app, MediaKind::File);
+    let _ = app.update(Msg::Dl(DlMsg::Start(m.id)));
+    assert!(!target.exists(), "no se crea al decidir el destino");
+    let dest = app.dl.get(m.peer, m.id).unwrap().path.clone();
+    assert_eq!(dest.parent(), Some(target.as_path()));
+    // La tarea de la descarga hace esto mismo antes de pedir el archivo (las `Task` no se ejecutan aquí).
+    crate::app::downloads::ensure_parent(&dest).unwrap();
+    assert!(target.is_dir(), "se crea al primer uso");
+    run_task(&mut app, &m).await.expect("arranca");
+    std::fs::remove_dir_all(base).ok();
+}
+
+#[tokio::test(start_paused = true)]
+async fn carpeta_elegida_se_usa_se_persiste_y_se_restablece() {
+    let prefs = Arc::new(MemPrefs::default());
+    let chosen = tmp("elegida");
+    let (mut app, _) = {
+        let mock = Arc::new(MockBackend::new(MockConfig { now: Some(NOW), ..Default::default() }));
+        let backend: Backend = mock.clone();
+        App::new(Flags { prefs: Some(prefs.clone()), ..Flags::new(backend) })
+    };
+    assert_eq!(app.dl.dir, None);
+
+    let _ = app.update(Msg::Dl(DlMsg::DirPicked(Some(chosen.clone()))));
+    assert_eq!(app.dl.dir.as_deref(), Some(chosen.as_path()));
+    assert_eq!(prefs.get(DIR_KEY).as_deref(), chosen.to_str(), "queda guardada");
+    assert_eq!(app.dl_target_dir(), Some(chosen.clone()));
+
+    // «Guardar como…» propone la elegida: es la misma resolución que usa el selector.
+    assert_eq!(app.dl.resolve(None).dir, Some(chosen.clone()));
+
+    // Otra sesión (otra `App` con los mismos ajustes) la recupera.
+    let (again, _) = {
+        let mock = Arc::new(MockBackend::new(MockConfig { now: Some(NOW), ..Default::default() }));
+        let backend: Backend = mock.clone();
+        App::new(Flags { prefs: Some(prefs.clone()), ..Flags::new(backend) })
+    };
+    assert_eq!(again.dl.dir.as_deref(), Some(chosen.as_path()));
+
+    let _ = app.update(Msg::Dl(DlMsg::ResetDir));
+    assert_eq!(app.dl.dir, None);
+    assert_eq!(prefs.get(DIR_KEY), None, "restablecer borra el ajuste");
+    std::fs::remove_dir_all(chosen).ok();
+}
+
+#[tokio::test(start_paused = true)]
+async fn carpeta_elegida_borrada_avisa_y_vuelve_a_la_predeterminada() {
+    let prefs = Arc::new(MemPrefs::default());
+    let gone = tmp("borrada");
+    prefs.set(DIR_KEY, gone.to_str());
+    let mock = Arc::new(MockBackend::new(MockConfig { now: Some(NOW), ..Default::default() }));
+    let backend: Backend = mock.clone();
+    let (mut app, _) = App::new(Flags { prefs: Some(prefs.clone()), ..Flags::new(backend) });
+    assert_eq!(app.dl.dir.as_deref(), Some(gone.as_path()), "al arrancar no se valida");
+    std::fs::remove_dir_all(&gone).unwrap();
+
+    let r = app.dl.resolve(Some(PathBuf::from("/por/defecto")));
+    assert_eq!(r.dir, Some(PathBuf::from("/por/defecto")));
+    assert_eq!(r.invalid.as_deref(), Some(gone.as_path()));
+
+    let dir = app.dl_target_dir();
+    assert_eq!(dir, default_dir_in(dirs::download_dir(), dirs::home_dir()));
+    assert_eq!(app.dl.dir, None, "se olvida");
+    assert_eq!(prefs.get(DIR_KEY), None);
+    assert!(app.toasts.iter().any(|t| t.error && t.text.contains("predeterminada")));
+}
+
+#[test]
+fn una_carpeta_elegida_que_no_se_puede_escribir_se_rechaza() {
+    let base = tmp("noesc");
+    let file = base.join("archivo");
+    std::fs::write(&file, b"x").unwrap();
+    assert!(!is_writable_dir(&file), "un archivo no es carpeta");
+    assert!(!is_writable_dir(&base.join("no-existe")));
+    assert!(is_writable_dir(&base));
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let ro = base.join("ro");
+        std::fs::create_dir(&ro).unwrap();
+        std::fs::set_permissions(&ro, std::fs::Permissions::from_mode(0o555)).unwrap();
+        // Como root los permisos no impiden escribir: solo se comprueba si de verdad no deja.
+        let probe = std::fs::File::create(ro.join("p")).is_ok();
+        assert_eq!(is_writable_dir(&ro), probe);
+        std::fs::set_permissions(&ro, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    std::fs::remove_dir_all(base).ok();
+}
+
+#[tokio::test(start_paused = true)]
+async fn elegir_una_carpeta_invalida_avisa_y_no_la_guarda() {
+    let (mut app, _) = boot().await;
+    let _ = app.update(Msg::Dl(DlMsg::DirPicked(Some(PathBuf::from("/no/existe/de/verdad")))));
+    assert_eq!(app.dl.dir, None);
+    assert!(app.toasts.iter().any(|t| t.error));
+}
+
+#[tokio::test(start_paused = true)]
+async fn el_raíl_abre_el_dialogo_de_la_carpeta() {
+    let (mut app, _) = boot().await;
+    let _ = app.update(Msg::Dl(DlMsg::Settings));
+    assert!(matches!(app.overlay, Some(crate::app::Overlay::DownloadDir)));
+    let _ = app.view();
+    let _ = app.update(Msg::CloseOverlay);
+    assert!(app.overlay.is_none());
+}

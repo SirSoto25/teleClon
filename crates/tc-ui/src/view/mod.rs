@@ -132,6 +132,7 @@ fn overlay<'a>(app: &'a App, o: &'a Overlay) -> Element<'a, Msg> {
         Overlay::Key(kv) => key_panel(app, kv.as_ref()),
         Overlay::NewSecret { query, user, busy } => new_secret_panel(app, query, *user, *busy),
         Overlay::Ttl { confirm_discard } => ttl_panel(app, *confirm_discard),
+        Overlay::DownloadDir => downloads::dir_panel(app),
         Overlay::Photo { .. } => unreachable!("el visor se dibuja aparte"),
     };
     let panel = container(panel).padding(space::S6).width(Length::Fixed(width)).style(style::raised(b, 3, radius::XL));

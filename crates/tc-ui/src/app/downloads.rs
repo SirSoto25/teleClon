@@ -13,6 +13,7 @@
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use iced::Task;
 use tc_core::*;
@@ -59,14 +60,30 @@ impl Dl {
     }
 }
 
+/// Ajustes del usuario que sobreviven al cierre (los aporta `tc-app` sobre la tabla de ajustes de
+/// `tc-store`; sin ellos el ajuste solo dura la sesión). Nunca se guardan secretos.
+pub trait Prefs: Send + Sync {
+    fn get(&self, key: &str) -> Option<String>;
+    /// `None` borra el ajuste.
+    fn set(&self, key: &str, value: Option<&str>);
+}
+
+/// Clave del ajuste «carpeta de descargas».
+pub const DIR_KEY: &str = "ui.download_dir";
+
 #[derive(Default)]
 pub struct Downloads {
     items: HashMap<(PeerRef, MsgId), Dl>,
-    /// Carpeta de descargas elegida (`None`: la del sistema).
+    /// Carpeta de descargas elegida por el usuario (`None`: la predeterminada).
     pub dir: Option<PathBuf>,
+    /// Persistencia del ajuste (si la hay).
+    pub prefs: Option<Arc<dyn Prefs>>,
     /// El selector de «Guardar como…» está abierto.
     picking: bool,
     /// Pruebas: lo último que se habría abierto (en pruebas no se lanza ningún programa).
+    /// Pruebas: carpeta predeterminada en lugar de la del sistema.
+    #[cfg(test)]
+    pub default_override: Option<PathBuf>,
     #[cfg(test)]
     pub last_open: Option<(PathBuf, bool)>,
 }
@@ -82,9 +99,56 @@ impl Downloads {
         self.items.insert((peer, msg), Dl { id: None, path, state, cancel_early: false, notify: false });
     }
 
-    /// Carpeta donde caen las descargas directas.
-    pub fn target_dir(&self) -> Option<PathBuf> {
-        self.dir.clone().or_else(default_dir)
+    /// Carpeta donde caen las descargas directas: la elegida si sigue siendo válida; si no, la
+    /// predeterminada (y `invalid` lleva la elegida que ya no sirve, para avisar y olvidarla).
+    pub fn resolve(&self, default: Option<PathBuf>) -> Resolved {
+        match &self.dir {
+            Some(d) if is_writable_dir(d) => Resolved { dir: Some(d.clone()), invalid: None },
+            Some(d) => Resolved { dir: default, invalid: Some(d.clone()) },
+            None => Resolved { dir: default, invalid: None },
+        }
+    }
+
+    /// ¿Hay una carpeta elegida (distinta de la predeterminada)?
+    pub fn is_custom(&self) -> bool {
+        self.dir.is_some()
+    }
+
+    /// Guarda (o borra) la carpeta elegida, también en los ajustes persistentes.
+    pub fn set_dir(&mut self, dir: Option<PathBuf>) {
+        if let Some(p) = &self.prefs {
+            p.set(DIR_KEY, dir.as_deref().and_then(Path::to_str));
+        }
+        self.dir = dir;
+    }
+
+    /// Lee el ajuste guardado (al arrancar). No se valida aquí: la carpeta puede no estar montada
+    /// todavía; se comprueba al usarla.
+    pub fn load(&mut self) {
+        self.dir = self.prefs.as_ref().and_then(|p| p.get(DIR_KEY)).filter(|v| !v.trim().is_empty()).map(PathBuf::from);
+    }
+}
+
+/// Resultado de decidir dónde caen las descargas.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Resolved {
+    pub dir: Option<PathBuf>,
+    /// Carpeta elegida que ya no existe o no se puede escribir.
+    pub invalid: Option<PathBuf>,
+}
+
+/// ¿Existe, es una carpeta y se puede escribir en ella? (se prueba creando y borrando un archivo).
+pub fn is_writable_dir(dir: &Path) -> bool {
+    if !dir.is_dir() {
+        return false;
+    }
+    let probe = dir.join(format!(".parlo-prueba-{}", std::process::id()));
+    match std::fs::OpenOptions::new().write(true).create_new(true).open(&probe) {
+        Ok(_) => {
+            let _ = std::fs::remove_file(&probe);
+            true
+        }
+        Err(_) => false,
     }
 }
 
@@ -103,11 +167,32 @@ pub enum DlMsg {
     Open(MsgId),
     /// Mostrar el archivo en su carpeta.
     Reveal(MsgId),
+    /// Abrir el diálogo de la carpeta de descargas (raíl).
+    Settings,
+    /// «Elegir carpeta…»: selector nativo de carpetas.
+    ChooseDir,
+    /// Carpeta elegida (`None`: se cerró el selector).
+    DirPicked(Option<PathBuf>),
+    /// «Restablecer»: vuelve a la carpeta predeterminada.
+    ResetDir,
 }
 
-/// Carpeta de descargas del sistema, o la personal si el sistema no la define.
+/// Carpeta predeterminada del sistema: `<Descargas>/Telegram Desktop` si ya existe (la de Telegram
+/// Desktop); si no, `<Descargas>/Telegram` (se crea al primer uso, no al arrancar). Sin carpeta
+/// Descargas, la personal.
 pub fn default_dir() -> Option<PathBuf> {
-    dirs::download_dir().or_else(|| dirs::home_dir().map(|h| h.join("Downloads")))
+    default_dir_in(dirs::download_dir(), dirs::home_dir())
+}
+
+/// `default_dir` con las carpetas del sistema como parámetros (pruebas).
+pub fn default_dir_in(downloads: Option<PathBuf>, home: Option<PathBuf>) -> Option<PathBuf> {
+    match downloads.filter(|d| d.is_dir()) {
+        Some(d) => {
+            let desktop = d.join("Telegram Desktop");
+            Some(if desktop.is_dir() { desktop } else { d.join("Telegram") })
+        }
+        None => home,
+    }
 }
 
 /// Nombre con el que se guarda un medio: el suyo (saneado: nunca trae rutas ni `..`) o uno por tipo.
@@ -168,6 +253,23 @@ pub async fn pick_destination(name: String, dir: Option<PathBuf>) -> Option<Path
     d.save_file().await.map(|f| f.path().to_path_buf())
 }
 
+/// Crea la carpeta del destino si falta (la primera descarga a `<Descargas>/Telegram`).
+pub fn ensure_parent(dest: &Path) -> BackendResult<()> {
+    match dest.parent().filter(|d| !d.as_os_str().is_empty()) {
+        Some(dir) => std::fs::create_dir_all(dir).map_err(|e| BackendError::Storage(e.to_string())),
+        None => Ok(()),
+    }
+}
+
+/// Selector nativo de carpeta (`None` si se cancela).
+pub async fn pick_folder(start: Option<PathBuf>) -> Option<PathBuf> {
+    let mut d = rfd::AsyncFileDialog::new().set_title("Carpeta de descargas");
+    if let Some(dir) = start.filter(|d| d.is_dir()) {
+        d = d.set_directory(dir);
+    }
+    d.pick_folder().await.map(|f| f.path().to_path_buf())
+}
+
 impl App {
     /// ¿Tiene este mensaje un medio que se pueda guardar? (no los envíos locales sin confirmar).
     pub fn can_save(&self, m: &Message) -> bool {
@@ -176,6 +278,17 @@ impl App {
 
     pub(crate) fn on_dl(&mut self, m: DlMsg) -> Task<Msg> {
         self.chat_actions.menu = None;
+        // El ajuste de la carpeta no depende de que haya un chat abierto.
+        match m {
+            DlMsg::Settings => return self.dl_settings(),
+            DlMsg::ChooseDir => return self.dl_choose_dir(),
+            DlMsg::DirPicked(dir) => return self.dl_dir_picked(dir),
+            DlMsg::ResetDir => {
+                self.dl.set_dir(None);
+                return Task::none();
+            }
+            _ => {}
+        }
         let Some(peer) = self.conv.as_ref().map(|c| c.peer) else { return Task::none() };
         match m {
             DlMsg::Start(id) => self.dl_start(peer, id),
@@ -191,13 +304,56 @@ impl App {
             DlMsg::Cancel(id) => self.dl_cancel(peer, id),
             DlMsg::Open(id) => self.dl_open(peer, id, false),
             DlMsg::Reveal(id) => self.dl_open(peer, id, true),
+            DlMsg::Settings | DlMsg::ChooseDir | DlMsg::DirPicked(_) | DlMsg::ResetDir => Task::none(),
         }
+    }
+
+    fn dl_settings(&mut self) -> Task<Msg> {
+        self.overlay = Some(super::Overlay::DownloadDir);
+        self.open_overlay_anim();
+        Task::none()
+    }
+
+    fn dl_choose_dir(&mut self) -> Task<Msg> {
+        if self.dl.picking {
+            return Task::none();
+        }
+        self.dl.picking = true;
+        let start = self.dl.dir.clone().or_else(default_dir);
+        Task::perform(pick_folder(start), |d| Msg::Dl(DlMsg::DirPicked(d)))
+    }
+
+    fn dl_dir_picked(&mut self, dir: Option<PathBuf>) -> Task<Msg> {
+        self.dl.picking = false;
+        let Some(dir) = dir else { return Task::none() };
+        if is_writable_dir(&dir) {
+            self.dl.set_dir(Some(dir));
+        } else {
+            self.toast("No se puede guardar en esa carpeta. Elige otra.".into(), true);
+        }
+        Task::none()
     }
 
     fn dl_media(&self, peer: PeerRef, id: MsgId) -> Option<&Media> {
         let m = self.conv.as_ref().filter(|c| c.peer == peer)?.find(id)?;
         self.can_save(m).then_some(())?;
         m.media.as_ref()
+    }
+
+    /// Carpeta de las descargas directas. Si la elegida ya no existe o no se puede escribir, avisa,
+    /// la olvida (vuelve a la predeterminada) y sigue con esa.
+    pub(crate) fn dl_target_dir(&mut self) -> Option<PathBuf> {
+        #[cfg(test)]
+        let default = self.dl.default_override.clone().or_else(default_dir);
+        #[cfg(not(test))]
+        let default = default_dir();
+        let r = self.dl.resolve(default);
+        if let Some(bad) = r.invalid {
+            self.dl.set_dir(None);
+            let name = bad.display();
+            self.toast(format!("No se puede usar la carpeta «{name}». Se usará la predeterminada."), true);
+        }
+        r.dir
     }
 
     /// Clic: abrir si ya está; si no, descargar a la carpeta de descargas.
@@ -210,15 +366,15 @@ impl App {
                 DlState::Done | DlState::Failed(_) => {}
             }
         }
-        let Some(md) = self.dl_media(peer, id) else {
+        let Some(md) = self.dl_media(peer, id).cloned() else {
             self.toast("Este archivo ya no está disponible.".into(), true);
             return Task::none();
         };
-        let Some(dir) = self.dl.target_dir() else {
+        let Some(dir) = self.dl_target_dir() else {
             self.toast("No se encontró la carpeta de descargas. Usa «Guardar como…».".into(), true);
             return Task::none();
         };
-        let dest = dest_in(&dir, md);
+        let dest = dest_in(&dir, &md);
         let notify = md.kind != MediaKind::File;
         self.dl_begin_with(peer, id, dest, notify)
     }
@@ -231,7 +387,8 @@ impl App {
             self.toast("Este archivo ya no está disponible.".into(), true);
             return Task::none();
         };
-        let (name, dir) = (download_name(md), self.dl.target_dir());
+        let name = download_name(md);
+        let dir = self.dl_target_dir();
         self.dl.picking = true;
         Task::perform(pick_destination(name, dir), move |dest| Msg::Dl(DlMsg::SavePicked { peer, msg: id, dest }))
     }
@@ -251,9 +408,7 @@ impl App {
         self.dl.items.insert((peer, id), Dl { id: None, path: dest.clone(), state: DlState::Starting, cancel_early: false, notify });
         self.call(
             move |b| async move {
-                if let Some(dir) = dest.parent().filter(|d| !d.as_os_str().is_empty()) {
-                    std::fs::create_dir_all(dir).map_err(|e| BackendError::Storage(e.to_string()))?;
-                }
+                ensure_parent(&dest)?;
                 b.download_media_to(peer, id, file, MediaVariant::Full, dest).await
             },
             move |result| Msg::Dl(DlMsg::Started { peer, msg: id, result }),

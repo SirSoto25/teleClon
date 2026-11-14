@@ -82,6 +82,8 @@ pub struct Flags {
     pub login_hint: Option<String>,
     /// Aviso que se muestra al arrancar (p. ej. «faltan credenciales, se usa el mock»).
     pub notice: Option<String>,
+    /// Ajustes persistentes del usuario (carpeta de descargas). `None`: solo duran la sesión.
+    pub prefs: Option<Arc<dyn downloads::Prefs>>,
 }
 
 impl Flags {
@@ -108,6 +110,7 @@ impl Flags {
             simulated: false,
             login_hint: None,
             notice: None,
+            prefs: None,
         }
     }
 }
@@ -218,6 +221,8 @@ pub enum Overlay {
     Ttl { confirm_discard: bool },
     /// Visor de una foto a pantalla completa.
     Photo { peer: PeerRef, msg: MsgId },
+    /// Carpeta de descargas: ver la actual, elegir otra o restablecerla (`app/downloads.rs`).
+    DownloadDir,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -529,6 +534,8 @@ impl App {
             demo_start: None,
             on_screenshot: flags.on_screenshot,
         };
+        app.dl.prefs = flags.prefs;
+        app.dl.load();
         if let Some(n) = flags.notice {
             app.toast_for(n, true, 12);
         }

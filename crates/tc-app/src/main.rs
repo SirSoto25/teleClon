@@ -164,7 +164,8 @@ fn main() -> iced::Result {
                 data_dir: tc_store::default_data_dir().ok(),
             };
             tracing::info!(cuenta = %paths.account, "backend: red real (sesión en el llavero; respaldo {})", paths.session_file.display());
-            tc_ui::Flags { theme, reduced_motion, on_screenshot: Some(on_screenshot), ..tc_ui::Flags::with_connector(telegram_connector(cfg, paths)) }
+            let prefs = stores::StorePrefs::open(paths.data_dir.as_deref(), &paths.account);
+            tc_ui::Flags { theme, reduced_motion, on_screenshot: Some(on_screenshot), prefs, ..tc_ui::Flags::with_connector(telegram_connector(cfg, paths)) }
         }
         Choice::Mock { notice } => {
             if let Some(n) = &notice {
@@ -216,7 +217,7 @@ fn main() -> iced::Result {
     app.run()
 }
 
-/// Icono PROVISIONAL de la ventana (tools/packaging/make_icons.py; ADR-0006).
+/// Icono de la ventana (tools/packaging/make_icons.py; ADR-0006).
 const WINDOW_ICON: &[u8] = include_bytes!("../../../packaging/icons/parlo-256.png");
 
 /// Tamaño inicial de la ventana; `TC_WINDOW_SIZE=<ancho>x<alto>` lo cambia (capturas a varios tamaños).

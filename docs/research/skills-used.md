@@ -56,3 +56,8 @@ No se invocó ninguna skill `superpowers:*` hasta ahora. Las skills de terceros 
 | Fecha | Skill | Quién | Para qué | Estado |
 | --- | --- | --- | --- | --- |
 | 2026-11-14 | `replica-skill:replica-test` | agente QA | `replica/test-plan.md` (casos Fxx-H/E/N con estado AUTO/NUEVO/MANUAL/REAL), `replica/bugs.md`, 9 tests nuevos en tc-ui y capturas headless; adaptado a app nativa (sin Playwright) | usada |
+
+## 2026-11-14 — agente EMPRENDEDOR (Sonnet)
+| Fecha | Skill | Quién | Para qué | Estado |
+| --- | --- | --- | --- | --- |
+| 2026-11-14 | `replica-skill:replica-entrepreneur` | agente EMPRENDEDOR | `replica/entrepreneur-report.md`: quejas y peticiones públicas de Telegram Desktop (API de GitHub de tdesktop y API Algolia de Hacker News), cruce con diff-report/features.csv y plan de 5 mejoras. Muestra de unas 55 piezas en 2 fuentes; Reddit NO se pudo leer; no se usó `reviews.py` ni se creó `reviews.csv`. Uso personal: el ángulo de venta se documenta, no se persigue | usada (muestra parcial) |

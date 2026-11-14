@@ -23,6 +23,8 @@ install -m 0644 packaging/linux/parlo.desktop "$STAGE/share/applications/parlo.d
 for s in 16 32 48 64 128 256 512; do
   install -D -m 0644 "packaging/icons/parlo-$s.png" "$STAGE/share/icons/hicolor/${s}x${s}/apps/parlo.png"
 done
+install -D -m 0644 packaging/icons/parlo.svg "$STAGE/share/icons/hicolor/scalable/apps/parlo.svg"
+install -D -m 0644 packaging/icons/parlo-symbolic.svg "$STAGE/share/icons/hicolor/symbolic/apps/parlo-symbolic.svg"
 install -m 0644 README.md "$STAGE/share/doc/parlo/README.md"
 install -m 0644 assets/fonts/NOTICE.md "$STAGE/share/doc/parlo/licenses/FONTS-NOTICE.md"
 for d in assets/fonts/*/; do

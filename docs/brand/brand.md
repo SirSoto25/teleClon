@@ -82,9 +82,39 @@ La comprobación automática es `python3 tools/brand/sweep.py --root . --out doc
 ## Aclaración de alcance (2026-11-07)
 El usuario confirma que Parlo es un proyecto de **uso personal, sin intención de comercializarlo**. Por tanto las comprobaciones de disponibilidad de marca, dominio y usuarios de este documento quedan **descartadas** (ya no son un pendiente). Si el proyecto se distribuyera públicamente en el futuro, habría que retomarlas, además de la nota sobre «Parler».
 
-## 6. Pendiente: icono definitivo (paso final del flujo)
+## 6. Icono definitivo — HECHO (2026-11-14)
 
-Anotado el 2026-11-14 a petición del usuario: **como último paso**, tras QA, paridad y licencias, generar el
-icono definitivo de la app siguiendo el brief de la sección 5 (el monograma «P» actual es provisional).
-Entregables y regeneración de los formatos de paquete (`.ico`, `.icns`, PNG de Linux): ver
-`tools/packaging/make_icons.py` y `docs/packaging.md`.
+Anotado el 2026-11-14 a petición del usuario como último paso del flujo; **hecho el mismo día** (sustituye al
+monograma «P» provisional en los paquetes y en la ventana).
+
+**Símbolo «Brasa»** (dibujo vectorial original, geométrico, generado por código; sin generador de imágenes ni
+recursos de terceros):
+
+- **Base**: cuadrado redondeado 1:1, radio 0.32 × lado (la forma de los avatares).
+- **Motivo**: dos isolíneas irregulares de grosor uniforme (58/1024) alrededor de un punto persimón, la
+  «brasa» (r = 76/1024). Las curvas son polares con dos armónicos suaves (no son círculos ni elipses) y su
+  centro se desplaza hacia abajo a la derecha, así que los huecos se estrechan hacia la brasa (112 → 84 px)
+  como las curvas de nivel de una loma. La isolínea **exterior se abre arriba a la derecha** (boca de 60°, con
+  remates redondos): es la «boca» de diálogo. Sin cola, sin avión, sin papel, sin azul.
+- **≤ 32 px**: versión simple, una sola curva abierta (boca de 70°, trazo 118/1024) + la brasa (r = 112/1024).
+  Comprobado a 16, 24 y 32 px (PNG, .ico y .icns).
+- **Color**: oscuro = persimón `#f67e42` sobre grafito `#120f0c` (contraste 7,26:1); claro = `#c64913` sobre
+  `#f8f5f1` (4,43:1). Ambos ≥ 3:1. Monocromo: cuadrado en una tinta con el motivo calado (`currentColor`).
+- **Logotipo**: «parlo» en Bricolage Grotesque peso 500 (opsz 96, wdth 100), minúsculas, tracking −12/1000,
+  convertido a contornos (no depende de la fuente instalada). Altura x = 0,42 × símbolo, centrada con él;
+  separación símbolo-texto = 0,22 × símbolo.
+- **Área de respeto**: 1/4 del lado del símbolo alrededor del símbolo o del conjunto horizontal. El motivo queda
+  dentro del cuadrado con al menos ~1/6 de margen.
+- **Bandeja**: solo el motivo simple, una tinta, sin degradado ni cuadrado, encuadre ceñido.
+
+**Ficheros** (`assets/brand/`, los escribe `python3 tools/packaging/make_logo.py`, necesita fontTools):
+`parlo-symbol.svg` (oscuro), `parlo-symbol-light.svg`, `parlo-symbol-small.svg` y `-small-light.svg` (≤ 32 px),
+`parlo-symbol-mono.svg`, `parlo-glyph.svg` (solo motivo, `currentColor`, para ponerlo sobre un fondo propio, p.
+ej. la marca de la barra lateral), `parlo-tray-symbolic.svg`, `parlo-logo-horizontal.svg` (texto claro, para
+fondo oscuro), `parlo-logo-horizontal-light.svg` (texto oscuro), `parlo-logo-horizontal-mono.svg`.
+Los formatos de paquete salen de ellos con `python3 tools/packaging/make_icons.py` (ver `docs/packaging.md`).
+`parlo-monogram.svg` (la «P» provisional) se eliminó: la barra lateral ya usa `parlo-glyph.svg`.
+
+**Pendiente del usuario**: la búsqueda inversa de imágenes que pide el brief (no se puede hacer desde aquí sin
+subir el logo a un servicio externo) y, si se quiere, cambiar la marca de la barra lateral de la app al nuevo
+motivo (`assets/brand/parlo-glyph.svg`; es código de `crates/tc-ui`).

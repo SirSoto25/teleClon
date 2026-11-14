@@ -274,7 +274,7 @@ Foco visible en **todos** los interactivos: anillo 2 px `focus-ring`, separació
 
 ### 8.1 Barra lateral (raíl de carpetas)
 - **Marca** (arriba, PROVISIONAL hasta el logo del brief de `docs/brand`): `brand_mark` = monograma «P» geométrico
-  propio (`assets/brand/parlo-monogram.svg`, trazo uniforme de 1/10 del lado, contraforma redonda) en `on-accent`
+  propio (`assets/brand/parlo-glyph.svg`, isolíneas con la «brasa», `currentColor`) en `on-accent`
   sobre cuadrado redondeado `accent` 40 px con el radio de avatar (0.32 × lado). Sin texto ni fuente: es un SVG.
 - **Contenido**: menú principal arriba, carpetas (Todos, No leídos, Personales, Grupos, Canales, personalizadas) como
   icono 24 + etiqueta `caption`, ajustes abajo.
@@ -527,11 +527,13 @@ panel intermedio dejaría la conversación por debajo de su ancho cómodo en por
 
 ### 8.12 Descarga y guardado de archivos (fase A3, ADR-0011)
 La tarjeta de documento (280 × 56, §8.11) es un botón entero y cambia según la descarga de ese mensaje:
-- **Sin descargar:** nombre + tamaño y, a la derecha, `download-simple` («Guardar como…», selector nativo). Clic en la tarjeta = descargar a la carpeta de descargas del sistema (`dirs`), con nombre saneado y sufijo « (1)» si ya existe: nunca se sobrescribe.
+- **Sin descargar:** nombre + tamaño y, a la derecha, `download-simple` («Guardar como…», selector nativo). Clic en la tarjeta = descargar a la carpeta de descargas (ver «Carpeta de destino» abajo), con nombre saneado y sufijo « (1)» si ya existe: nunca se sobrescribe.
 - **Descargando:** línea «41 % · 1,2 MB de 3,0 MB» + barra de 4 px (la de §8.11) y «×» para cancelar. Cancelar deja la tarjeta como estaba y no es un fallo.
 - **Descargada:** «Abrir» y «Mostrar en carpeta» (caption 600, color de enlace de la burbuja). Clic en la tarjeta = abrir. Se recuerda durante la sesión; si el archivo ya no existe, la tarjeta vuelve a ofrecer la descarga.
 - **Fallo:** error en `danger` (elipsis, texto completo en tooltip) + «Reintentar».
 Fotos, vídeos y audios no tienen tarjeta: menú contextual del mensaje «Guardar» (carpeta de descargas) y «Guardar como…»; los documentos solo «Guardar como…». El visor de fotos añade un chip `download-simple` junto a la X. Terminar o fallar una de estas descargas se avisa con un aviso (toast). Abrir lanza `xdg-open`/`open`/`explorer` con la ruta como único argumento, sin shell. Capturas: `screens/a3-*.png`. Sin panel «Descargas» (fuera de esta fase).
+
+**Carpeta de destino.** Predeterminada: `<Descargas>/Telegram Desktop` si ya existe; si no, `<Descargas>/Telegram`, que se crea al primer uso (no al arrancar); sin carpeta Descargas, la personal. Se puede elegir otra: botón del raíl «Descargas» (`download-simple` + etiqueta caption, entre el espacio flexible y el tema) que abre el diálogo de §8.6 «Carpeta de descargas»: texto explicativo (UI, `text_muted`), la ruta en una caja `surface_hover` con tipografía CODE y, a la derecha, «Restablecer» (ghost; desactivado si no hay carpeta elegida), «Elegir carpeta…» (ghost, selector nativo) y «Cerrar» (primario). La carpeta elegida se guarda en los ajustes de la cuenta (`ui.download_dir`) y «Guardar como…» empieza en ella. Si la elegida deja de existir o de poder escribirse se avisa con un toast de error, se olvida y se vuelve a la predeterminada; una carpeta no válida se rechaza al elegirla.
 
 ## 9. Anti-«aspecto IA» (prohibido)
 1. Degradados violeta→azul o arcoíris; texto con degradado.
@@ -562,6 +564,7 @@ del portal XDG), densidad (cómoda | compacta), escala de texto, fondo del chat 
 | --- | --- | --- |
 | 2026-11-06 | 1.0.0 | Creación: dirección Brasa, paletas OKLCH, escalas, muelles, componentes. |
 | 2026-11-09 | 1.0.2 | Alineación tras la prueba real: columna de conversación compartida por cabecera, mensajes, «ir al final», aviso y compositor (§7); rejilla fija de la fila de lista con columna derecha de 60 px, líneas de 20 px, elipsis por ancho medido y check delante de la vista previa (§8.2); hora en línea a la línea de base del texto y reglas de avatar de grupo (§8.4); marca provisional «P» (§8.1); plegado de letras «de estilo» Unicode en nombres y vistas previas (§3). Sin cambios de tokens de color. |
+| 2026-11-14 | 1.0.6 | §8.12 carpeta de destino de las descargas: predeterminada (`Telegram Desktop`/`Telegram`), botón «Descargas» en el raíl y diálogo para elegirla o restablecerla. Reutiliza el icono `download-simple`; sin tokens nuevos. |
 | 2026-11-14 | 1.0.5 | §8.12 descarga y guardado de archivos: estados de la tarjeta de documento (descargar, progreso con cancelar, abrir/mostrar en carpeta, reintentar), «Guardar»/«Guardar como…» en menús y visor. Sin iconos ni tokens nuevos. |
 | 2026-11-14 | 1.0.4 | §8.11 envío de archivos: clip y zona de soltar, diálogo de envío (vista previa, comprimir/archivo, pie con límite de 1024), burbuja subiéndose con barra y cancelar, tarjeta de archivo 280 × 56. Icono `paperclip`. Sin cambios de tokens. |
 | 2026-11-13 | 1.0.3 | §8.10 grupos con temas: la lista de temas ocupa el panel de la conversación (sin panel intermedio), fila de tema, cabecera «Grupo › Tema», insignia `hash` en la lista de chats. Icono `hash` de dibujo propio. Sin cambios de tokens. |

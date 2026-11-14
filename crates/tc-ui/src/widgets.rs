@@ -100,12 +100,11 @@ pub fn avatar_photo<'a>(name: &str, seed: i64, size: f32, online_ring: Option<Co
     }
 }
 
-/// Marca PROVISIONAL de Parlo (§8.1): monograma «P» geométrico (assets/brand/parlo-monogram.svg,
-/// trazo uniforme de 1/10 del lado) en `on-accent` sobre el cuadrado redondeado `accent` de los
-/// avatares (radio 0.32 × lado). Se sustituye cuando exista el logo del brief (docs/brand §5).
+/// Marca de Parlo (§8.1): el motivo de isolíneas con la «brasa» (assets/brand/parlo-glyph.svg, `currentColor`)
+/// en `on-accent` sobre el cuadrado redondeado `accent` de los avatares (radio 0.32 × lado).
 pub fn brand_mark<'a>(size: f32, b: Brasa) -> Element<'a, Msg> {
     static MONOGRAM: std::sync::LazyLock<iced::widget::svg::Handle> =
-        std::sync::LazyLock::new(|| iced::widget::svg::Handle::from_memory(include_bytes!("../../../assets/brand/parlo-monogram.svg")));
+        std::sync::LazyLock::new(|| iced::widget::svg::Handle::from_memory(include_bytes!("../../../assets/brand/parlo-glyph.svg")));
     let ink = style::c(b.p.on_accent);
     let glyph = iced::widget::svg(MONOGRAM.clone())
         .width(Length::Fixed(size))

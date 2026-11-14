@@ -32,6 +32,7 @@ pub mod view;
 pub mod widgets;
 
 pub use app::{App, Auth, Backend, Connector, DemoStep, Flags, Folder, Msg, Phase, Session};
+pub use app::downloads::Prefs;
 pub use login::LoginMsg;
 
 #[cfg(test)]

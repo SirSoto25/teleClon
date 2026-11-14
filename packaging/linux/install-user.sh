@@ -6,7 +6,7 @@
 # Uso: packaging/linux/install-user.sh [ruta-al-binario]
 #   Sin argumento, Exec=parlo (el binario debe estar en el PATH, p. ej. tras instalar el tar.gz).
 #   Con argumento (p. ej. "$PWD/target/release/parlo"), Exec apunta a ese binario.
-# Desinstalar: rm "$XDG_DATA_HOME"/applications/parlo.desktop "$XDG_DATA_HOME"/icons/hicolor/*/apps/parlo.png
+# Desinstalar: rm "$XDG_DATA_HOME"/applications/parlo.desktop "$XDG_DATA_HOME"/icons/hicolor/*/apps/parlo{.png,.svg,-symbolic.svg}
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -24,6 +24,8 @@ chmod 0644 "$DATA/applications/parlo.desktop"
 for s in 16 32 48 64 128 256 512; do
   install -D -m 0644 "$ROOT/packaging/icons/parlo-$s.png" "$DATA/icons/hicolor/${s}x${s}/apps/parlo.png"
 done
+install -D -m 0644 "$ROOT/packaging/icons/parlo.svg" "$DATA/icons/hicolor/scalable/apps/parlo.svg"
+install -D -m 0644 "$ROOT/packaging/icons/parlo-symbolic.svg" "$DATA/icons/hicolor/symbolic/apps/parlo-symbolic.svg"
 
 # Refrescar cachés si las herramientas existen (no es obligatorio en GNOME ni en KDE recientes).
 command -v update-desktop-database >/dev/null && update-desktop-database -q "$DATA/applications" || true

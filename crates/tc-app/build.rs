@@ -1,4 +1,4 @@
-//! Recursos de Windows de `parlo.exe` (icono PROVISIONAL, manifiesto, metadatos de versión). ADR-0006.
+//! Recursos de Windows de `parlo.exe` (icono, manifiesto, metadatos de versión). ADR-0006.
 //! En Linux y macOS no hace nada: `winresource` solo es dependencia de compilación en Windows.
 
 fn main() {

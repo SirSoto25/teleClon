@@ -42,3 +42,14 @@ Criterio: investigación/redacción estructurada → Sonnet (esfuerzo medio); de
 | # | Agente | Modelo | Esfuerzo | Tarea | Salida | Estado |
 | --- | --- | --- | --- | --- | --- | --- |
 | 15 | A3 descarga UI | sonnet | medium | clic en documento = descargar a Descargas (sin sobrescribir) con progreso y cancelar, Abrir / Mostrar en carpeta, Guardar como…, Guardar en visor y menús, reintentar; foros | crates/tc-ui (app/downloads.rs, view/downloads.rs, tests_downloads.rs, tests_download_shots.rs, app.rs, app/uploads.rs, view/send_dialog.rs, view/context_menu.rs, view/mod.rs, lib.rs, Cargo.toml), Cargo.toml (dirs), docs/design/system.md §8.12, docs/design/screens/a3-*.png | HECHO (13 tests + capturas; NADA contra Telegram real; sin commit) |
+
+## 2026-11-14 — informe de emprendedor
+| # | Agente | Modelo | Esfuerzo | Tarea | Salida | Estado |
+| --- | --- | --- | --- | --- | --- | --- |
+| 16 | EMPRENDEDOR | sonnet | medium | Leer quejas públicas de Telegram Desktop (issues de tdesktop, Hacker News), clasificar lo que molesta, falta y no está resuelto, cruzar con diff-report y features.csv y proponer plan de mejoras | replica/entrepreneur-report.md, docs/research/skills-used.md, docs/agents/registry.md, docs/logs/log.md | HECHO (solo documentación; sin tocar código; Reddit no accesible; sin commit) |
+| 16 | A3b carpeta de descargas | sonnet | medium | carpeta predeterminada Telegram Desktop/Telegram (creada al primer uso), ajuste persistente con selector y «Restablecer», «Guardar como…» parte de ella, validación y vuelta a la predeterminada | crates/tc-ui (app/downloads.rs, view/downloads.rs, view/sidebar.rs, view/mod.rs, app.rs, lib.rs, tests_downloads.rs), crates/tc-app (stores.rs, main.rs), docs/design/system.md §8.12 | HECHO (10 tests; test --workspace y clippy limpios; selector real y otros SO sin verificar; sin commit) |
+
+## 2026-11-14 — icono definitivo
+| # | Agente | Modelo | Esfuerzo | Tarea | Salida | Estado |
+| --- | --- | --- | --- | --- | --- | --- |
+| 15 | logo | opus | low | icono definitivo «Brasa» según el brief (brand.md §5): símbolo, logotipo horizontal, claro/oscuro/mono, bandeja, formatos de paquete | assets/brand/*.svg, tools/packaging/make_logo.py, tools/packaging/make_icons.py, packaging/icons/*, packaging/windows/parlo.ico, packaging/macos/Parlo.icns, packaging/linux/{build-linux,install-user}.sh, docs/brand/brand.md, docs/packaging.md | HECHO (miniaturas 16-1024 revisadas a ojo; .ico/.icns decodificados de vuelta; contraste 7,26 y 4,43; sin búsqueda inversa de imágenes; crates/ sin tocar; sin commit) |

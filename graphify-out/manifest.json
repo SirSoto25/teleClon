@@ -12,9 +12,9 @@
     "semantic_hash": ""
   },
   "crates/tc-app/src/main.rs": {
-    "mtime": 1794343602.3666599,
-    "seen": 1794343752.2064438,
-    "ast_hash": "6ce59aa16b4706843f03417f7ffccf6c",
+    "mtime": 1794665360.0671864,
+    "seen": 1794665431.83632,
+    "ast_hash": "4f2b46a052b31a8148b86dd299f70784",
     "semantic_hash": ""
   },
   "crates/tc-core/Cargo.toml": {
@@ -192,9 +192,9 @@
     "semantic_hash": ""
   },
   "crates/tc-ui/src/app.rs": {
-    "mtime": 1794616001.9428642,
-    "seen": 1794616293.59579,
-    "ast_hash": "b6fab78a5ff55e0faa6be13d39571a5b",
+    "mtime": 1794665325.8393807,
+    "seen": 1794665431.8384614,
+    "ast_hash": "1de600c8a0fd430da44cb6ae5a789e46",
     "semantic_hash": ""
   },
   "crates/tc-ui/src/conv.rs": {
@@ -216,9 +216,9 @@
     "semantic_hash": ""
   },
   "crates/tc-ui/src/lib.rs": {
-    "mtime": 1794616229.871361,
-    "seen": 1794616293.5960314,
-    "ast_hash": "7485973ec73683048826d44f20b4e5dd",
+    "mtime": 1794665338.924754,
+    "seen": 1794665431.8387148,
+    "ast_hash": "7d55f704b48c02115836a5c39f1ca166",
     "semantic_hash": ""
   },
   "crates/tc-ui/src/measure.rs": {
@@ -246,15 +246,15 @@
     "semantic_hash": ""
   },
   "crates/tc-ui/src/view/mod.rs": {
-    "mtime": 1794616034.7734096,
-    "seen": 1794616293.5964992,
-    "ast_hash": "aca923998bc02322ce4ae48ab5221523",
+    "mtime": 1794665338.9243178,
+    "seen": 1794665431.8392093,
+    "ast_hash": "c65272859b6605ddcf6f1bdfb6a5f40e",
     "semantic_hash": ""
   },
   "crates/tc-ui/src/view/sidebar.rs": {
-    "mtime": 1794343403.910844,
-    "seen": 1794343752.2079768,
-    "ast_hash": "e99bb33ccb5d2a5d2d9e3cd174bfa62a",
+    "mtime": 1794665338.9245708,
+    "seen": 1794665431.8392444,
+    "ast_hash": "a8b4bd4086e54b84f5a977b4840e9ca5",
     "semantic_hash": ""
   },
   "crates/tc-ui/src/widgets.rs": {
@@ -312,9 +312,9 @@
     "semantic_hash": ""
   },
   "docs/agents/registry.md": {
-    "mtime": 1794616287.8016028,
-    "seen": 1794616293.597127,
-    "ast_hash": "9773913b47feb77701316ed1e204d33f",
+    "mtime": 1794665545.655485,
+    "seen": 1794665550.2489147,
+    "ast_hash": "602f18bed95ef6e2b615c60750477d24",
     "semantic_hash": ""
   },
   "docs/architecture.md": {
@@ -324,15 +324,15 @@
     "semantic_hash": ""
   },
   "docs/design/system.md": {
-    "mtime": 1794616287.8016028,
-    "seen": 1794616293.5971735,
-    "ast_hash": "61b74510971b239471b9766d945098c7",
+    "mtime": 1794665500.5199237,
+    "seen": 1794665505.6526854,
+    "ast_hash": "4c7855a81e6fe3be43c12d2ef541e14c",
     "semantic_hash": ""
   },
   "docs/logs/log.md": {
-    "mtime": 1794616287.8016028,
-    "seen": 1794616293.597175,
-    "ast_hash": "051f40e5d19e302f416ce1af0fb5eebe",
+    "mtime": 1794665545.656485,
+    "seen": 1794665550.2489612,
+    "ast_hash": "3a1868639086a51bb2452cee26144933",
     "semantic_hash": ""
   },
   "docs/research/design-skills.md": {
@@ -348,9 +348,9 @@
     "semantic_hash": ""
   },
   "docs/research/skills-used.md": {
-    "mtime": 1794613869.1579123,
-    "seen": 1794613873.8287165,
-    "ast_hash": "0f1594b0f038ff34d3e72e2165d83fb6",
+    "mtime": 1794665413.687334,
+    "seen": 1794665431.8399518,
+    "ast_hash": "a14303b5f48f4b69e0cdd08a8e72e018",
     "semantic_hash": ""
   },
   "replica/recon.md": {
@@ -756,9 +756,9 @@
     "semantic_hash": ""
   },
   "docs/brand/brand.md": {
-    "mtime": 1794613829.1842537,
-    "seen": 1794613873.8286343,
-    "ast_hash": "c10ce3d776772b620a0b726d8a7801b8",
+    "mtime": 1794665534.378366,
+    "seen": 1794665550.2489297,
+    "ast_hash": "d6f6c96e58299214ac761b186f3afae2",
     "semantic_hash": ""
   },
   "docs/brand/sweep-report.md": {
@@ -798,9 +798,9 @@
     "semantic_hash": ""
   },
   "crates/tc-app/src/stores.rs": {
-    "mtime": 1794240900.3111722,
-    "seen": 1794241052.975015,
-    "ast_hash": "2e4f699368650ff16761c37738a7016c",
+    "mtime": 1794665360.066783,
+    "seen": 1794665431.8363404,
+    "ast_hash": "14c1b515cbbb314c1e114fbb052d5b72",
     "semantic_hash": ""
   },
   "crates/tc-store/src/seal.rs": {
@@ -834,9 +834,9 @@
     "semantic_hash": ""
   },
   "packaging/linux/build-linux.sh": {
-    "mtime": 1794613928.2443793,
-    "seen": 1794614669.1123025,
-    "ast_hash": "b2a1979a768a9aaa64f0f699f20c8f7c",
+    "mtime": 1794665511.907893,
+    "seen": 1794665550.2485127,
+    "ast_hash": "b7e5364143050839a14efdc0747984f4",
     "semantic_hash": ""
   },
   "packaging/macos/build-macos.sh": {
@@ -852,9 +852,9 @@
     "semantic_hash": ""
   },
   "tools/packaging/make_icons.py": {
-    "mtime": 1794057576.6054564,
-    "seen": 1794058275.6868145,
-    "ast_hash": "d9c9442159f9d0259b462f46c72162c4",
+    "mtime": 1794665462.6918354,
+    "seen": 1794665505.6523848,
+    "ast_hash": "bad414ac4af045eadae8d7ba0760b16e",
     "semantic_hash": ""
   },
   "docs/adr/0006-empaquetado.md": {
@@ -864,51 +864,51 @@
     "semantic_hash": ""
   },
   "docs/packaging.md": {
-    "mtime": 1794604536.7301393,
-    "seen": 1794604584.898463,
-    "ast_hash": "c065ead7d6551299a790589a35ccbfb6",
+    "mtime": 1794665534.3784993,
+    "seen": 1794665550.2489626,
+    "ast_hash": "85aef8c2ee82c53efd511f8b760122a8",
     "semantic_hash": ""
   },
   "packaging/icons/parlo-128.png": {
-    "mtime": 1794057584.124997,
-    "seen": 1794058275.6871164,
-    "ast_hash": "702a6d062aee12a993178a79f1269e49",
+    "mtime": 1794665493.8874745,
+    "seen": 1794665505.6528497,
+    "ast_hash": "0cd5dfd702b7aa92d7bcfeb15bb60cbf",
     "semantic_hash": ""
   },
   "packaging/icons/parlo-16.png": {
-    "mtime": 1794057584.122419,
-    "seen": 1794058275.6871178,
-    "ast_hash": "6ab2e4e17703fea44071557e02d2b0b8",
+    "mtime": 1794665493.8872528,
+    "seen": 1794665505.6528509,
+    "ast_hash": "44647b76976a7a098d7f32b558951ef9",
     "semantic_hash": ""
   },
   "packaging/icons/parlo-256.png": {
-    "mtime": 1794057584.1312394,
-    "seen": 1794058275.6871188,
-    "ast_hash": "6fe6f77d809acc4656bdf88cf3741547",
+    "mtime": 1794665493.8875139,
+    "seen": 1794665505.652852,
+    "ast_hash": "f234515bdb0130281a6050df89a40f34",
     "semantic_hash": ""
   },
   "packaging/icons/parlo-32.png": {
-    "mtime": 1794057584.1225424,
-    "seen": 1794058275.68712,
-    "ast_hash": "2730f4c946b35213908cc39e8aba85a2",
+    "mtime": 1794665493.8873117,
+    "seen": 1794665505.652853,
+    "ast_hash": "70ab2444e0bb80ed6e21d152e85fdd63",
     "semantic_hash": ""
   },
   "packaging/icons/parlo-48.png": {
-    "mtime": 1794057584.1227899,
-    "seen": 1794058275.6871212,
-    "ast_hash": "42e1021e1f7af6e7819366e079ee69e3",
+    "mtime": 1794665493.8873427,
+    "seen": 1794665505.652854,
+    "ast_hash": "d77e80bc95d907ea34408bd8216bfef8",
     "semantic_hash": ""
   },
   "packaging/icons/parlo-512.png": {
-    "mtime": 1794057584.1500633,
-    "seen": 1794058275.6871219,
-    "ast_hash": "02a6303976c732fd0a3b3b2403f0cdf8",
+    "mtime": 1794665493.8875556,
+    "seen": 1794665505.6528554,
+    "ast_hash": "f2055e839621a300327d277155fd7ade",
     "semantic_hash": ""
   },
   "packaging/icons/parlo-64.png": {
-    "mtime": 1794057584.1231642,
-    "seen": 1794058275.687123,
-    "ast_hash": "32e1535515601acfc6b291130c37d387",
+    "mtime": 1794665493.8873975,
+    "seen": 1794665505.6528563,
+    "ast_hash": "109d38b735d2e821bf21e780f11a2d99",
     "semantic_hash": ""
   },
   "crates/tc-mock/src/images.rs": {
@@ -1062,9 +1062,9 @@
     "semantic_hash": ""
   },
   "packaging/linux/install-user.sh": {
-    "mtime": 1794241585.1182795,
-    "seen": 1794243402.8455913,
-    "ast_hash": "4dada85d3fad1d1c3691946866c6cd6c",
+    "mtime": 1794665511.9079802,
+    "seen": 1794665550.2485154,
+    "ast_hash": "46b010e110cb9d710007572f0f910311",
     "semantic_hash": ""
   },
   "tools/audio/make_fixtures.sh": {
@@ -1554,9 +1554,9 @@
     "semantic_hash": ""
   },
   "crates/tc-ui/src/app/downloads.rs": {
-    "mtime": 1794616229.8683064,
-    "seen": 1794616293.59581,
-    "ast_hash": "0b7d7b38e7f2d8653673546071ab4d6d",
+    "mtime": 1794665415.8292036,
+    "seen": 1794665431.8384814,
+    "ast_hash": "4af500c82dca0043506fc7ff2be6af60",
     "semantic_hash": ""
   },
   "crates/tc-ui/src/tests_download_shots.rs": {
@@ -1566,15 +1566,87 @@
     "semantic_hash": ""
   },
   "crates/tc-ui/src/tests_downloads.rs": {
-    "mtime": 1794616204.570567,
-    "seen": 1794616293.5962286,
-    "ast_hash": "b920204e99d8b278ba69c68eeddbe3eb",
+    "mtime": 1794665466.8825238,
+    "seen": 1794665505.6517153,
+    "ast_hash": "f90c1629b83e06bea58fdd3a4b3abc6b",
     "semantic_hash": ""
   },
   "crates/tc-ui/src/view/downloads.rs": {
-    "mtime": 1794616028.3800414,
-    "seen": 1794616293.5964453,
-    "ast_hash": "69cf0090e0401541b11dd1cd5295c179",
+    "mtime": 1794665338.9150736,
+    "seen": 1794665431.839156,
+    "ast_hash": "bd4f41a814adcbd3e1d26ea0da835e94",
+    "semantic_hash": ""
+  },
+  "tools/packaging/make_logo.py": {
+    "mtime": 1794665491.5670793,
+    "seen": 1794665505.6523862,
+    "ast_hash": "1b168e04ee176ccea06fc8da7e5885c0",
+    "semantic_hash": ""
+  },
+  "replica/entrepreneur-report.md": {
+    "mtime": 1794665413.6323333,
+    "seen": 1794665431.8399997,
+    "ast_hash": "dec86414b894f998a27ef9cf27fe21d7",
+    "semantic_hash": ""
+  },
+  "packaging/icons/parlo-symbolic.svg": {
+    "mtime": 1794665493.887747,
+    "seen": 1794665505.6528575,
+    "ast_hash": "3738595f58b07f3bf2e42c81c0004e24",
+    "semantic_hash": ""
+  },
+  "packaging/icons/parlo-tray-16-dark.png": {
+    "mtime": 1794665493.901497,
+    "seen": 1794665505.6528592,
+    "ast_hash": "ffdbc698a502e545307052c1d507982d",
+    "semantic_hash": ""
+  },
+  "packaging/icons/parlo-tray-16.png": {
+    "mtime": 1794665493.8940895,
+    "seen": 1794665505.6528602,
+    "ast_hash": "f058a7481bc2af1e6191aa534738c3ff",
+    "semantic_hash": ""
+  },
+  "packaging/icons/parlo-tray-22-dark.png": {
+    "mtime": 1794665493.9137447,
+    "seen": 1794665505.652861,
+    "ast_hash": "e86121871d3884ab67f0dab16271f417",
+    "semantic_hash": ""
+  },
+  "packaging/icons/parlo-tray-22.png": {
+    "mtime": 1794665493.9065924,
+    "seen": 1794665505.6528623,
+    "ast_hash": "c96da79ff046fbe32b3441ed8d6ae336",
+    "semantic_hash": ""
+  },
+  "packaging/icons/parlo-tray-24-dark.png": {
+    "mtime": 1794665493.9276092,
+    "seen": 1794665505.6528633,
+    "ast_hash": "dcec00e402e810cee72125ef9b682eaf",
+    "semantic_hash": ""
+  },
+  "packaging/icons/parlo-tray-24.png": {
+    "mtime": 1794665493.9200914,
+    "seen": 1794665505.6528642,
+    "ast_hash": "4202025e7486d8c64babd7e34ab91226",
+    "semantic_hash": ""
+  },
+  "packaging/icons/parlo-tray-32-dark.png": {
+    "mtime": 1794665493.940206,
+    "seen": 1794665505.652865,
+    "ast_hash": "050a36d6ee4ccfa65a2f6c17200e01e5",
+    "semantic_hash": ""
+  },
+  "packaging/icons/parlo-tray-32.png": {
+    "mtime": 1794665493.9331632,
+    "seen": 1794665505.652866,
+    "ast_hash": "fbf70bc601ac7d0fbeb0903472ce9511",
+    "semantic_hash": ""
+  },
+  "packaging/icons/parlo.svg": {
+    "mtime": 1794665493.8876464,
+    "seen": 1794665505.6528668,
+    "ast_hash": "385cc29081d3c25d07a0e49c5aa1fdfd",
     "semantic_hash": ""
   }
 }

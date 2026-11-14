@@ -328,3 +328,23 @@
 - Dependencia: `dirs` 7 (ya en el árbol por otras dependencias).
 - Pruebas (13, `tests_downloads.rs`, mock con `set_transfer_sim` y reloj virtual): descarga con progreso y «Abrir», eventos antes del id, cancelar a mitad y antes del id (sin `.part`), fallo + reintento, fallo inmediato, nombre hostil saneado (propiedad sobre varios casos), sufijo « (1)», «Guardar como…», foto con aviso, menús, tema de foro, orden de apertura como único argumento. Capturas: `docs/design/screens/a3-*.png` (`tests_download_shots.rs`, ignorada).
 - NO verificado: Telegram real, selector de destino y `xdg-open` reales en sesión gráfica, Windows/macOS, Flatpak. Sin panel «Descargas» (opcional, no cabía sin complicar). Sin commit.
+
+## 2026-11-14 — Informe de emprendedor (agente EMPRENDEDOR, Sonnet/medium)
+- `replica/entrepreneur-report.md`: lo que más molesta (notificaciones, DPI/scroll en Linux y macOS, memoria/CPU, historias e IA, vista previa de enlaces), lo que falta (atajos y teclado, chat secreto en escritorio, carpetas/compacto/tipografía, panel de descargas, varias cuentas, exportación incremental) y lo no resuelto (lector de pantalla, icono de dock, proxy). Citas literales con enlace a issues de `telegramdesktop/tdesktop` y comentarios de Hacker News.
+- Muestra: unas 55 piezas en 2 fuentes (GitHub, Hacker News). Reddit no se pudo leer; `bugs.telegram.org` y tiendas no se consultaron. Los 👍 miden interés, no quejas.
+- Plan de 5 mejoras: notificaciones reales con ajustes, teclado y búsqueda en chat, apariencia a gusto, panel de descargas, archivo incremental y varias cuentas. Las filas propuestas NO se añadieron a `features.csv`.
+- Nota de frescura: `diff-report.md` es anterior a las fases A1 a A3; las filas de adjuntos siguen en `no` en el CSV aunque el código ya las implementa (sin verificar contra Telegram real).
+- Uso personal: el ángulo de venta queda documentado, no se persigue. No se modificó código ni se hizo commit.
+
+## 2026-11-14 — Carpeta de descargas configurable (agente A3b, Sonnet/medium)
+- tc-ui: carpeta predeterminada `<Descargas>/Telegram Desktop` (si existe) o `<Descargas>/Telegram` (se crea al primer uso con `ensure_parent`), sin Descargas la personal. Ajuste `ui.download_dir` mediante el trait `Prefs` (en `Flags::prefs`); botón «Descargas» en el raíl y diálogo `Overlay::DownloadDir` (elegir con `rfd::pick_folder`, «Restablecer»). «Guardar como…» empieza en la carpeta resuelta. Se valida (existe y se puede escribir, probando con un archivo temporal) al elegirla y al usarla; si falla: toast, se olvida y vuelve a la predeterminada.
+- tc-app: `StorePrefs` sobre `get/set/remove_setting` de la base de la cuenta (solo con la red real; con el mock el ajuste dura la sesión). tc-store sin cambios.
+- Pruebas: 9 en `tests_downloads.rs` (predeterminada con/sin «Telegram Desktop»/sin Descargas, creación al primer uso, elegir+persistir+restablecer con otra `App`, carpeta borrada después, carpeta inválida, diálogo del raíl) y 1 en `stores.rs`. `cargo test --workspace` y clippy `-D warnings` limpios.
+- NO verificado: selector de carpetas real, Windows/macOS, captura del diálogo y del raíl con 3 botones inferiores en ventanas muy bajas, Telegram real. Sin commit.
+
+## 2026-11-14 — Icono definitivo «Brasa» (agente logo, Opus)
+- Diseño original (brand.md §5/§6): cuadrado redondeado radio 0.32, dos isolíneas irregulares de grosor uniforme que se estrechan hacia una brasa persimón; la exterior se abre arriba a la derecha como «boca» de diálogo. A ≤ 32 px, una curva abierta + brasa. Paleta Brasa (oscuro `#f67e42`/`#120f0c`, 7,26:1; claro `#c64913`/`#f8f5f1`, 4,43:1).
+- `tools/packaging/make_logo.py` (nuevo): geometría polar → béziers; logotipo «parlo» en Bricolage Grotesque 500 a contornos con fontTools. Escribe 10 SVG en `assets/brand/` (símbolo oscuro/claro/simple/mono, motivo `parlo-glyph.svg`, bandeja `parlo-tray-symbolic.svg`, logotipo horizontal oscuro/claro/mono).
+- `tools/packaging/make_icons.py` reescrito: rasteriza los SVG con `rsvg-convert`, decodifica PNG con la biblioteca estándar para las entradas BMP del `.ico`; mismos nombres de salida (`parlo-*.png`, `parlo.ico`, `Parlo.icns`) más `parlo.svg`, `parlo-symbolic.svg` y `parlo-tray-*.png`.
+- Linux: `build-linux.sh` e `install-user.sh` instalan además hicolor `scalable/parlo.svg` y `symbolic/parlo-symbolic.svg`.
+- Verificación: miniaturas 16/24/32/48/64/256/1024 revisadas visualmente; fotogramas del `.ico` (BMP y PNG) y del `.icns` extraídos y revisados. NO hecho: búsqueda inversa de imágenes; compilar en Windows/macOS. crates/ sin tocar (la ventana y el `.exe` toman los ficheros nuevos por ruta; la marca de la barra lateral sigue con el monograma provisional). Sin commit.

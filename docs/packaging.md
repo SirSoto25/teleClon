@@ -55,11 +55,22 @@ PARLO_MAC_TARGETS=aarch64-apple-darwin packaging/macos/build-macos.sh   # solo A
 open dist/macos/Parlo.app
 ```
 
-### Icono PROVISIONAL
-El logo oficial no existe (solo el brief de [brand.md §5](brand/brand.md)). `python3 tools/packaging/make_icons.py`
-genera un marcador geométrico (solo biblioteca estándar) en `packaging/icons/*.png`,
-`packaging/windows/parlo.ico` y `packaging/macos/Parlo.icns`; los archivos generados se versionan. Para el
-logo definitivo, sustituir esos archivos con los mismos nombres.
+### Icono
+Logo definitivo «Brasa» (descripción en [brand.md §6](brand/brand.md)). Dos pasos, ambos versionan su salida:
+
+1. `python3 tools/packaging/make_logo.py` → SVG de `assets/brand/` (símbolo oscuro/claro/simple/mono, motivo,
+   bandeja y logotipo horizontal). Necesita `fontTools` solo para el logotipo. Solo hace falta si cambia el diseño.
+2. `python3 tools/packaging/make_icons.py` → formatos de paquete. Rasteriza con `rsvg-convert` (librsvg) y empaqueta
+   con la biblioteca estándar. Hasta 32 px usa la versión simple (una curva + brasa); desde 48 px, la completa.
+   * `packaging/icons/parlo-{16,32,48,64,128,256,512}.png` (Linux hicolor; `parlo-256.png` es además el icono de
+     la ventana, incrustado con `include_bytes!` en `crates/tc-app/src/main.rs`)
+   * `packaging/icons/parlo.svg` (hicolor `scalable`) y `parlo-symbolic.svg` (hicolor `symbolic`, una tinta)
+   * `packaging/icons/parlo-tray-{16,22,24,32}.png` (tinta clara, para paneles oscuros) y `…-dark.png` (oscura)
+   * `packaging/windows/parlo.ico` (16-256; lo incrusta `crates/tc-app/build.rs` y lo usa `parlo.iss`)
+   * `packaging/macos/Parlo.icns` (16-1024, retícula de Big Sur; lo copia `build-macos.sh`)
+
+Los nombres no cambian respecto al icono provisional, así que el código no necesita cambios para la ventana ni el
+`.exe`. `build-linux.sh` e `install-user.sh` instalan también los SVG `scalable` y `symbolic`.
 
 ## Dónde guarda Parlo los datos
 
@@ -134,7 +145,7 @@ YAML de los workflows (`yaml.safe_load`); XML de plist/manifiesto (`xmllint`); `
   pero no se han ejecutado.
 
 ## Pendiente
-* Logo definitivo (los iconos son PROVISIONALES) y confirmar el bundle id `app.parlo.Parlo` cuando se
+* Confirmar el bundle id `app.parlo.Parlo` cuando se
   verifique el dominio (ADR-0005). Cambiar el bundle id más tarde pierde el acceso a lo guardado en el Keychain.
 * Linux: AppImage (requiere `appimagetool`/`linuxdeploy`, no trivial sin descargas) y Flatpak (necesita id verificado).
 * Windows ARM64 y `aarch64-unknown-linux-gnu` (posibles con la misma estructura; sin probar).

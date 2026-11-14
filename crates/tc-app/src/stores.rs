@@ -385,9 +385,58 @@ pub fn stores_with_vault(vault: Option<Arc<dyn SecretVault>>, account: &str, ses
     TelegramStores { session, secrets, media: media_cache(account, data_dir) }
 }
 
+/// Ajustes del usuario (carpeta de descargas) sobre la tabla de ajustes de `tc-store` de la cuenta.
+pub struct StorePrefs(Mutex<Store>);
+
+impl StorePrefs {
+    pub fn new(store: Store) -> Self {
+        Self(Mutex::new(store))
+    }
+
+    /// Abre los ajustes de la cuenta; `None` (y un aviso) si no se puede, y entonces duran la sesión.
+    pub fn open(data_dir: Option<&Path>, account: &str) -> Option<Arc<dyn tc_ui::Prefs>> {
+        let dir = data_dir?;
+        match Store::open_account(dir, account) {
+            Ok(s) => Some(Arc::new(Self::new(s))),
+            Err(e) => {
+                tracing::warn!("ajustes: no se pueden guardar entre sesiones ({e})");
+                None
+            }
+        }
+    }
+}
+
+impl tc_ui::Prefs for StorePrefs {
+    fn get(&self, key: &str) -> Option<String> {
+        self.0.lock().ok()?.get_setting(key).ok().flatten()
+    }
+
+    fn set(&self, key: &str, value: Option<&str>) {
+        let Ok(s) = self.0.lock() else { return };
+        let r = match value {
+            Some(v) => s.set_setting(key, v),
+            None => s.remove_setting(key).map(|_| ()),
+        };
+        if let Err(e) = r {
+            tracing::warn!("ajustes: no se pudo guardar «{key}» ({e})");
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tc_ui::Prefs as _;
+
+    #[test]
+    fn prefs_roundtrip_and_remove() {
+        let p = StorePrefs::new(Store::open_in_memory().unwrap());
+        assert_eq!(p.get("ui.download_dir"), None);
+        p.set("ui.download_dir", Some("/tmp/x"));
+        assert_eq!(p.get("ui.download_dir").as_deref(), Some("/tmp/x"));
+        p.set("ui.download_dir", None);
+        assert_eq!(p.get("ui.download_dir"), None);
+    }
     use std::sync::OnceLock;
     use tc_secret::testing::{SeededEntropy, rfc3526_params};
     use tc_secret::{DhParams, Event, Outbound, Output, SecretChat, SessionSnapshot};

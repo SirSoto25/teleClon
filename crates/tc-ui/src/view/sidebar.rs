@@ -65,6 +65,7 @@ pub fn rail(app: &App) -> Element<'_, Msg> {
     };
     col = col
         .push(Space::new().height(Length::Fill))
+        .push(toggle(Icon::Download, "Descargas", false, Msg::Dl(crate::app::downloads::DlMsg::Settings)))
         .push(toggle(theme_icon, theme_label, false, Msg::ToggleTheme))
         .push(toggle(if reduced { Icon::Pause } else { Icon::Play }, "Animar", reduced, Msg::ToggleMotion))
         .push(vgap(space::S3));

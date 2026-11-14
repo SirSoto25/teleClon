@@ -86,3 +86,46 @@ pub fn card_body<'a>(
 pub fn offers_quick_save(m: &Message) -> bool {
     m.media.as_ref().is_some_and(|md| md.kind != MediaKind::File)
 }
+
+/// Diálogo «Carpeta de descargas» (§8.12): dónde caen las descargas, elegir otra o restablecer.
+pub fn dir_panel(app: &App) -> Element<'_, Msg> {
+    use crate::app::downloads::default_dir;
+    use crate::widgets::{hfill, t, vgap};
+    let b = app.brasa;
+    let (shown, note) = match &app.dl.dir {
+        Some(d) if !d.is_dir() => (d.clone(), Some("Esta carpeta ya no existe: se usará la predeterminada.")),
+        Some(d) => (d.clone(), None),
+        None => (default_dir().unwrap_or_default(), Some("Carpeta predeterminada. La de Telegram Desktop se usa si ya existe; si no, se crea «Telegram» al descargar la primera vez.")),
+    };
+    let warn = app.dl.dir.as_ref().is_some_and(|d| !d.is_dir());
+    let mut col = Column::new()
+        .spacing(space::S3)
+        .push(t1("Carpeta de descargas", ts::TITLE, c(b.p.text)))
+        .push(t("Los archivos que guardes con un clic van aquí. «Guardar como…» también empieza en esta carpeta.", ts::UI, c(b.p.text_muted)))
+        .push(
+            container(t1(shown.display().to_string(), ts::CODE, c(b.p.text)))
+                .padding([8, 12])
+                .width(Length::Fill)
+                .style(style::rounded_fill(c(b.p.surface_hover), style::r(radius::MD))),
+        );
+    if let Some(n) = note {
+        col = col.push(t(n, ts::CAPTION, c(if warn { b.p.warning } else { b.p.text_muted })));
+    }
+    col.push(vgap(space::S2))
+        .push(
+            row![
+                hfill(),
+                button(t1("Restablecer", ts::UI_STRONG, c(b.p.text)))
+                    .padding([8, 16])
+                    .style(style::ghost(b, radius::MD))
+                    .on_press_maybe(app.dl.is_custom().then_some(dl(DlMsg::ResetDir))),
+                button(t1("Elegir carpeta…", ts::UI_STRONG, c(b.p.text)))
+                    .padding([8, 16])
+                    .style(style::ghost(b, radius::MD))
+                    .on_press(dl(DlMsg::ChooseDir)),
+                button(t1("Cerrar", ts::UI_STRONG, c(b.p.on_accent))).padding([8, 16]).style(style::primary(b, radius::MD)).on_press(Msg::CloseOverlay),
+            ]
+            .spacing(space::S2),
+        )
+        .into()
+}
