@@ -36,6 +36,7 @@ mod sticker_anims;
 mod reacts;
 /// Envío de archivos: selector, arrastrar y soltar, pegar, diálogo y subidas (fase A2).
 pub mod uploads;
+pub mod downloads;
 pub use reacts::{apply_mine, reaction_error_text};
 
 pub type Backend = Arc<dyn ChatBackend>;
@@ -339,6 +340,8 @@ pub enum Msg {
     Panel(crate::panel::PanelMsg),
     /// Envío de archivos: selector, soltar, pegar, diálogo y subidas (ver `app/uploads.rs`).
     Files(uploads::FilesMsg),
+    /// Descarga de archivos a disco: clic, «Guardar como…», abrir y cancelar (ver `app/downloads.rs`).
+    Dl(downloads::DlMsg),
 }
 
 pub struct App {
@@ -413,6 +416,8 @@ pub struct App {
     pub panel: crate::panel::Panel,
     /// Diálogo de envío de archivos y subidas en curso (`app/uploads.rs`).
     pub uploads: uploads::Uploads,
+    /// Descargas a disco de la sesión (ver `app/downloads.rs`).
+    pub dl: downloads::Downloads,
     pub dots: u8,
     demo: std::collections::VecDeque<(Duration, DemoStep)>,
     demo_start: Option<Instant>,
@@ -518,6 +523,7 @@ impl App {
             forum: forum::ForumUi::default(),
             panel: crate::panel::Panel::default(),
             uploads: uploads::Uploads::default(),
+            dl: downloads::Downloads::default(),
             dots: 0,
             demo: flags.demo.into_iter().collect(),
             demo_start: None,
@@ -587,6 +593,7 @@ impl App {
         self.images.clear();
         self.downloads.clear();
         self.uploads = uploads::Uploads::default();
+        self.dl = downloads::Downloads::default();
         self.toast("La sesión se ha cerrado. Vuelve a entrar.".into(), true);
         operation::focus(Id::new(login::PHONE_ID))
     }
@@ -1462,6 +1469,7 @@ impl App {
             Msg::Forum(m) => self.on_forum(m),
             Msg::Panel(m) => self.on_panel(m),
             Msg::Files(m) => self.on_files(m),
+            Msg::Dl(m) => self.on_dl(m),
         }
     }
 
@@ -1693,7 +1701,7 @@ impl App {
                 self.downloads.insert(file_id, (done, total));
                 Task::none()
             }
-            // Subidas (A2, `app/uploads.rs`); las descargas a disco las pintará la fase A3.
+            // Subidas (A2, `app/uploads.rs`) y descargas a disco (A3, `app/downloads.rs`).
             BackendEvent::TransferProgress(t) => self.on_transfer(t),
             BackendEvent::DialogRemoved { peer } => self.on_dialog_removed(peer),
             BackendEvent::HistoryCleared { peer } => self.on_history_cleared(peer),

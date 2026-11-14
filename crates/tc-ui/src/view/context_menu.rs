@@ -13,6 +13,7 @@ use iced::{Alignment, Element, Event, Length, Padding, Point, Rectangle, Size, V
 use tc_core::{GroupKind, Message, MsgId, PeerRef};
 use tc_theme::tokens::{layout as lay, radius, space, text as ts};
 
+use crate::app::downloads::DlMsg;
 use crate::app::chat_actions::{ChatMsg, Confirm, ForwardPicker, InfoView, Menu, MenuTarget, MuteFor, message_link};
 use crate::app::{App, Msg};
 use crate::icon::{Icon, icon};
@@ -225,6 +226,13 @@ pub fn message_items(app: &App, id: MsgId) -> Vec<Item> {
     }
     if !m.text.is_empty() {
         v.push(act(Icon::Copy, "Copiar texto", Msg::Copy(id)));
+    }
+    if app.can_save(m) {
+        // Documentos: el clic en la tarjeta ya descarga; fotos, vídeos y audios se guardan desde aquí.
+        if super::downloads::offers_quick_save(m) {
+            v.push(act(Icon::Download, "Guardar", Msg::Dl(DlMsg::Start(id))));
+        }
+        v.push(act(Icon::Folder, "Guardar como…", Msg::Dl(DlMsg::SaveAs(id))));
     }
     if let PeerRef::Group(g) = peer
         && app.groups.get(&g).and_then(|g| message_link(g, id)).is_some()

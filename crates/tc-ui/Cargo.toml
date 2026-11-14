@@ -27,6 +27,8 @@ tokio = { workspace = true, features = ["rt"] }
 # Envío de archivos (A2): selector nativo y pegar imágenes del portapapeles.
 rfd.workspace = true
 arboard.workspace = true
+# Descargas (A3): carpeta de descargas por defecto.
+dirs.workspace = true
 jiff.workspace = true
 tracing.workspace = true
 

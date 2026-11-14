@@ -37,3 +37,8 @@ Criterio: investigación/redacción estructurada → Sonnet (esfuerzo medio); de
 | --- | --- | --- | --- | --- | --- | --- |
 | 14 | A2 envío UI | opus | medium | clip + Ctrl+O (rfd), soltar, pegar (rutas e imagen con arboard), diálogo de envío (vista previa, comprimir/archivo, pie ≤ 1024, álbum), burbuja con progreso, cancelar y reintentar; foros y `write_block` | crates/tc-ui (files.rs, app/uploads.rs, view/send_dialog.rs, tests_files.rs, tests_send_shots.rs, app.rs, conv.rs, view/conversation.rs, view/mod.rs, icon.rs, lib.rs, Cargo.toml), Cargo.toml, docs/design/system.md §8.11, docs/design/screens/a2-*.png | HECHO (18 tests nuevos con mock y reloj virtual + capturas; cargo test --workspace y clippy -D warnings limpios; NADA contra Telegram real ni en Windows/macOS; sin commit) |
 
+
+## 2026-11-14 — fase A3 (archivos)
+| # | Agente | Modelo | Esfuerzo | Tarea | Salida | Estado |
+| --- | --- | --- | --- | --- | --- | --- |
+| 15 | A3 descarga UI | sonnet | medium | clic en documento = descargar a Descargas (sin sobrescribir) con progreso y cancelar, Abrir / Mostrar en carpeta, Guardar como…, Guardar en visor y menús, reintentar; foros | crates/tc-ui (app/downloads.rs, view/downloads.rs, tests_downloads.rs, tests_download_shots.rs, app.rs, app/uploads.rs, view/send_dialog.rs, view/context_menu.rs, view/mod.rs, lib.rs, Cargo.toml), Cargo.toml (dirs), docs/design/system.md §8.12, docs/design/screens/a3-*.png | HECHO (13 tests + capturas; NADA contra Telegram real; sin commit) |

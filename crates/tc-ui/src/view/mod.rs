@@ -8,6 +8,7 @@ pub mod gif_panel;
 pub mod login;
 pub mod panel;
 /// Envío de archivos: diálogo, zona de soltar y burbujas de subida.
+pub mod downloads;
 pub mod send_dialog;
 pub mod sidebar;
 pub mod stickers;
@@ -216,7 +217,17 @@ fn photo_viewer<'a>(app: &'a App, peer: PeerRef, msg: tc_core::MsgId, k: f32) ->
         side(Icon::CaretLeft, "Foto anterior (←)", prev, -1, false),
         side(Icon::CaretRight, "Foto siguiente (→)", next, 1, true),
         container(chip(Icon::Back, "Volver al chat (Esc)", Some(Msg::CloseOverlay))).width(Length::Fill).align_x(Horizontal::Left).padding(space::S3).into(),
-        container(chip(Icon::Close, "Cerrar (Esc)", Some(Msg::CloseOverlay))).width(Length::Fill).align_x(Horizontal::Right).padding(space::S3).into(),
+        container(
+            row![
+                chip(Icon::Download, "Guardar la foto", file.map(|_| Msg::Dl(crate::app::downloads::DlMsg::Start(msg)))),
+                chip(Icon::Close, "Cerrar (Esc)", Some(Msg::CloseOverlay)),
+            ]
+            .spacing(space::S2),
+        )
+        .width(Length::Fill)
+        .align_x(Horizontal::Right)
+        .padding(space::S3)
+        .into(),
     ];
     if let Some(s) = status {
         layers.push(

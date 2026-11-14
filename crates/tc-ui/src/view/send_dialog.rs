@@ -9,6 +9,7 @@ use iced::{Alignment, Color, ContentFit, Element, Length, Padding, Pixels, Size}
 use tc_core::{MediaKind, Message, RandomId};
 use tc_theme::tokens::{layout, radius, space, text as ts};
 
+use crate::app::downloads::{DlMsg, DlState};
 use crate::app::uploads::{FilesMsg, SendDialog, Upload};
 use crate::app::{AnimKey, App, Msg};
 use crate::files::{self, CAPTION_COUNTER_FROM, CAPTION_ID, FILE_WARN_BYTES, FileClass, MAX_CAPTION_CHARS, Picked};
@@ -359,16 +360,38 @@ pub fn file_card<'a>(
     let ic = container(icon_fill(kind_icon(class), layout::ICON_MD, c(b.p.on_accent)))
         .center(Length::Fixed(40.0))
         .style(style::rounded_fill(fade(c(b.p.accent), opacity), style::r(radius::PILL)));
-    let text_w = (sz.width - 40.0 - space::S3 - if upload.is_some() { 32.0 + space::S2 } else { 0.0 }).max(40.0);
+    let dl = if upload.is_none() && app.can_save(m) { Some(app.dl.get(m.peer, m.id)) } else { None };
+    // Ancho que se lleva lo de la derecha (cancelar, guardar como…, reintentar).
+    let trailing = match (&upload, dl.flatten().map(|d| &d.state)) {
+        (Some(_), _) => 32.0 + space::S2,
+        (None, Some(DlState::Failed(_))) => 76.0 + space::S2,
+        (None, Some(DlState::Done)) => 0.0,
+        (None, _) if dl.is_some() => 32.0 + space::S2,
+        _ => 0.0,
+    };
+    let text_w = (sz.width - 40.0 - space::S3 - trailing).max(40.0);
     let name_el = t1(crate::measure::ellipsize_to(name, with_weight(ts::UI, 600), text_w), with_weight(ts::UI, 600), fg);
     let mut info = column![name_el].spacing(2).width(Length::Fixed(text_w));
     let mut line = row![ic].spacing(space::S3).align_y(Alignment::Center);
-    match upload {
-        Some((first, job)) => {
+    match (upload, dl) {
+        (Some((first, job)), _) => {
             info = info.push(t1(status_label(job), ts::CAPTION, meta_c)).push(progress_bar(job, fade(meta_c, 0.25), c(b.p.accent), text_w));
             line = line.push(info).push(cancel_button(b, first, job, meta_c));
         }
-        None => {
+        (None, Some(d)) => {
+            let (info, trail) = super::downloads::card_body(app, m, md, d, info, text_w, meta_c);
+            line = line.push(info);
+            if let Some(t) = trail {
+                line = line.push(t);
+            }
+            // Toda la tarjeta es un botón: descargar (o abrir, si ya está).
+            let id = m.id;
+            return mouse_area(container(line).width(Length::Fixed(sz.width)).height(Length::Fixed(sz.height)).align_y(Vertical::Center))
+                .interaction(iced::mouse::Interaction::Pointer)
+                .on_press(Msg::Dl(DlMsg::Start(id)))
+                .into();
+        }
+        (None, None) => {
             info = info.push(t1(files::size_label(md.size_bytes), ts::CAPTION, meta_c));
             line = line.push(info);
         }
@@ -390,13 +413,28 @@ pub fn status_label(job: &Upload) -> String {
     }
 }
 
-/// Barra de progreso de `w` px. Sin progreso conocido, un tramo fijo al principio (indeterminado).
 fn progress_bar<'a>(job: &Upload, track: Color, fill: Color, w: f32) -> Element<'a, Msg> {
+    progress_bar_of(job.fraction(), job.failed, track, fill, w)
+}
+
+/// Barra de progreso de `w` px. Sin progreso conocido, un tramo fijo al principio (indeterminado).
+pub(super) fn progress_bar_of<'a>(fraction: Option<f32>, failed: bool, track: Color, fill: Color, w: f32) -> Element<'a, Msg> {
     let w = w.max(8.0);
-    let frac = if job.failed { 0.0 } else { job.fraction().unwrap_or(0.12) };
+    let frac = if failed { 0.0 } else { fraction.unwrap_or(0.12) };
     let filled = container(Space::new().width(Length::Fixed((w * frac).max(if frac > 0.0 { BAR_H } else { 0.0 }))).height(Length::Fixed(BAR_H)))
         .style(style::rounded_fill(fill, style::r(BAR_H / 2.0)));
     container(filled).width(Length::Fixed(w)).height(Length::Fixed(BAR_H)).style(style::rounded_fill(track, style::r(BAR_H / 2.0))).into()
+}
+
+/// Texto del estado de una descarga.
+pub fn status_text(d: &crate::app::downloads::Dl) -> String {
+    use crate::app::downloads::DlState;
+    match d.state {
+        DlState::Cancelling => "Cancelando…".into(),
+        DlState::Running { done, total } if total > 0 => format!("{} % · {}", (d.fraction().unwrap_or(0.0) * 100.0).floor() as u32, files::progress_label(done, total)),
+        DlState::Running { done, .. } => format!("Descargando… · {}", files::size_label(done)),
+        _ => "Descargando…".into(),
+    }
 }
 
 fn cancel_button<'a>(b: Brasa, first: RandomId, job: &Upload, ink: Color) -> Element<'a, Msg> {

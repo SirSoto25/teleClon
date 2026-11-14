@@ -427,9 +427,9 @@ impl App {
         Task::none()
     }
 
-    /// Progreso de una subida (ADR-0011). Las descargas a disco las pinta la fase A3.
+    /// Progreso de una transferencia (ADR-0011): las subidas, aquí; las descargas a disco, en `downloads.rs`.
     pub(crate) fn on_transfer(&mut self, t: Transfer) -> Task<Msg> {
-        let TransferId::Upload(first) = t.id else { return Task::none() };
+        let TransferId::Upload(first) = t.id else { return self.on_download(t) };
         let Some(job) = self.uploads.jobs.get_mut(&first) else { return Task::none() };
         match t.state {
             TransferState::Running => {

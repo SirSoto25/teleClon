@@ -62,3 +62,7 @@ mod tests_qa;
 mod tests_files;
 #[cfg(test)]
 mod tests_send_shots;
+#[cfg(test)]
+mod tests_downloads;
+#[cfg(test)]
+mod tests_download_shots;

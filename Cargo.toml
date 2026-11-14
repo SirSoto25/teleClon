@@ -99,6 +99,9 @@ openh264 = { version = "0.9.10", default-features = false, features = ["source"]
 rfd = "0.18.0"
 arboard = { version = "3.7.0", default-features = false, features = ["image-data", "wayland-data-control"] }
 
+# Descarga de archivos (fase A3, ADR-0011): carpeta de descargas del sistema (XDG, Known Folders, macOS).
+dirs = "7.0.0"
+
 # Teclado de emojis (ADR-0009): catálogo Unicode/CLDR empaquetado, sin dependencias ni red.
 emojis = "0.9.1"
 
