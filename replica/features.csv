@@ -78,7 +78,7 @@ Sesiones activas y cierre remoto,settings,should,yes,no,S33
 Tema claro/oscuro,settings,must,yes,partial,conmutador en el raíl (tc-ui app.rs ThemeKind); no se persiste ni sigue al portal XDG
 Tamaño de texto y fondo de chat,settings,should,yes,no,
 Idioma de la interfaz,settings,should,yes,no,S32
-Ajustes de descarga automática y caché,settings,could,yes,partial,solo carpeta de descargas elegible; sin descarga automática ni gestión de caché
+Ajustes de descarga automática y caché,settings,could,yes,partial,VERIFICADO REAL (2026-11-14): carpeta de descargas (crear por defecto y elegir otra); sin descarga automática ni gestión de caché
 Enviar archivo con selector,attachments,must,yes,yes,VERIFICADO REAL (2026-11-14); rfd + tc-ui app/uploads.rs; ADR-0011
 Arrastrar y soltar archivos,attachments,must,yes,partial,[sin real] funciona en X11/Windows/macOS; no en Wayland nativo (winit 0.30)
 Pegar imagen desde portapapeles,attachments,should,yes,yes,VERIFICADO REAL (2026-11-14); arboard; tc-ui app/uploads.rs

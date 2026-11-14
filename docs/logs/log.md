@@ -389,3 +389,4 @@
 - CI fallaba solo en macOS (Linux y Windows pasaban) desde 9c3bed1: tests propios, no la app. `tests_find` usaba `Modifiers::CTRL` (en macOS el atajo es Cmd → ahora `Modifiers::COMMAND`); `abrir_es_un_solo_argumento_sin_shell` esperaba 1 argumento al señalar un archivo, pero `open -R` lleva 2 en macOS. Corregido en 256e694; CI relanzado (pendiente de resultado).
 - Usuario confirma: notificaciones de escritorio correctas. `replica/features.csv` actualizado (18 filas) y `parity.py`: 45,0 → 58,2; must-haves 16 → 23 de 54. `replica/diff-report.md` con nota de actualización.
 - Pendiente de prueba del usuario: carpeta de descargas, búsqueda en el chat (Ctrl+F), icono nuevo (`packaging/linux/install-user.sh`).
+- Usuario confirma: carpeta de descargas correcta (creación por defecto y selección de otra).
