@@ -373,6 +373,13 @@ impl<B: ChatBackend> MediaApi for MediaCacheLayer<B> {
         let key = media_key(peer, &file, variant);
         fetch_cached(Some(Arc::clone(&self.cache)), key, self.inner.download_media(peer, msg, file, variant)).await
     }
+    /// Pasa tal cual: las descargas a disco no entran en la caché (ADR-0011).
+    async fn download_media_to(&self, peer: PeerRef, msg: MsgId, file: FileRef, variant: MediaVariant, dest: std::path::PathBuf) -> BackendResult<tc_core::TransferId> {
+        self.inner.download_media_to(peer, msg, file, variant, dest).await
+    }
+    async fn cancel_transfer(&self, id: tc_core::TransferId) -> BackendResult<()> {
+        self.inner.cancel_transfer(id).await
+    }
 }
 
 #[async_trait]
@@ -558,6 +565,35 @@ mod tests {
         }
         let c = MediaCache::open_account(&tmp.0, "u1", DEFAULT_MEDIA_CACHE_LIMIT).unwrap();
         assert_eq!(c.get("pp1-s").unwrap().as_deref(), Some(&b"jpeg"[..]));
+    }
+
+    /// ADR-0011: las descargas a disco pasan tal cual y no llenan la caché.
+    #[tokio::test]
+    async fn layer_passes_disk_downloads_through_without_caching() {
+        use tc_core::{MediaApi, OutgoingMedia, OutgoingMediaItem, MediaKind, RandomId, TransferId};
+        let tmp = TmpDir::new("layer-dl");
+        let cache = Arc::new(MediaCache::open(tmp.0.join("m"), Store::open_in_memory().unwrap(), 1 << 20).unwrap());
+        let layer = MediaCacheLayer::new(Arc::new(tc_mock::MockBackend::default()), Arc::clone(&cache));
+        let peer = PeerRef::User(UserId(1001));
+        let item = OutgoingMediaItem { kind: MediaKind::File, path: "/tmp/b.bin".into(), file_name: "b.bin".into(), size_bytes: 300, width: 0, height: 0 };
+        let media = OutgoingMedia { items: vec![item], caption: String::new(), reply_to: None, random_ids: vec![RandomId(5050)] };
+        let sent = layer.send_media(peer, media).await.unwrap().remove(0);
+        let mut ev = layer.events();
+        let dest = tmp.0.join("b.bin");
+        let id = layer.download_media_to(peer, sent.id, sent.media.unwrap().file.unwrap(), MediaVariant::Full, dest.clone()).await.unwrap();
+        assert!(matches!(id, TransferId::Download(_)));
+        loop {
+            if let Some(BackendEvent::TransferProgress(t)) = futures::StreamExt::next(&mut ev).await
+                && t.id == id
+                && t.state.is_finished()
+            {
+                assert_eq!(t.state, tc_core::TransferState::Done);
+                break;
+            }
+        }
+        assert_eq!(std::fs::read(&dest).unwrap().len(), 300);
+        assert_eq!(cache.usage().unwrap(), 0, "nada en la caché");
+        layer.cancel_transfer(id).await.unwrap();
     }
 
     #[tokio::test]

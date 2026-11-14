@@ -14,6 +14,8 @@ mod forum;
 pub mod gifs;
 mod images;
 mod rng;
+/// Subidas y descargas simuladas con progreso, cancelación y fallos inyectables (ADR-0011).
+mod transfers;
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -27,6 +29,7 @@ use tokio::task::JoinHandle;
 
 use crate::rng::Lcg;
 pub use forum::{FORUM_BUSY_TOPIC, FORUM_CHAT, FORUM_GROUP};
+pub use transfers::{MAX_STEPS, TransferSim};
 pub use data::{ANIMATED_SET_ID, BIG_CHAT, BIG_CHAT_LEN, ME, SECRET_ID, UNREAD_CHAT, UNREAD_CHAT_COUNT};
 
 #[derive(Debug, Clone)]
@@ -85,6 +88,8 @@ struct Inner {
     tx: broadcast::Sender<BackendEvent>,
     auth_tx: broadcast::Sender<AuthState>,
     cfg: MockConfig,
+    /// Subidas y descargas en curso y su simulación (ver `transfers.rs`).
+    transfers: transfers::Transfers,
 }
 
 pub struct MockBackend {
@@ -127,7 +132,7 @@ impl MockBackend {
         };
         let (tx, _) = broadcast::channel(1024);
         let (auth_tx, _) = broadcast::channel(64);
-        Self { inner: Arc::new(Inner { state: Mutex::new(state), tx, auth_tx, cfg }), script: Mutex::new(None) }
+        Self { inner: Arc::new(Inner { state: Mutex::new(state), tx, auth_tx, cfg, transfers: Default::default() }), script: Mutex::new(None) }
     }
 
     /// Conmuta el modo sin conexión: las operaciones devuelven `Network` y se emite `Connection`.
@@ -662,47 +667,27 @@ impl MessagesApi for MockBackend {
 
 #[async_trait]
 impl MediaApi for MockBackend {
+    /// Con progreso simulado por trozos y cancelable (ver `transfers.rs`); los mensajes se crean al
+    /// terminar la «subida».
     async fn send_media(&self, peer: PeerRef, media: OutgoingMedia) -> BackendResult<Vec<Message>> {
         self.inner.gate().await?;
         if media.items.is_empty() || media.items.len() != media.random_ids.len() {
             return Err(BackendError::InvalidInput("items"));
         }
-        let mut out = Vec::new();
-        let mut events = Vec::new();
-        {
-            let mut st = self.inner.lock();
-            st.ensure_writable(peer)?;
-            let me = st.me.id;
-            for (i, (item, rid)) in media.items.iter().zip(&media.random_ids).enumerate() {
-                let mut m = st.blank_message(peer, true, Some(me));
-                m.media = Some(Media {
-                    id: 90_000 + st.clock + i as i64,
-                    kind: item.kind,
-                    file_name: Some(item.file_name.clone()),
-                    size_bytes: item.size_bytes,
-                    width: item.width,
-                    height: item.height,
-                    duration_secs: None,
-                    local_path: Some(item.path.clone()),
-                    file: None,
-                    audio: (item.kind == MediaKind::Voice).then(|| AudioInfo { voice: true, ..Default::default() }),
-                });
-                if let Some(md) = m.media.as_mut() {
-                    md.file = Some(images::file_ref(md.kind, md.id, md.size_bytes));
-                }
-                if i == 0 {
-                    m.text = media.caption.clone();
-                    m.reply_to = media.reply_to;
-                }
-                m.random_id = Some(*rid);
-                let (m, d) = st.append(m);
-                events.push(BackendEvent::MessageSent { random_id: *rid, msg: m.clone() });
-                events.push(BackendEvent::DialogUpserted(d));
-                out.push(m);
-            }
-        }
-        events.into_iter().for_each(|e| self.inner.emit(e));
-        Ok(out)
+        self.inner.lock().ensure_writable(peer)?;
+        let upload = self.simulate_upload(peer, &media).await?;
+        let r = self.commit_media(peer, &media);
+        upload.finish(r.as_ref().map(|_| ()).map_err(Clone::clone));
+        r
+    }
+
+    async fn download_media_to(&self, peer: PeerRef, msg: MsgId, file: FileRef, variant: MediaVariant, dest: std::path::PathBuf) -> BackendResult<TransferId> {
+        self.download_to(peer, msg, file, variant, dest).await
+    }
+
+    async fn cancel_transfer(&self, id: TransferId) -> BackendResult<()> {
+        self.cancel(id);
+        Ok(())
     }
 
     /// PNG sintético (cuadrado de 160 o 640 px) si `photo` es la foto vigente del chat.
@@ -748,6 +733,48 @@ impl MediaApi for MockBackend {
             (FileKind::Document, MediaVariant::Full) => Ok(images::document(file.id, file.size_bytes)),
             (FileKind::Document, MediaVariant::Thumb) => Err(BackendError::NotFound),
         }
+    }
+}
+
+impl MockBackend {
+    /// Crea los mensajes de un `send_media` ya «subido» y emite sus `MessageSent`.
+    fn commit_media(&self, peer: PeerRef, media: &OutgoingMedia) -> BackendResult<Vec<Message>> {
+        let mut out = Vec::new();
+        let mut events = Vec::new();
+        {
+            let mut st = self.inner.lock();
+            st.ensure_writable(peer)?;
+            let me = st.me.id;
+            for (i, (item, rid)) in media.items.iter().zip(&media.random_ids).enumerate() {
+                let mut m = st.blank_message(peer, true, Some(me));
+                m.media = Some(Media {
+                    id: 90_000 + st.clock + i as i64,
+                    kind: item.kind,
+                    file_name: Some(item.file_name.clone()),
+                    size_bytes: item.size_bytes,
+                    width: item.width,
+                    height: item.height,
+                    duration_secs: None,
+                    local_path: Some(item.path.clone()),
+                    file: None,
+                    audio: (item.kind == MediaKind::Voice).then(|| AudioInfo { voice: true, ..Default::default() }),
+                });
+                if let Some(md) = m.media.as_mut() {
+                    md.file = Some(images::file_ref(md.kind, md.id, md.size_bytes));
+                }
+                if i == 0 {
+                    m.text = media.caption.clone();
+                    m.reply_to = media.reply_to;
+                }
+                m.random_id = Some(*rid);
+                let (m, d) = st.append(m);
+                events.push(BackendEvent::MessageSent { random_id: *rid, msg: m.clone() });
+                events.push(BackendEvent::DialogUpserted(d));
+                out.push(m);
+            }
+        }
+        events.into_iter().for_each(|e| self.inner.emit(e));
+        Ok(out)
     }
 }
 

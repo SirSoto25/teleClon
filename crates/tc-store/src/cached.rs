@@ -169,7 +169,11 @@ impl<B: ChatBackend> Shared<B> {
                     }
                     // Sin efecto en la base: estado de conexión, «escribiendo…» y chats secretos (su estado de
                     // protocolo y claves los gestiona quien implementa el backend, no esta caché).
-                    BackendEvent::Connection(_) | BackendEvent::Typing { .. } | BackendEvent::SecretChat(_) | BackendEvent::Download { .. } => {}
+                    BackendEvent::Connection(_)
+                    | BackendEvent::Typing { .. }
+                    | BackendEvent::SecretChat(_)
+                    | BackendEvent::Download { .. }
+                    | BackendEvent::TransferProgress(_) => {}
                     BackendEvent::DialogRemoved { peer } => {
                         if let Some(ck) = cv::find_chat_key(s, peer)? {
                             s.delete_dialog(ck)?;
@@ -641,6 +645,16 @@ impl<B: ChatBackend> MediaApi for CachedBackend<B> {
     async fn download_media(&self, peer: PeerRef, msg: MsgId, file: FileRef, variant: MediaVariant) -> BackendResult<Vec<u8>> {
         let key = media_key(peer, &file, variant);
         fetch_cached(self.shared.media.clone(), key, self.shared.inner.download_media(peer, msg, file, variant)).await
+    }
+
+    /// Pasa tal cual (ADR-0011): el archivo va a donde elige el usuario, no a la caché; el progreso
+    /// llega por el bombeo de eventos como cualquier otro.
+    async fn download_media_to(&self, peer: PeerRef, msg: MsgId, file: FileRef, variant: MediaVariant, dest: std::path::PathBuf) -> BackendResult<tc_core::TransferId> {
+        self.shared.inner.download_media_to(peer, msg, file, variant, dest).await
+    }
+
+    async fn cancel_transfer(&self, id: tc_core::TransferId) -> BackendResult<()> {
+        self.shared.inner.cancel_transfer(id).await
     }
 }
 

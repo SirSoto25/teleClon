@@ -106,8 +106,10 @@ Operaciones ("rutas" del cliente). Cada fila es una operación del backend; en e
 | Messages | `mark_read` | lectura | peer, max_id → () | F03 |
 | Messages | `set_typing` / `pin_message` | estado | peer, … → () | — |
 | Media | `upload` | sube por partes, reanudable | path, kind → `UploadHandle` (progreso por evento) | F10 |
-| Media | `send_media` | envía álbum/archivo | peer, `OutgoingMedia{items, caption, compress}` → `Vec<Message>` | F10 |
+| Media | `send_media` | envía álbum/archivo; progreso y cancelación con id `TransferId::Upload(random_ids[0])` (ADR-0011) | peer, `OutgoingMedia{items, caption, reply_to, random_ids}` → `Vec<Message>` (cancelada: `Err(Cancelled)`) | F10 |
 | Media | `download_profile_photo` / `download_media` (implementado 2026-11-09) | descarga a memoria | peer, `ProfilePhoto`, `PhotoSize` / peer, msg, `FileRef`, `MediaVariant{Thumb,Full}` → bytes | F10/S19 |
+| Media | `download_media_to` (contrato 2026-11-14, ADR-0011) | descarga **a disco** por trozos (`<dest>.part` + renombrado atómico) | peer, msg, `FileRef`, `MediaVariant`, `dest: PathBuf` → `TransferId` (vuelve al arrancar; progreso por `TransferProgress`) | F10 |
+| Media | `cancel_transfer` (ADR-0011) | cancela subida o descarga (idempotente) | `TransferId` → () | F10 |
 | Search | `search_global` / `search_in_chat` | búsqueda servidor | query, filtro, offset → `SearchPage` | F11 |
 | Profile | `user_full` / `group_full` | info | id → `UserFull` / `GroupFull` | F13 |
 | Profile | `set_blocked` / `update_profile` / `set_username` / `set_profile_photo` | perfil | … → () | F13/S27 |
@@ -131,11 +133,37 @@ Operaciones ("rutas" del cliente). Cada fila es una operación del backend; en e
 
 Total: 78 operaciones (contando por separado las agrupadas con `/`; 12 de foros).
 
-`BackendEvent` (entrada a la UI): `Connection(Connecting|Online|Updating|Offline)`, `Auth(QrAccepted|LoggedOut|PasswordNeeded)`, `DialogUpserted`, `MessageNew`, `MessageEdited`, `MessagesDeleted`, `MessageSent{random_id, msg}`, `MessageFailed{random_id, err}`, `ReadInbox`, `ReadOutbox`, `Typing`, `UserStatus`, `Reactions`, `FoldersChanged`, `NotifyChanged`, `StickerSetsChanged`, `SecretChat(Requested|Accepted|KeyChanged|TtlChanged|Discarded|Screenshot)`, `SecretMessage`, `SecretMessagesDeleted`, `Transfer{id, done, total}`, `Resync{reason}`.
+`BackendEvent` (entrada a la UI): `Connection(Connecting|Online|Updating|Offline)`, `Auth(QrAccepted|LoggedOut|PasswordNeeded)`, `DialogUpserted`, `MessageNew`, `MessageEdited`, `MessagesDeleted`, `MessageSent{random_id, msg}`, `MessageFailed{random_id, err}`, `ReadInbox`, `ReadOutbox`, `Typing`, `UserStatus`, `Reactions`, `FoldersChanged`, `NotifyChanged`, `StickerSetsChanged`, `SecretChat(Requested|Accepted|KeyChanged|TtlChanged|Discarded|Screenshot)`, `SecretMessage`, `SecretMessagesDeleted`, `TransferProgress(Transfer)` (ADR-0011; `Download{file_id, done, total}` sigue para `download_media` a memoria), `Resync{reason}`.
 
 **Grupos con temas** (2026-11-13, `tc-core/src/forum.rs`): `Group::is_forum`; `ForumTopic{group, id (= mensaje superior; General = 1), title, icon{color, emoji, custom_emoji_id}, last_message, unread_count, read_inbox_max_id, pinned, closed, hidden, my}`; sub-trait `ForumApi` (supertrait de `ChatBackend`, todo con implementación por defecto). Eventos: `TopicMessageNew{topic, msg}` (en un foro sustituye a `MessageNew`), `ForumTopicUpserted(ForumTopic)`, `ForumTopicsChanged{group}`. `ThreadScope` envuelve un backend y lleva historial, envíos, lectura y «escribiendo…» del grupo a un tema: la UI lo usa para reutilizar la conversación normal dentro de un tema. tc-store guarda los temas y el tema de cada mensaje (migración 0008: `groups.is_forum`, `forum_topics`, `message_topics`) y los sirve sin red.
 
-Errores: `BackendError{ Network, FloodWait(secs), Unauthorized, NotFound, Forbidden(reason), InvalidInput(field), Crypto(..), Storage(..), Internal }`; la UI tiene un mensaje para cada uno.
+**Transferencias** (2026-11-14, ADR-0011, `tc-core/src/transfer.rs` y `file_name.rs`). Contrato:
+
+```rust
+pub enum TransferId { Upload(RandomId), Download(u64) }      // Upload: random_ids[0] de OutgoingMedia
+pub enum TransferKind { Upload, Download }
+pub enum TransferState { Running, Done, Failed(BackendError), Cancelled }
+pub struct Transfer { id, kind, peer: PeerRef, msg: Option<MsgId>, name: String, done: u64, total: u64, state }
+BackendEvent::TransferProgress(Transfer)
+// MediaApi (por defecto Err(unsupported())):
+async fn download_media_to(&self, peer, msg, file: FileRef, variant, dest: PathBuf) -> BackendResult<TransferId>;
+async fn cancel_transfer(&self, id: TransferId) -> BackendResult<()>;
+// Utilidades: TransferId::upload_of(&OutgoingMedia), Transfer::fraction(), partial_path(&dest),
+// sanitize_file_name(&str) -> String, unique_path(&dir, name) -> PathBuf, unique_path_with(.., exists)
+```
+
+- Cada transferencia: `Running` (0, …, `done` creciente) y **un único** estado terminal. El primer evento puede
+  llegar antes que el id devuelto. `Done` de una descarga = archivo ya en `dest`; de una subida = después de los
+  `MessageSent`. Fallo o cancelación: sin `.part` y `dest` intacto. Cancelada, `send_media` devuelve
+  `Err(BackendError::Cancelled)`.
+- Errores inmediatos de `download_media_to` (sin eventos): `NotFound`, `InvalidInput("dest")`, `Network`.
+- `CachedBackend`, `MediaCacheLayer` y `ThreadScope` pasan las dos llamadas tal cual; los eventos siguen por el
+  bombeo (no se persisten). Las descargas a disco no entran en la caché de medios.
+- `sanitize_file_name`: sin separadores ni `<>:"|?*`/controles/bidi, sin `..` ni puntos o espacios en los
+  extremos, reservados de Windows con `_`, ≤ 200 bytes con extensión, vacío → `archivo`. `unique_path`: sufijo
+  « (1)», « (2)»….
+
+Errores: `BackendError{ Network, FloodWait(secs), Unauthorized, NotFound, Forbidden(reason), InvalidInput(field), Crypto(..), Storage(..), Internal, PremiumRequired, ReactionUnavailable, Cancelled }`; la UI tiene un mensaje para cada uno.
 
 Webhooks: no aplica (cliente). Entradas push: el flujo de updates de MTProto. Salidas: ninguna.
 
@@ -149,7 +177,7 @@ Un solo runtime: iced con la feature `tokio` usa un runtime tokio multihilo como
 | Red | tareas tokio de grammers (runner del sender + bombeo de updates) | conexión, sesión, estado de updates (pts/qts) | emite `BackendEvent` |
 | Bombeo de sincronización | 1 tarea tokio en `CachedBackend` | orden de aplicación | lee eventos del backend → escribe en store → reemite a la UI |
 | Store | 1 hilo `std` dedicado | `rusqlite::Connection` (escritura) + 1 conexión de lectura | `mpsc` + `oneshot`; agrupa escrituras en una transacción cada ≤16 ms o 256 operaciones |
-| Transferencias | tareas tokio limitadas por `Semaphore` (4 descargas, 2 subidas; partes de 512 KiB) | progreso | eventos `Transfer` a ≤10 Hz |
+| Transferencias | tareas tokio limitadas por `Semaphore` (4 descargas, 2 subidas; partes de 512 KiB) | progreso, cancelación por `TransferId` | eventos `TransferProgress` a ≤10 Hz (ADR-0011) |
 | Decodificación | `spawn_blocking` | WebP/fotos/fotogramas Lottie | devuelve RGBA a la UI |
 | Temporizador TTL | 1 tarea tokio | próximo `destroy_at` de `secret_messages` | borra y emite `SecretMessagesDeleted` |
 
@@ -159,7 +187,7 @@ Camino de escritura (enviar): la UI genera `random_id`, inserta optimista `send_
 
 Orden y contrapresión: el bombeo es secuencial, así que el orden por chat se mantiene. El canal hacia la UI es acotado (1024). Los eventos efímeros (`Typing`, `UserStatus`, `Transfer`) se coalescen (gana el último por clave). Si el canal se llena, el bombeo no bloquea la red: descarta efímeros y, si aún falta sitio, marca `Resync` y la UI recarga lo visible desde el store.
 
-Cancelación: `Task::abortable` en iced; la UI guarda el handle de cada subida/descarga. Soltar el futuro cancela la transferencia; la subida queda `paused` en `uploads` para reanudar.
+Cancelación (ADR-0011): explícita con `MediaApi::cancel_transfer(TransferId)`; la descarga a disco corre en una tarea del backend (soltar el futuro de `download_media_to` no la para) y una subida se cancela por el id derivado de su primer `random_id`. Reanudar subidas tras cerrar la app queda fuera de alcance.
 
 Regla de oro: `update()` de iced nunca bloquea ni hace E/S.
 
@@ -170,6 +198,7 @@ Regla de oro: `update()` de iced nunca bloquea ni hace E/S.
 - Guion de tiempo real: mensaje entrante cada N s, "escribiendo…", reacciones ajenas, ediciones, borrados.
 - Login simulado: el código de prueba vive como constante en `tc-mock` (valor de test, nunca una credencial real).
 - E2E: dos cuentas simuladas en el mismo proceso ejecutan `tc-secret` de verdad (DH, cifrado, secuencias, re-keying, TTL), con un primo de prueba de 2048 bits fijo en el código del mock.
+- Transferencias simuladas (ADR-0011, `transfers.rs`): `TransferSim{chunk, delay, fail_at}` con `set_transfer_sim`; el ritmo lo marca el reloj de tokio (pruebas con `start_paused`), cancelación real y fallo inyectable a N bytes; `download_media_to` escribe de verdad en `<dest>.part` y renombra.
 - Es también el doble de pruebas de `tc-ui` y `tc-store`.
 
 ## 6. Chats secretos (tc-secret) — EXPERIMENTAL

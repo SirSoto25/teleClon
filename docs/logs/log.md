@@ -297,3 +297,12 @@
 - Nuevos tests en `crates/tc-ui/src/tests_qa.rs` (9 pasan + 1 ignorado que reproduce B-01). Única modificación fuera de tests: `mod tests_qa` bajo `#[cfg(test)]` en `crates/tc-ui/src/lib.rs`.
 - Clippy `-D warnings` (1.99.1) limpio.
 - `replica/bugs.md`: B-01 (S3, sin límite de 4096 y aviso «vacío»); 7 puntos por comprobar. NO verificado: nada contra Telegram real. Sin commit.
+
+## 2026-11-14 — Fase A0: contratos de transferencias (agente A0, Opus)
+- ADR-0011 (`docs/adr/0011-transferencias.md`) y contrato en docs/architecture.md §3–§5.
+- tc-core: `transfer.rs` (`TransferId = Upload(RandomId) | Download(u64)`, `TransferKind`, `TransferState`, `Transfer{id, kind, peer, msg, name, done, total, state}`, `upload_of`, `fraction`, `partial_path`), `file_name.rs` (`sanitize_file_name`, `unique_path`, `unique_path_with`, `DEFAULT_FILE_NAME`, `MAX_FILE_NAME_BYTES` = 200), `BackendEvent::TransferProgress`, `BackendError::Cancelled`, `MediaApi::download_media_to` y `cancel_transfer` con implementación por defecto (no soportado); `ThreadScope` las pasa. `send_media` conserva la firma: su id es `Upload(random_ids[0])`.
+- tc-mock: `transfers.rs` (`TransferSim{chunk, delay, fail_at}`, `set_transfer_sim`, `active_transfers`, `MAX_STEPS`); `send_media` con progreso, cancelación y fallo; `download_media_to` a `.part` + renombrado.
+- tc-store: *passthrough* en `CachedBackend` y `MediaCacheLayer` (sin caché); el bombeo ignora `TransferProgress` en la base y lo reemite.
+- tc-ui: solo el texto de `Cancelled` y el brazo del evento (ignorado hasta A2/A3). tc-telegram sin cambios (implementación por defecto; la hace A1).
+- Pruebas: propiedades de saneado (20 000 nombres hostiles al azar: seguro, idempotente, un componente) y de `unique_path`; 8 de contrato en el mock (trozos, reloj virtual exacto, cancelar descarga y subida a mitad, fallo que no toca el destino, reintento que reemplaza, errores inmediatos sin eventos, orden `MessageSent` → `Done`); 2 de *passthrough* en tc-store.
+- Verificación: `cargo test --workspace` y `cargo +1.99.1 clippy --workspace --all-targets -- -D warnings` limpios. NO verificado contra Telegram real (no hay implementación real aún). Sin commit.

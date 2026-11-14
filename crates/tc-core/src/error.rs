@@ -30,4 +30,7 @@ pub enum BackendError {
     /// Esa reacción no existe o no está permitida en ese chat (`REACTION_INVALID`).
     #[error("reacción no disponible")]
     ReactionUnavailable,
+    /// Transferencia cancelada con `MediaApi::cancel_transfer` (p. ej. `send_media` a medias; ADR-0011).
+    #[error("cancelado")]
+    Cancelled,
 }

@@ -391,6 +391,19 @@ impl MediaApi for ThreadScope {
     async fn download_media(&self, peer: PeerRef, msg: MsgId, file: FileRef, variant: MediaVariant) -> BackendResult<Vec<u8>> {
         self.inner.download_media(peer, msg, file, variant).await
     }
+    async fn download_media_to(
+        &self,
+        peer: PeerRef,
+        msg: MsgId,
+        file: FileRef,
+        variant: MediaVariant,
+        dest: std::path::PathBuf,
+    ) -> BackendResult<crate::transfer::TransferId> {
+        self.inner.download_media_to(peer, msg, file, variant, dest).await
+    }
+    async fn cancel_transfer(&self, id: crate::transfer::TransferId) -> BackendResult<()> {
+        self.inner.cancel_transfer(id).await
+    }
 }
 
 #[async_trait]

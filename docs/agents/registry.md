@@ -21,3 +21,8 @@ Criterio: investigación/redacción estructurada → Sonnet (esfuerzo medio); de
 | --- | --- | --- | --- | --- | --- | --- |
 | 11 | diff | sonnet | medium | replica-diff: columna `clone` de features.csv + puntuación de paridad ponderada y faltantes | replica/features.csv, replica/diff-report.md | HECHO (paridad 45,0/100; must-haves 16 de 54; sin diff de pantallas por no haber captura del original; no se tocó código ni test-plan.md/bugs.md) |
 | 11 | QA | sonnet | medium | pasada replica-test: plan numerado, ejecución de la suite, tests nuevos de F04/F05/F07/F08, bugs | replica/test-plan.md, replica/bugs.md, replica/evidence/, crates/tc-ui/src/tests_qa.rs (+ `mod tests_qa` en lib.rs) | HECHO (cargo test --workspace: 411 OK + 9 nuevos OK + 1 ignorado que reproduce B-01; clippy -D warnings limpio; nada contra red real) |
+
+## 2026-11-14 — fase A0 (archivos)
+| # | Agente | Modelo | Esfuerzo | Tarea | Salida | Estado |
+| --- | --- | --- | --- | --- | --- | --- |
+| 12 | A0 contratos | opus | high | contrato de transferencias (progreso, cancelación, descarga a disco) y saneado de nombres; mock y *passthrough* | crates/tc-core (transfer.rs, file_name.rs, api.rs, event.rs, error.rs, forum.rs), crates/tc-mock (transfers.rs), crates/tc-store (cached.rs, media_cache.rs), 2 líneas en crates/tc-ui/src/app.rs, docs/adr/0011-transferencias.md, docs/architecture.md | HECHO (tests de propiedades + 8 de contrato en mock + 2 de passthrough; cargo test --workspace y clippy -D warnings limpios; tc-telegram con la implementación por defecto, la hace A1; sin commit) |

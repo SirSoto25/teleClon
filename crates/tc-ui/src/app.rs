@@ -447,6 +447,7 @@ pub fn error_text(e: &BackendError) -> String {
         BackendError::Internal => "Algo ha fallado. Inténtalo otra vez.".into(),
         BackendError::PremiumRequired => "Eso necesita una cuenta de Telegram Premium.".into(),
         BackendError::ReactionUnavailable => "Esa reacción no está disponible en este chat.".into(),
+        BackendError::Cancelled => "Se canceló la transferencia.".into(),
     }
 }
 
@@ -1681,6 +1682,8 @@ impl App {
                 self.downloads.insert(file_id, (done, total));
                 Task::none()
             }
+            // Subidas y descargas a disco (ADR-0011): las pintarán las fases A2/A3.
+            BackendEvent::TransferProgress(_) => Task::none(),
             BackendEvent::DialogRemoved { peer } => self.on_dialog_removed(peer),
             BackendEvent::HistoryCleared { peer } => self.on_history_cleared(peer),
             // Ya tratados en `forum_event`.

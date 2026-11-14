@@ -123,7 +123,45 @@ pub trait MessagesApi: Send + Sync {
 #[async_trait]
 pub trait MediaApi: Send + Sync {
     /// Envía fotos/archivos (un mensaje por elemento; la leyenda va en el primero).
+    ///
+    /// Progreso y cancelación (ADR-0011; opcional: un backend que no lo soporte no emite nada y la
+    /// UI muestra progreso indeterminado). Toda la llamada es **una** transferencia con id
+    /// `TransferId::Upload(media.random_ids[0])` (ver `TransferId::upload_of`), `total` = suma de
+    /// `size_bytes` y `name` = nombre del primer elemento: `TransferProgress` con `Running` y `done`
+    /// creciente; al final `Done` (después de los `MessageSent`), `Failed(e)` (y la llamada devuelve
+    /// `Err(e)`) o `Cancelled` si se llamó a `cancel_transfer` con ese id (y la llamada devuelve
+    /// `Err(BackendError::Cancelled)`; lo ya confirmado con `MessageSent` queda enviado). Los errores de
+    /// validación previos (lista vacía, chat de solo lectura) se devuelven sin emitir ningún evento.
     async fn send_media(&self, peer: PeerRef, media: OutgoingMedia) -> BackendResult<Vec<Message>>;
+    /// Descarga un medio del mensaje `msg` de `peer` **a disco**, en `dest`, por trozos y sin cargarlo
+    /// entero en memoria (ADR-0011). Vuelve en cuanto la transferencia arranca, con su id; el resto
+    /// llega como `BackendEvent::TransferProgress` (`Running` con `done` creciente y un único estado
+    /// terminal). Escribe en `partial_path(dest)` (`<dest>.part`, mismo directorio) y al terminar bien
+    /// lo renombra a `dest` **reemplazando** lo que hubiera (quien llama elige `dest` con
+    /// `unique_path` o tras confirmar «Guardar como…»); `Done` se emite con el archivo ya en su sitio.
+    /// Si falla o se cancela, borra el parcial y no toca `dest`.
+    ///
+    /// Errores inmediatos (sin eventos): `NotFound` si el mensaje o el archivo no existen,
+    /// `InvalidInput("dest")` si el directorio de `dest` no existe o `dest` es un directorio, `Network`
+    /// sin conexión. `msg = MsgId(0)` como en `download_media`. Por defecto, no soportado.
+    async fn download_media_to(
+        &self,
+        peer: PeerRef,
+        msg: MsgId,
+        file: FileRef,
+        variant: MediaVariant,
+        dest: std::path::PathBuf,
+    ) -> BackendResult<crate::transfer::TransferId> {
+        let _ = (peer, msg, file, variant, dest);
+        Err(unsupported())
+    }
+    /// Pide cancelar una transferencia (subida o descarga). Idempotente: si ya terminó o no se conoce,
+    /// devuelve `Ok(())` sin hacer nada. La cancelación se confirma con `TransferState::Cancelled` (o,
+    /// si llegó tarde, la transferencia acaba igualmente en `Done`). Por defecto, no soportado.
+    async fn cancel_transfer(&self, id: crate::transfer::TransferId) -> BackendResult<()> {
+        let _ = id;
+        Err(unsupported())
+    }
     /// Bytes de la foto de perfil `photo` del chat `peer` (usuario, grupo, canal; en un chat secreto,
     /// la del otro usuario). Formato de imagen tal cual lo da la red (JPEG en Telegram, PNG en el mock).
     async fn download_profile_photo(&self, peer: PeerRef, photo: ProfilePhoto, size: PhotoSize) -> BackendResult<Vec<u8>>;

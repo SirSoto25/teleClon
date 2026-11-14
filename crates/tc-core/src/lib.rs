@@ -11,12 +11,16 @@ pub mod api;
 pub mod auth;
 pub mod error;
 pub mod event;
+/// Nombres de archivo seguros (`sanitize_file_name`) y rutas libres (`unique_path`) para guardar a disco.
+pub mod file_name;
 /// Grupos con temas (foros): `ForumApi`, `ForumTopic`, `ThreadRef`, `ThreadScope`.
 pub mod forum;
 /// GIFs guardados/buscados y uso local de emojis (panel del compositor).
 pub mod gif;
 pub mod ids;
 pub mod model;
+/// Subidas y descargas con progreso y cancelación (`TransferId`, `Transfer`; ADR-0011).
+pub mod transfer;
 /// Forma de onda de 5 bits de las notas de voz (decodificar/codificar/reescalar).
 pub mod waveform;
 
@@ -24,7 +28,9 @@ pub use api::*;
 pub use auth::{AuthApi, AuthState, CodeKind, CodeRequest, QrToken, SignInResult};
 pub use error::{BackendError, BackendResult};
 pub use event::{BackendEvent, ConnectionState};
+pub use file_name::{DEFAULT_FILE_NAME, MAX_FILE_NAME_BYTES, sanitize_file_name, unique_path, unique_path_with};
 pub use forum::{ForumApi, ForumTopic, GENERAL_TOPIC, TOPIC_COLORS, ThreadRef, ThreadScope, TopicIcon, TopicsOffset, TopicsPage, TopicsQuery, sort_topics};
 pub use gif::{EmojiUse, GIF_MIME, Gif, GifPage, InlineResult};
 pub use ids::*;
 pub use model::*;
+pub use transfer::{Transfer, TransferId, TransferKind, TransferState, partial_path};

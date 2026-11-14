@@ -26,8 +26,13 @@ pub enum BackendEvent {
     UserStatus { user: UserId, status: UserStatus },
     Reactions { peer: PeerRef, msg_id: MsgId, reactions: Vec<ReactionCount> },
     SecretChat(SecretChat),
-    /// Progreso de una descarga larga (id del archivo, bytes recibidos, total conocido). Efímero.
+    /// Progreso de una descarga larga a memoria (`download_media`: id del archivo, bytes recibidos,
+    /// total conocido). Efímero. Las transferencias a disco y las subidas usan `TransferProgress`.
     Download { file_id: i64, done: u64, total: u64 },
+    /// Progreso o final de una subida (`send_media`) o una descarga a disco (`download_media_to`).
+    /// Los `Running` son efímeros (gana el último por id); el estado terminal llega una sola vez.
+    /// Puede llegar antes de que la UI reciba el `TransferId` de `download_media_to`. ADR-0011.
+    TransferProgress(crate::transfer::Transfer),
     /// El chat salió de la lista (borrado, abandonado o cerrado): se quita la fila y su historial.
     DialogRemoved { peer: PeerRef },
     /// Se vació el historial del chat (la fila sigue en la lista, sin mensajes).

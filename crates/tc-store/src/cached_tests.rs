@@ -437,3 +437,31 @@ async fn ventana_del_primer_no_leido_va_a_la_red_y_sin_red_a_la_cache() {
     let d2 = c.dialogs(all(false)).await.unwrap().into_iter().find(|x| x.peer == tc_mock::UNREAD_CHAT).unwrap();
     assert_eq!(d2.read_inbox_max_id, d.read_inbox_max_id);
 }
+
+/// ADR-0011: `CachedBackend` deja pasar las transferencias (descarga a disco, cancelación y el
+/// progreso de `send_media`) y sus eventos llegan por su propio flujo.
+#[tokio::test]
+async fn transfers_pass_through_with_their_events() {
+    let m = mock();
+    m.set_transfer_sim(tc_mock::TransferSim { chunk: 100, ..Default::default() });
+    let c = CachedBackend::new(m, Store::open_in_memory().unwrap());
+    let peer = PeerRef::User(UserId(1001));
+    let mut ev = c.events();
+    let item = OutgoingMediaItem { kind: MediaKind::File, path: "/tmp/a.pdf".into(), file_name: "a.pdf".into(), size_bytes: 500, width: 0, height: 0 };
+    let media = OutgoingMedia { items: vec![item], caption: String::new(), reply_to: None, random_ids: vec![RandomId(4040)] };
+    let sent = c.send_media(peer, media).await.unwrap().remove(0);
+    let up = TransferId::Upload(RandomId(4040));
+    let done = next_event(&mut ev, |e| matches!(e, BackendEvent::TransferProgress(t) if t.id == up && t.state.is_finished())).await;
+    assert!(matches!(done, BackendEvent::TransferProgress(t) if t.state == TransferState::Done && t.done == 500));
+
+    let dir = std::env::temp_dir().join(format!("tc-store-transfer-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let dest = dir.join("a.pdf");
+    let file = sent.media.unwrap().file.unwrap();
+    let id = c.download_media_to(peer, sent.id, file, MediaVariant::Full, dest.clone()).await.unwrap();
+    let end = next_event(&mut ev, |e| matches!(e, BackendEvent::TransferProgress(t) if t.id == id && t.state.is_finished())).await;
+    assert!(matches!(end, BackendEvent::TransferProgress(t) if t.state == TransferState::Done));
+    assert_eq!(std::fs::read(&dest).unwrap().len(), 500);
+    c.cancel_transfer(id).await.unwrap();
+    std::fs::remove_dir_all(&dir).unwrap();
+}
